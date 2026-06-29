@@ -241,7 +241,7 @@ Source of truth: `bismuth_serialize.py:22-54`. Frozen by `tests/test_characteriz
 - `genesis.py:74-80` — own sign+hash; chain-creation only, pre-fork, leave.
 
 ### 3.4 Legacy `txid == signature[:56]` consumers (mis-resolve once txid is content hash)
-`apihandler_tx.py:33,37,99`; `apihandler.py` legacy `api_gettransaction`; `rest_api.py:1177`; `rpc_bitcoin.py:124`; `rpc_ethereum.py:112`; `check_tx.py:38,53`; `ledger_explorer.py:175`; `plugins/tokens_aliases/__init__.py:145` (has blake2b fallback at `:147`). These already have a dual-mode pattern in `rest_api.py:1141-1181` (64-hex → re-hash scan; else `signature LIKE`); extend the same dual-mode lookup.
+`apihandler_tx.py:33,37,99`; `apihandler.py` legacy `api_gettransaction`; `rest_api.py:1177`; `check_tx.py:38,53`; `ledger_explorer.py:175`; `plugins/tokens_aliases/__init__.py:145` (has blake2b fallback at `:147`). These already have a dual-mode pattern in `rest_api.py:1141-1181` (64-hex → re-hash scan; else `signature LIKE`); extend the same dual-mode lookup. (`rpc_bitcoin.py` / `rpc_ethereum.py` — **DONE 2026-06-29**: resolve tx-by-id via `block_store` content-txid scan, content-txid producers throughout.)
 
 ### 3.5 Replay/dedup index keyed on signature (not txid)
 `mempool_sql.py:41,45`; `db_migrations.py:25` (`TXID4_Index` on `substr(signature,1,4)`); `digest.py:98-116` (`_signature_exists_in_ledger`); `mempool.py:425`. Replay protection keys on the **signature**, not the txid — unaffected by txid semantics, but verify the post-fork 65-byte recoverable sig is still a stable dedup key.

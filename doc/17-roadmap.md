@@ -197,15 +197,26 @@
   fork gate (see [`18-hardfork-hf2.md`](18-hardfork-hf2.md)).
 - **External-ecosystem RPC compatibility (edge adapters, non-consensus).** Plug Bismuth into standard
   tooling without bespoke integrations, beside `rest_api.py`, behind flags:
-  - **Bitcoin-compatible JSON-RPC** — translate the core `bitcoind` methods (`getblockcount`,
-    `getblockhash`/`getblock`, `getbalance`, `getnewaddress`, `sendtoaddress`, `sendrawtransaction`,
-    `getrawtransaction`, `gettransaction`) onto the ledger + wallet; enough for most exchange/explorer
-    integrations.
-  - **Ethereum/ERC-compatible interface** — the `eth_*` JSON-RPC subset (`eth_blockNumber`,
-    `eth_getBalance`, `eth_getTransactionByHash`, `eth_sendRawTransaction`) + ERC-20-style views of the
-    token layer, for web3/wallet tooling. Honestly bounded: Ethereum's account/gas/EVM model differs
-    fundamentally, so this is a **compatibility shim** (balances, tx submit, blocks, token views),
-    **not** an EVM — full smart-contract semantics are out of scope.
+  - **Bitcoin-compatible JSON-RPC** (`rpc_bitcoin.py`, flag `rpc_bitcoin`, port 8332) — **SHIPPED** as a
+    maximal faithful adapter: ~32 `bitcoind` methods — chain/header/mempool/mining/network reads
+    (`getblockcount`/`getblock`/`getblockheader`/`getchaintips`/`getrawmempool`/`getmininginfo`/…), balance
+    + tx reads (`getbalance`/`getrawtransaction`/`gettransaction`/`estimatesmartfee`/`validateaddress`), and
+    the gated write paths (`sendrawtransaction`/`submitblock`). Enough for most exchange/explorer
+    integrations. **Post-hf2 native:** ids are content-hash txids, reads route through `block_store` (LMDB),
+    never an unbounded ledger scan. Methods with no Bismuth backing (the UTXO/Script/PSBT/server-wallet
+    families — `gettxout`/`listunspent`/`getnewaddress`/`sendtoaddress`/…) return an honest `-32601` with
+    the specific reason rather than pretending.
+  - **Ethereum/ERC-compatible interface** (`rpc_ethereum.py`, flag `rpc_ethereum`, port 8545) — **SHIPPED**:
+    42 `eth_*`/`net_*`/`web3_*`/`txpool_*` methods. NOT read-only — `eth_call`/`eth_getCode`/
+    `eth_getStorageAt`/`eth_estimateGas` execute over the committed **RISC-V `vm_state`** (the post-hf2
+    on-chain VM below — the Ethereum *execution model*, not EVM bytecode). Honestly bounded by *literal*
+    Ethereum compatibility, a deliberate design divergence plus roadmap items — NOT "Bismuth can't do
+    contracts": addresses are 28-byte (no reversible 0x map), replay is content-txid dedup (no account
+    nonce), the contract ISA is RV32I (no Solidity ABI), events/logs need a VM log opcode (ROADMAP), and
+    inclusion proofs (`eth_getProof`) need the Merkle state trie (ROADMAP, doc/19). Unbacked methods return
+    `-32601` tagged ROADMAP vs DIVERGENCE. So it is **not** a MetaMask drop-in, but it is a faithful,
+    VM-aware Bismuth-flavoured `eth_*` API. Both adapters are unauthenticated + localhost-only (write paths
+    additionally gated by `rest_api_write`); expose via a reverse proxy, never straight to the internet.
 - **Decentralized-apps v2 protocol — on-chain VM execution (the real smart-contract layer).** What the
   shim above deliberately *isn't*: transactions carry program/call data, a **deterministic virtual
   machine** executes it on every node, and the resulting **state + output are written back to the chain

@@ -181,8 +181,8 @@ uncapped, free-form miner data. (Pre-fork the nonce rode in the openfield, `mine
   `blockstojson`/`blocktojsondiffs` and most REST/JSON tx shapes). Post-fork (`fork_height` passed and
   `raw[0] >= fork_height`): **compute** the content txid from the row via `bismuth_serialize.tx_id` over
   the `amounts.ledger_value`-normalised `'%.8f'` amount; pre-fork rows fall back to `raw[5][:56]`.
-- `rpc_bitcoin.py:109` (`rpc_getblock` tx list), `:129` (`rpc_getrawtransaction` `txid`).
-- `rpc_ethereum.py:109` (block `transactions`), `:117` (`hash`).
+- `rpc_bitcoin.py` (`rpc_getblock` tx list, `rpc_getrawtransaction` txid, `getrawmempool`/`sendrawtransaction` ids) — **DONE**: emit the content txid via `essentials.format_raw_tx` / `bismuth_serialize.tx_id_v2_s` (a `_mempool_txid` helper for the no-block-height mempool/wire rows).
+- `rpc_ethereum.py` (block `transactions`, tx `hash`, `txpool_*`/pending-filter/`eth_sendRawTransaction` ids) — **DONE**: same content-txid path.
 - `tokensv2.py:88` (issue), `:153` (transfer; already has the `txid=="0" -> blake2bhash_generate`
   fallback) and `token_index.py` consumers (txid is just an opaque key there — feed the new id).
 - `miner.py` / `regnet.py` build the wire tx; the **signer** (wallet send path,
@@ -201,8 +201,7 @@ uncapped, free-form miner data. (Pre-fork the nonce rode in the openfield, `mine
 - `apihandler_tx.api_gettransaction` (`apihandler_tx.py:31-38`), `api_gettransactionbysignature`
   (`:95-100` — this one is *by full signature*, keep as exact-signature match, but note post-fork sigs
   are hex compact), `api_gettransaction_for_recipients` (`:160-168`).
-- `rpc_bitcoin.rpc_getrawtransaction` (`rpc_bitcoin.py:124`),
-  `rpc_ethereum` equivalent (`rpc_ethereum.py:112`).
+- `rpc_bitcoin` / `rpc_ethereum` tx-by-id — **DONE**: `block_store` bounded recent-first content-txid scan (SQLite `substr(signature,1,4)` TXID4 seek only as a pre-fork fallback when no block_store).
 - `tokensv2.py:132` (the `openfield LIKE` token scan is unrelated — leave; only its `r[4][:56]` id
   derivation changes), `tokensv2.py:190` (`SELECT txid FROM tokens WHERE txid = ?` — the `tokens`
   side-index has its own `txid` column; feed it the computed content id, no `transactions` column

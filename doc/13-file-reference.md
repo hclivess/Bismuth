@@ -101,8 +101,8 @@ imported library; *script* = run directly.
 | `rest_stats.py` | module | explorer stats payloads (doc/15): cheap on-demand `network_summary`/`difficulty_series` + background-cached `tx_per_month` (full-ledger histogram) + best-effort `geo_nodes` peer geolocation (gated `rest_api_geo`) |
 | `rest_client.py` | module | stdlib REST client: capability discovery + parallel block fetch (`parallel_fetch`/`parallel_fetch_sync`) + `fetch_headers` for headers-first quick sync |
 | `api_sync.py` | module | capability-gated, fail-soft headers-first chain-segment fetch (`sync_segment`) — the seam between `rest_client` (transport) and the digester (consensus) |
-| `rpc_bitcoin.py` | module | bitcoind-compatible JSON-RPC adapter (flag `rpc_bitcoin`, off): getblockcount/getblock/getbalance/getrawtransaction/… for exchange/explorer tooling |
-| `rpc_ethereum.py` | module | `eth_*` compatibility shim (flag `rpc_ethereum`, off): hex-encoded chain/balance reads for web3 tooling — a bounded shim, **not** an EVM |
+| `rpc_bitcoin.py` | module | bitcoind-compatible JSON-RPC adapter (flag `rpc_bitcoin`, off, :8332): ~32 methods — chain/header/mempool/mining/network reads, getrawtransaction/getbalance/estimatesmartfee, gated sendrawtransaction/submitblock; post-hf2 content-txids over block_store; honest -32601 for UTXO/Script/PSBT/wallet |
+| `rpc_ethereum.py` | module | `eth_*` compatibility adapter (flag `rpc_ethereum`, off, :8545): 42 methods incl. eth_call/getCode/getStorageAt/estimateGas over the RISC-V `vm_state`; bounded by *literal* EVM compat (not MetaMask), ROADMAP/DIVERGENCE -32601 for unbacked |
 | `transport.py` | module | HTTP transport codecs (gzip/br) negotiated via `Accept-Encoding`; zero hard native deps |
 
 ## API / CLI

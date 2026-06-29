@@ -31,8 +31,8 @@ the VM [`19`](19-vm.md), post-quantum signatures [`20`](20-post-quantum.md), the
 | GPU miner | `gpuminer/` — CUDA (`bis.cu`) + OpenCL (`bismuth.cl`), today's **sha224-inner** Heavy3 | **vendored**, GPU-untested here; kernels are **sha224-only** (no blake2b path) — must be ported to blake2b before any mainnet hf2 signal (operational gate) |
 | REST API | `rest_api.py` — status/blocks/balance/tx/headers/peers/`fork` | **active** on the live node (:5659) |
 | Address-history query | composite indexes (migration v2) + UNION rewrite | **done + LIVE** — 2.5 s → 0.06 s |
-| Bitcoin JSON-RPC | `rpc_bitcoin.py` — getblockcount/getblock/getbalance/getrawtransaction/… | **implemented**, flag `rpc_bitcoin` (off); regnet-tested |
-| Ethereum/ERC shim | `rpc_ethereum.py` — `eth_*` subset (bounded; not an EVM) | **implemented**, flag `rpc_ethereum` (off); regnet-tested |
+| Bitcoin JSON-RPC | `rpc_bitcoin.py` — ~32 bitcoind methods (chain/mempool/mining/network reads + gated sendrawtransaction/submitblock); post-hf2 content-txids, block_store-backed; honest -32601 for UTXO/Script/PSBT/wallet | **implemented**, flag `rpc_bitcoin` (off); regnet-tested |
+| Ethereum/ERC adapter | `rpc_ethereum.py` — 42 `eth_*` methods incl. `eth_call`/`getCode`/`getStorageAt` over the RISC-V `vm_state`; bounded by *literal* EVM compat (not a MetaMask drop-in), ROADMAP/DIVERGENCE -32601 for the rest | **implemented**, flag `rpc_ethereum` (off); regnet-tested |
 | Block explorer | `explorer.bismuth.cz` (SPA over the REST API) | **live** — blocks/tx/address + **Tokens / Nodes / Supply / Contracts** views, SVG favicon, node-switcher |
 | Explorer/RPC endpoints | `/api/supply`, `/api/tokens`, `/api/token/{n}`, `/api/token/tx/{address}`, `/api/alias/{name}`, `/api/aliases/{address}`, `/api/nodes`, `/api/vm/*`, `/api/proxy?target=` + token-index | **live/done** (supply background-computed; token-first indexes) |
 | Bootstrap hosting + snapshot | `https://bismuth.cz/ledger.tar.gz` + `scripts/snapshot.py` | **live** — live-safe (SQLite online-backup + LMDB `env.copy`), integrity-checked |

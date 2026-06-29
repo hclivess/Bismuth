@@ -97,7 +97,7 @@ full aggregate is correct and required.
 | `chain_ops.recompress_ledger` | Already a single range scan; the VACUUM runs on a temp copy. Its real issue is a **correctness** blocker, not perf (see §6). |
 | `block_store.build_from_sqlite`, `shieldedv1`, `scripts/snapshot.py` | Already correctly batched/incremental/height-keyed — the *model to copy*, not fix. |
 | `staking.py`, `reward_chain.extract`, `migrate_amounts.py`, `ledger_explorer.py` | Experimental-off / one-shot offline tools / separate process. Out of scope; just never point them at the live `ledger.db`. |
-| `rpc_bitcoin.py:124` signature LIKE | Same fix as §2.2 but behind the default-OFF `rpc_bitcoin` flag (inert on prod); apply opportunistically. |
+| `rpc_bitcoin.py` / `rpc_ethereum.py` tx-by-id | **RESOLVED (2026-06-29)**: post-hf2 the adapters resolve tx-by-id through `block_store` (bounded recent-first content-txid scan); the SQLite `substr(signature,1,4)` indexed seek is now only a pre-fork legacy fallback — no bare `signature LIKE` full-table scan remains in either adapter. |
 
 ---
 

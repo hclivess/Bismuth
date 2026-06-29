@@ -120,7 +120,7 @@ as a `node.*` attribute / config line.)
 | `txid_scan_limit` | int | max rows the bounded, recent-first content-txid (`/api/tx/<64-hex>`) scan will re-hash before erroring (default **250000**, `rest_api.py:1181`); deeper history is reachable with `?from_height` (audit H-4) |
 | `shield` | bool | opt-in shielded value (doc/22): validate/index `shield:` txs — inert until hf2 activates |
 | `token_index` | bool | opt-in LMDB token/alias side-index (doc/26 stage 2, served by the `tokens_aliases` plugin — doc/27), replacing the SQLite `index.db` projection post-fork |
-| `rpc_bitcoin` / `rpc_bitcoin_port`, `rpc_ethereum` / `rpc_ethereum_port` | bool/int | external RPC-bridge config keys (atomic-swap tooling) |
+| `rpc_bitcoin` / `rpc_bitcoin_port`, `rpc_ethereum` / `rpc_ethereum_port` | bool/int | enable the external bitcoind-compatible (`:8332`) / `eth_*` (`:8545`) JSON-RPC adapters for exchange/explorer/web3 tooling (doc/17); both default off |
 
 Two modernized subsystems have **no config knob by design**: the **dynamic base fee** (`fee_dynamics.py`)
 is computed algorithmically from recent block fullness post-fork, and the **peer-reputation** system
