@@ -117,6 +117,14 @@ proof that ONE entry (a specific locked-BIS slot) is in the committed state.
   (`test_vm_post_fork`), reorg-determinism (`test_vm_value`), and **3 independently-built ledgers commit the
   identical Merkle root** (`test_multinode_integration`). The flat `state_root()` is retained as an
   internal/debug function.
+- **Stage 2c — peg-in vault (SHIPPED).** `contracts/bridge_vault.py` — `FN_LOCK` locks attached BIS naming
+  an Ethereum recipient; the BIS sits in the contract's OWN custody (no operator) and the lock
+  (`amount` + the 20-byte recipient) is written to storage under an incrementing id, so it is
+  **Merkle-provable** against the committed root. Tested `tests/test_bridge_vault.py`: lock → custody held →
+  `merkle_prove_storage` verifies against `merkle_root()` → tamper-rejection → two independent locks each
+  provable. This is the custody + provable-record half of peg-in; the Ethereum-side mint (Stage 3) consumes
+  exactly these proofs. (Limitation: VM callvalue/storage words are 32-bit, so a single lock's amount is
+  ≤2³² units in the VM's view — widening to multi-word amounts is tracked with the rest of Stage 2/3.)
 
 ### Stage 3 — zk proof of Bismuth PoW consensus (planned, frontier)
 The inbound half (Ethereum verifies Bismuth) cannot use a naive header light client: Bismuth's PoW is
@@ -145,8 +153,11 @@ safety (require N confirmations / finality before mint), proof malleability, and
 | 1c | `eth_verify.py` verifier contract (syscalls compose) | **done** — `tests/test_eth_verify.py` |
 | 2a | Merkle commitment + inclusion proofs (`vm_merkle.py`) | **done** — `tests/test_vm_merkle.py` |
 | 2b | Merkle root as the enforced (hf2-gated) commitment | **done** — `digest.py`/`node.py`/`chain_ops.py`; live regnet + 3-node validated |
-| 3 | zk-SNARK of Bismuth PoW consensus (EVM-verifiable) | planned (frontier) |
-| — | Vault + wBIS verifier contracts, relayer reference client | planned (build on 1–3) |
+| 2c | peg-in vault `bridge_vault.py` (custody + provable lock) | **done** — `tests/test_bridge_vault.py` |
+| 3 | zk-SNARK of Bismuth PoW consensus (EVM-verifiable) | planned (frontier — needs a proving stack) |
+| — | peg-out MPT/finality verifier on Bismuth | partial — `eth_verify.py` (signer) done; MPT walk + finality (1b) pending |
+| — | wBIS verifier + mint/burn contracts (Solidity, Ethereum) | design (§9) — depends on Stage 3 |
+| — | permissionless relayer reference client | design (§10) |
 
 ---
 
@@ -164,3 +175,80 @@ addresses to integrate against / point the bridge's mint-burn contracts at.
 | BNB Chain | BNB / wBIS pool | `0x731b8244f818fd488d9dc516edd976a96459ae59` | https://bscscan.com/address/0x731b8244f818fd488d9dc516edd976a96459ae59 |
 
 > Addresses are lowercase as supplied; verify the EIP-55 checksum before hard-coding into a contract.
+
+---
+
+## 7. Component inventory (built vs designed)
+
+| Where | Component | File | State |
+|---|---|---|---|
+| Bismuth VM | `keccak256` / `ecrecover` syscalls | `bismuth_riscv.py` | ✅ built + tested |
+| Bismuth VM | `bls_verify` syscall (ETH finality) | — | ⏸ spec'd, dep-blocked (§3 Stage 1b) |
+| Bismuth state | Merkle commitment + inclusion proofs | `vm_merkle.py`, `vm_state.py` | ✅ built + tested |
+| Bismuth consensus | Merkle root = committed state root | `digest.py`/`node.py`/`chain_ops.py` | ✅ built + live-validated |
+| Bismuth contract | peg-in **vault** (lock BIS, provable record) | `contracts/bridge_vault.py` | ✅ built + tested |
+| Bismuth contract | ETH-signer **verifier** (peg-out auth core) | `contracts/eth_verify.py` | ✅ built + tested |
+| Bismuth contract | peg-out **release** (verify ETH burn → release) | — | ◐ partial — signer done; MPT walk + finality pending |
+| Ethereum | `wBIS` ERC-20 + Uniswap pool | live (§6) | ✅ deployed (today's wBIS) |
+| Ethereum | Bismuth-consensus **zk verifier** + mint/burn | — | 📐 design (§9); needs Stage 3 proof |
+| off-chain | permissionless **relayer** | — | 📐 design (§10) |
+
+Everything in the *value path* that is buildable without a new dependency or a proving stack is **built and
+tested**. The two remaining gaps are exactly the two environment-blocked pieces: a BLS12-381 dep (Stage 1b)
+and a zk proving toolchain (Stage 3).
+
+## 8. End-to-end flows
+
+**Peg-in (BIS → wBIS), trustless:**
+1. User calls `bridge_vault.FN_LOCK(eth_recipient)` on Bismuth, attaching the BIS to lock. The BIS enters the
+   vault's own custody; the lock `(amount, eth_recipient, id)` is written to consensus state.
+2. After the block is mined, the lock is a leaf under the committed **Merkle state root** — provable with
+   `vm_state.merkle_prove_storage` (`§Stage 2`).
+3. A **relayer** (anyone) produces a **zk proof** that "Bismuth committed this state root at a finalized
+   height" (`§Stage 3`) and the Merkle inclusion proof of the lock, and submits both to the Ethereum verifier.
+4. The Ethereum verifier contract checks the zk proof + inclusion proof (no trust in the relayer) and **mints
+   `amount` wBIS to `eth_recipient`**. Each lock id is a nullifier → no double-mint.
+
+**Peg-out (wBIS → BIS), trustless:**
+1. User **burns** wBIS on Ethereum, naming a Bismuth recipient; the burn emits a log committed under the
+   block's `receiptsRoot`.
+2. A relayer carries the Ethereum header + a Merkle-Patricia proof of the burn log to the Bismuth release
+   contract.
+3. The Bismuth contract verifies: the header is **finalized** (sync-committee BLS — Stage 1b) and the burn log
+   is included under its `receiptsRoot` (RLP + MPT walk hashed with `keccak256` — `eth_verify.py` proves the
+   signer/commitment core today; the full MPT walk is the remaining piece), then **releases the locked BIS**.
+   Each burn is a nullifier → no double-release.
+
+Neither flow has a custodian or a signer set: step 3/4 is contract code re-verifying the *other chain's
+consensus*. Relayers only carry data the destination independently re-checks (`§1`).
+
+## 9. Ethereum side (design)
+
+A Solidity verifier + the wBIS mint/burn authority (replacing today's wBIS minter with a trustless one):
+- `verifyBismuthState(zkProof, stateRoot, height)` — a Groth16/Plonk verifier (auto-generated from the
+  Stage-3 circuit) attesting the root was committed at a finalized Bismuth height.
+- `mint(inclusionProof, lockId, recipient, amount, stateRoot)` — checks `verifyBismuthState` + the Merkle
+  inclusion of the lock leaf (the same `vm_merkle` scheme, re-implemented in Solidity: blake2b + the
+  `0x00/0x01` domain tags + promotion rule), marks `lockId` consumed, mints wBIS.
+- `burn(amount, bismuthRecipient)` — burns wBIS and emits `Burn(bismuthRecipient, amount, nonce)` for the
+  peg-out proof.
+The blake2b + Merkle verify in Solidity is cheap; the zk verify is one pairing-check precompile call.
+
+## 10. Relayer (design)
+
+A stateless, **permissionless** daemon (anyone runs one; reference client to ship): watch both chains, build
+the zk + inclusion proofs for pending locks/burns, submit to the destination verifier, retry/replace.
+It holds no keys to user funds and cannot forge a proof — a wrong or absent relayer only delays a transfer
+until an honest one (or the user) submits. Liveness, not trust (`§1`).
+
+## 11. How to finish (the two dependency decisions)
+
+1. **Stage 1b — add a BLS12-381 dependency** (`py_ecc` reference or `blst`), then implement `SYS_BLS_VERIFY`
+   exactly as keccak/ecrecover were added (the ABI is fixed in §3). Unblocks ETH sync-committee finality →
+   the peg-out release contract.
+2. **Stage 3 — stand up a zk proving toolchain** (circom/halo2/gnark) and build the circuit proving Bismuth's
+   header chain + cumulative blake2b/heavy3 work + the committed Merkle root, with an EVM verifier. Unblocks
+   the peg-in mint.
+Both are environment/dependency decisions, not code that can be conjured deterministically here; everything
+they depend on (the VM crypto, the provable Merkle state, the vault, the signer verifier) is already built
+and tested.
