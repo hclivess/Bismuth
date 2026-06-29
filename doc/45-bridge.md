@@ -99,10 +99,14 @@ proof that ONE entry (a specific locked-BIS slot) is in the committed state.
   consensus root is **byte-identical** — commitment unchanged). `vm_state.merkle_root()` / `merkle_proof()` /
   `merkle_prove_storage()` expose it. Tested in `tests/test_vm_merkle.py` (odd-count promotion,
   tamper-rejection, and a pin that `state_root` is byte-identical post-refactor).
-- **Stage 2b — make the Merkle root the enforced commitment (planned).** Wire `merkle_root` into the
-  per-block coinbase commitment (beside/instead of the flat root), behind the single hf2 gate, with the same
-  rollback-rebuild + digester-reject path the flat root has today (`doc/19`). Until then the Merkle root is
-  additive — proof generation works; the flat root stays the enforced one.
+- **Stage 2b — Merkle root is the enforced commitment (SHIPPED).** `node.vm_state_root` — the value the
+  miner embeds in the coinbase, the digester validates, the API exposes, and rollback rebuilds — is now the
+  **Merkle root**, switched at all three source sites (`digest.py`, `node.py`, `chain_ops.py`) in lockstep,
+  post-fork only (rides the one hf2 gate, no new signal). Inclusion proofs from `merkle_prove_storage` now
+  chain to exactly what consensus commits. Validated live on regnet: committed-root enforcement
+  (`test_vm_post_fork`), reorg-determinism (`test_vm_value`), and **3 independently-built ledgers commit the
+  identical Merkle root** (`test_multinode_integration`). The flat `state_root()` is retained as an
+  internal/debug function.
 
 ### Stage 3 — zk proof of Bismuth PoW consensus (planned, frontier)
 The inbound half (Ethereum verifies Bismuth) cannot use a naive header light client: Bismuth's PoW is
@@ -129,7 +133,7 @@ safety (require N confirmations / finality before mint), proof malleability, and
 | 1 | `SYS_KECCAK256` / `SYS_ECRECOVER` VM syscalls | **done** — `bismuth_riscv.py`, `tests/test_riscv_crypto.py` |
 | 1b | `SYS_BLS_VERIFY` (ETH sync-committee finality) | planned |
 | 2a | Merkle commitment + inclusion proofs (`vm_merkle.py`) | **done** — `tests/test_vm_merkle.py` |
-| 2b | Merkle root as the enforced (hf2-gated) commitment | planned (`doc/19`) |
+| 2b | Merkle root as the enforced (hf2-gated) commitment | **done** — `digest.py`/`node.py`/`chain_ops.py`; live regnet + 3-node validated |
 | 3 | zk-SNARK of Bismuth PoW consensus (EVM-verifiable) | planned (frontier) |
 | — | Vault + wBIS verifier contracts, relayer reference client | planned (build on 1–3) |
 

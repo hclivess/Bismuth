@@ -90,7 +90,7 @@ def _rebuild_derived_state(node, db_handler, keep_height):
         try:
             import vm_engine
             vm_engine.rebuild(node.vm_state, db_handler.h, node.fork_height, keep_height)
-            node.vm_state_root = node.vm_state.state_root()
+            node.vm_state_root = node.vm_state.merkle_root()   # doc/45 Stage 2b: committed root = Merkle root
         except Exception as e:
             node.logger.app_log.warning(f"vm state rollback rebuild failed: {e}")
 

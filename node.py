@@ -1721,7 +1721,7 @@ if __name__ == "__main__":
                     import vm_state as _vm_state_mod
                     vm_path = _os.path.join(_os.path.dirname(node.ledger_path) or ".", "vmstate")
                     node.vm_state = _vm_state_mod.VMState(vm_path)
-                    node.vm_state_root = node.vm_state.state_root()
+                    node.vm_state_root = node.vm_state.merkle_root()   # doc/45 Stage 2b: committed root = Merkle root
                     node.logger.app_log.warning("Status: VM enabled (executes vm: txs post-fork)")
                 except Exception as e:
                     node.logger.app_log.warning("Status: VM could not start: {}".format(e))

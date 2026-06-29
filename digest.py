@@ -831,8 +831,11 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
                 for _to, _amt in payouts:
                     db_handler.vm_payout(block_instance.block_height_new, miner_tx.q_block_timestamp,
                                          block_instance.mirror_hash, _to, _amt)
-                # consensus-committable STATE ROOT (now covers contract custody balances too).
-                node.vm_state_root = _vms.state_root()
+                # consensus-committable STATE ROOT (covers code + storage + custody). doc/45 Stage 2b: the
+                # committed root is the MERKLE root (vm_merkle), over the SAME entries as the flat root, so a
+                # light-client / zk verifier can prove a single locked entry against exactly what consensus
+                # commits. Post-fork only (this branch is already hf2-gated) — rides the one fork, no new signal.
+                node.vm_state_root = _vms.merkle_root()
             except Exception as e:
                 node.logger.app_log.warning(
                     f"vm execution failed at {block_instance.block_height_new}: {e}")
