@@ -83,10 +83,20 @@ with the rest of the VM):
   (the same secp256k1 lib shielded/ringct already use on the consensus path). Malformed input is a clean
   `a0=0`, never a leaked fault. Re-exported in `contracts/asmtools.py`; tested in `tests/test_riscv_crypto.py`
   (keccak KAT + keccak-of-calldata + ecrecover correctness/`v∈{0,1,27,28}`/rejection/determinism).
-- **Still needed for full ETH finality:** post-Merge Ethereum finality uses the **sync committee** (512
-  validators, BLS12-381 signatures) — a `SYS_BLS_VERIFY` (or a pairing precompile) is the follow-on so the
-  Bismuth-side light client can verify *finalized* ETH headers, not just signatures. Buildable in-VM but
-  pairing-heavy; scoped as Stage 1b.
+- **Verifier primitive (SHIPPED):** `contracts/eth_verify.py` — a deployable RV32I contract composing BOTH
+  syscalls end-to-end: `keccak256(payload)` → `ecrecover` → authorise iff the recovered signer is the baked
+  Ethereum address. This is the peg-OUT authentication core (proves the syscalls compose into real on-chain
+  Ethereum verification). Tested in `tests/test_eth_verify.py` (authorised / wrong-signer / tampered-payload /
+  garbage-sig / high-bit-address cases). Re-exported Asm helpers `a.keccak256()` / `a.ecrecover()`.
+
+- **Stage 1b — `SYS_BLS_VERIFY` (DEFERRED, spec'd).** Post-Merge Ethereum *finality* is the sync committee
+  (512 validators, BLS12-381). Verifying a *finalized* header needs a BLS12-381 verify syscall:
+  `BLS_VERIFY(pubkey 48B (G1, minimal-pubkey-size), msg 32B root, sig 96B (G2)) -> 1/0`, a pairing check.
+  **Not added this round on purpose:** a consensus primitive must be byte-identical-deterministic across
+  every node, and that requires a vetted BLS12-381 dependency (`py_ecc` reference, or `blst`) — none is
+  currently installed or declared in this repo. Adding the dep is the gating decision; the syscall is
+  spec'd and slots in exactly like keccak/ecrecover once it lands. Until then the light client can verify
+  ETH *signatures* (ecrecover) but not sync-committee *finality*.
 
 ### Stage 2 — Merkle state trie
 The flat state root proves *all* state at once; a remote light-client / zk verifier instead needs a compact
@@ -131,7 +141,8 @@ safety (require N confirmations / finality before mint), proof malleability, and
 | Stage | Component | Status |
 |---|---|---|
 | 1 | `SYS_KECCAK256` / `SYS_ECRECOVER` VM syscalls | **done** — `bismuth_riscv.py`, `tests/test_riscv_crypto.py` |
-| 1b | `SYS_BLS_VERIFY` (ETH sync-committee finality) | planned |
+| 1b | `SYS_BLS_VERIFY` (ETH sync-committee finality) | **deferred** — needs a BLS12-381 dep (`py_ecc`/`blst`); spec'd, not added |
+| 1c | `eth_verify.py` verifier contract (syscalls compose) | **done** — `tests/test_eth_verify.py` |
 | 2a | Merkle commitment + inclusion proofs (`vm_merkle.py`) | **done** — `tests/test_vm_merkle.py` |
 | 2b | Merkle root as the enforced (hf2-gated) commitment | **done** — `digest.py`/`node.py`/`chain_ops.py`; live regnet + 3-node validated |
 | 3 | zk-SNARK of Bismuth PoW consensus (EVM-verifiable) | planned (frontier) |

@@ -141,6 +141,18 @@ class Asm:
         """SYS_TRANSFER(a0=ptr to 28-byte recipient, a1=ptr to 8-byte amount) -> a0 = 1 if queued."""
         return self.mv(A0, addr_ptr_reg).mv(A1, amt_ptr_reg).syscall(SYS_TRANSFER)
 
+    # --- cross-chain / bridge ECALLs (doc/45) -----------------------------
+    def keccak256(self, ptr_reg, len_reg, out_ptr_reg):
+        """SYS_KECCAK256: keccak-256 of `len_reg` bytes at [ptr_reg] -> 32 bytes at [out_ptr_reg]. The hash
+        Ethereum uses for RLP / Merkle-Patricia nodes / addresses. Args are registers."""
+        return self.mv(A0, ptr_reg).mv(A1, len_reg).mv(A2, out_ptr_reg).syscall(SYS_KECCAK256)
+
+    def ecrecover(self, hash_ptr_reg, sig_ptr_reg, out_ptr_reg):
+        """SYS_ECRECOVER: recover the 20-byte ETH address that signed the 32-byte hash at [hash_ptr_reg]
+        with the 65-byte sig (r|s|v) at [sig_ptr_reg], writing it to [out_ptr_reg]; a0 = 1 on success else 0
+        (out zeroed). Solidity's `ecrecover`. Args are registers."""
+        return self.mv(A0, hash_ptr_reg).mv(A1, sig_ptr_reg).mv(A2, out_ptr_reg).syscall(SYS_ECRECOVER)
+
     # --- contract-flexibility ECALLs (doc/19 — issue #384) ----------------
     def call(self, callee_ptr, value_ptr, cd_ptr, cd_len, ret_ptr, ret_len):
         """SYS_CALL: run the contract at [callee_ptr] (28-byte addr) in ITS own storage/custody, forwarding
