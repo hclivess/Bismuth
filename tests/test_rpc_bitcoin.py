@@ -47,3 +47,47 @@ def test_getbalance_and_errors(client):
 
     miss = _rpc("nonexistent_method")
     assert miss["result"] is None and miss["error"]["code"] == -32601
+
+
+def test_header_and_chain_reads(client):
+    client.mine(2)
+    sleep(0.3)
+    h = _rpc("getblockcount")["result"]
+    bh = _rpc("getblockhash", [h])["result"]
+    hdr = _rpc("getblockheader", [bh])["result"]
+    assert hdr["height"] == h and hdr["hash"] == bh and hdr["confirmations"] >= 1
+
+    tips = _rpc("getchaintips")["result"]
+    assert tips[0]["status"] == "active" and tips[0]["height"] == h
+
+    info = _rpc("getblockchaininfo")["result"]
+    assert info["headers"] == info["blocks"] and info["pruned"] is False
+
+
+def test_mempool_mining_network_reads(client):
+    mi = _rpc("getmempoolinfo")["result"]
+    assert "size" in mi and "bytes" in mi and mi["loaded"] is True
+    assert isinstance(_rpc("getrawmempool")["result"], list)
+
+    mining = _rpc("getmininginfo")["result"]
+    assert mining["blocks"] >= 1 and "networkhashps" in mining and "difficulty" in mining
+
+    net = _rpc("getnetworkinfo")["result"]
+    assert net["connections"] >= 0 and "relayfee" in net
+    assert isinstance(_rpc("getpeerinfo")["result"], list)
+
+    fee = _rpc("estimatesmartfee", [6])["result"]
+    assert float(fee["feerate"]) >= 0
+
+
+def test_util_and_unsupported(client):
+    good = _rpc("validateaddress", [client.address])["result"]
+    assert good["isvalid"] is True
+    assert _rpc("validateaddress", ["nope"])["result"]["isvalid"] is False
+
+    # architecturally-impossible methods return a specific -32601 reason, not a bare "not found"
+    utxo = _rpc("gettxout", ["x", 0])
+    assert utxo["error"]["code"] == -32601 and "UTXO" in utxo["error"]["message"]
+
+    helped = _rpc("help")["result"]
+    assert "getblock" in helped["supported"] and "gettxout" in helped["unsupported"]
