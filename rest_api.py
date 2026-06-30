@@ -271,20 +271,44 @@ def _make_handler(node):
             return "", None
 
         def _snapshot_info(self):
-            # doc/43: manifest of the pre-built snapshot this node serves (or {available:false}). Reading
-            # the sidecar only; never scans the live ledger. Gated by snapshot_serve.
+            # doc/43: prefer DB-DIRECT (on-demand, no pre-built file) — if the live LMDB block store is
+            # present, report a snapshot generated straight from it (tip height + tip_hash, read O(1)).
+            # Otherwise fall back to the pre-built tarball manifest (sidecar only; never scans the live
+            # SQLite ledger). Gated by snapshot_serve.
             if not getattr(node, "snapshot_serve", False):
                 raise _NotFound("snapshot serving disabled")
             import snapshot_p2p
+            info = snapshot_p2p.db_snapshot_info(node)
+            if info is not None:
+                return info
             man = snapshot_p2p.read_manifest(getattr(node, "snapshot_path", "") or "static/ledger-snapshot.tar.gz")
             return {"available": True, **man} if man else {"available": False}
 
         def _send_snapshot(self):
-            # doc/43: stream the ALREADY-BUILT snapshot tarball (chunked; tar.gz is already compressed, so
-            # no HTTP re-compression). Never builds/scans on a request.
+            # doc/43: prefer DB-DIRECT streaming — env.copyfd writes a consistent, compacted MVCC image
+            # straight to the socket: no pre-built tarball, no doubled ledger copy on disk, fully on-demand
+            # and consistent even while the node writes. Fall back to streaming the pre-built tarball. Never
+            # scans the live SQLite ledger on a request either way.
             if not getattr(node, "snapshot_serve", False):
                 raise _NotFound("snapshot serving disabled")
             import os, snapshot_p2p
+            info = snapshot_p2p.db_snapshot_info(node)
+            if info is not None:
+                # Size is unknown ahead of time (compacted on the fly), so signal end-of-body by closing the
+                # connection instead of a Content-Length. Flush the header bytes BEFORE copyfd, which writes
+                # the raw fd and would otherwise race ahead of still-buffered headers.
+                self.send_response(200)
+                self.send_header("Content-Type", "application/octet-stream")
+                self.send_header("X-Bismuth-Snapshot-Height", str(info["height"]))
+                self.send_header("X-Bismuth-Snapshot-Format", "lmdb")
+                self.send_header("X-Bismuth-Snapshot-Tip-Hash", str(info.get("tip_hash", "")))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.flush()
+                snapshot_p2p.stream_db_snapshot(node, self.wfile)
+                self.close_connection = True
+                return
             path = getattr(node, "snapshot_path", "") or "static/ledger-snapshot.tar.gz"
             man = snapshot_p2p.read_manifest(path)
             if not man:

@@ -271,6 +271,16 @@ class BlockStore:
     def count(self):
         return self.store.stat(self.blocks)["entries"]
 
+    def stream_snapshot(self, fileobj):
+        """doc/43 DB-direct snapshot serving: stream a consistent, compacted MVCC image of this store
+        straight to a writable binary file object (an HTTP socket) — generated ON DEMAND from the live
+        store, with NO pre-built tarball and NO doubled ledger copy on disk. Consistent even while the
+        node keeps writing (LMDB env.copyfd). The caller must flush ``fileobj`` first (copyfd writes the
+        raw fd). A receiving node writes the bytes to ``<dir>/data.mdb`` and reopens a BlockStore there;
+        the chain is still re-validated forward by the digester. Raises NotImplementedError on a backend
+        without a streamable env (so the serve path falls back to the pre-built tarball)."""
+        self.store.copy_to_fileobj(fileobj, compact=True)
+
     def close(self):
         self.store.close()
 

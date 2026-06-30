@@ -36,6 +36,7 @@ static/balanceindex/
 static/blockstore/
 static/txidindex/
 static/vmstate/
+static/pkregistry/
 heavy3a.bin
 heavy3a.bin_
 config_custom.txt

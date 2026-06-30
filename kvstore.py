@@ -145,6 +145,17 @@ class KVStore:
         the same backend at ``dst_path``."""
         raise NotImplementedError
 
+    def copy_to_fileobj(self, fileobj, compact=True):  # pragma: no cover
+        """Stream a consistent ONLINE copy of the whole store straight to a writable binary file object
+        (an HTTP socket, a pipe) WITHOUT materializing an intermediate file on disk — the on-demand,
+        no-doubled-file variant of ``copy_to`` (doc/43 DB-direct snapshot serving). MVCC-consistent while
+        a writer is active, exactly like ``copy_to``. The streamed bytes are the backend's native env
+        image: re-openable by writing them to the backend's on-disk file (LMDB: ``<dir>/data.mdb``) and
+        reopening the same backend there. The caller MUST flush any buffered writes on ``fileobj`` first
+        (the copy bypasses Python-level buffering by writing to the raw fd). Only the LMDB backend
+        implements it (``env.copyfd``); other backends raise NotImplementedError so the caller falls back."""
+        raise NotImplementedError
+
     def close(self):  # pragma: no cover
         raise NotImplementedError
 
@@ -295,6 +306,15 @@ class LmdbKVStore(KVStore):
             shutil.rmtree(dst_path)
         os.makedirs(dst_path)
         self.env.copy(dst_path, compact=compact)
+
+    def copy_to_fileobj(self, fileobj, compact=True):
+        # LMDB's env.copyfd writes an MVCC-consistent image straight to a file descriptor, so the snapshot
+        # streams directly to an HTTP socket with NO intermediate file on disk and NO doubled ledger copy
+        # (doc/43 DB-direct serve). It is consistent even while the node keeps writing. The caller must have
+        # flushed `fileobj` first — copyfd bypasses Python buffering by writing to the raw fd, so any
+        # still-buffered bytes (e.g. HTTP headers) would otherwise land AFTER the env image. compact=True
+        # drops free pages so the streamed snapshot is as small as a freshly built one.
+        self.env.copyfd(fileobj.fileno(), compact=compact)
 
     def close(self):
         self.env.close()
