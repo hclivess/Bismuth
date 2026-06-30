@@ -362,20 +362,37 @@ class Mempool(MempoolQueriesMixin):
                         if "b'" == mempool_public_key_b64encoded[:2]:
                             # Binary content instead of str - leftover from legacy code?
                             mempool_public_key_b64encoded = transaction[5][2:essentials.MAX_TX_PUBKEY_LEN + 2]
-                        if len(transaction[6]) > 30:
-                            mempool_result.append("Mempool: Invalid operation len{}".format(len(transaction[6])))
-                            continue
-                        mempool_operation = str(transaction[6])[:30]
-                        if len(transaction[7]) > 100000:
-                            mempool_result.append("Mempool: Invalid openfield len{}".format(len(transaction[7])))
-                            continue
-                        mempool_openfield = str(transaction[7])[:100000]
+                        # hf2: the 30-char operation / 100000-byte openfield caps and the mandatory-message
+                        # rule are a PRE-FORK admission policy. Post-fork (doc/41, generalized from the
+                        # coinbase to every tx) operation and openfield are free-form, optional and uncapped,
+                        # so the DESTINATION block height (tip+1) decides whether the caps apply. The flag is
+                        # resolved here once and reused for the signing-scheme check below.
+                        mempool_post_fork = False
+                        if self.fork_height is not None:
+                            essentials.execute_param_c(c, "SELECT block_height FROM transactions WHERE 1 ORDER by block_height DESC limit ?",
+                                                       (1,), self.app_log)
+                            _tip_row = c.fetchone()
+                            _tip = _tip_row[0] if _tip_row and _tip_row[0] is not None else 0
+                            mempool_post_fork = (_tip + 1) >= self.fork_height
 
-                        if len(mempool_openfield) <= 4:
-                            # no or short message for a mandatory message
-                            if mempool_recipient in self.config.mandatory_message.keys():
-                                mempool_result.append("Mempool: Missing message - {}".format(self.config.mandatory_message[mempool_recipient]))
+                        if mempool_post_fork:
+                            mempool_operation = str(transaction[6])
+                            mempool_openfield = str(transaction[7])
+                        else:
+                            if len(transaction[6]) > 30:
+                                mempool_result.append("Mempool: Invalid operation len{}".format(len(transaction[6])))
                                 continue
+                            mempool_operation = str(transaction[6])[:30]
+                            if len(transaction[7]) > 100000:
+                                mempool_result.append("Mempool: Invalid openfield len{}".format(len(transaction[7])))
+                                continue
+                            mempool_openfield = str(transaction[7])[:100000]
+
+                            if len(mempool_openfield) <= 4:
+                                # no or short message for a mandatory message
+                                if mempool_recipient in self.config.mandatory_message.keys():
+                                    mempool_result.append("Mempool: Missing message - {}".format(self.config.mandatory_message[mempool_recipient]))
+                                    continue
 
                         # Begin with the easy tests that do not require cpu or disk access
                         if mempool_amount_float < 0:
@@ -390,16 +407,10 @@ class Mempool(MempoolQueriesMixin):
                             mempool_result.append("Mempool: Too old a transaction")
                             continue
 
-                        # Then more cpu heavy tests. hf2: bind the signing scheme to the DESTINATION block
-                        # height (next block) so the pool admits post-fork-signed txs (recoverable, no
-                        # pubkey) once at/after the fork. Pre-filter only; the digester is the authority.
-                        mempool_post_fork = False
-                        if self.fork_height is not None:
-                            essentials.execute_param_c(c, "SELECT block_height FROM transactions WHERE 1 ORDER by block_height DESC limit ?",
-                                                       (1,), self.app_log)
-                            _tip_row = c.fetchone()
-                            _tip = _tip_row[0] if _tip_row and _tip_row[0] is not None else 0
-                            mempool_post_fork = (_tip + 1) >= self.fork_height
+                        # Then more cpu heavy tests. The signing scheme is bound to the DESTINATION block
+                        # height via mempool_post_fork (resolved above with the field-cap gating), so the
+                        # pool admits post-fork-signed txs (recoverable, no pubkey) once at/after the fork.
+                        # Pre-filter only; the digester is the authority.
 
                         #  Will raise if error
                         try:

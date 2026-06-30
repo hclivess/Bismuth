@@ -42,7 +42,8 @@ class Transaction:
         self.received_operation = None
         self.received_openfield = None
 
-    def from_raw_transaction(self, transaction: tuple, index: int, tx_count: int) -> 'MinerTransaction':
+    def from_raw_transaction(self, transaction: tuple, index: int, tx_count: int,
+                             block_height: int = None, fork_height=None) -> 'MinerTransaction':
         """Parse raw transaction data and populate fields."""
         self.start_time_tx = quantize_two(time.time())
         self.q_received_timestamp = quantize_two(transaction[0])
@@ -56,8 +57,14 @@ class Transaction:
         self.received_amount = '%.8f' % (quantize_eight(transaction[3]))
         self.received_signature_enc = str(transaction[4])[:MAX_TX_SIGNATURE_LEN]
         self.received_public_key_b64encoded = str(transaction[5])[:MAX_TX_PUBKEY_LEN]
-        self.received_operation = str(transaction[6])[:30]
-        self.received_openfield = str(transaction[7])[:100000]
+        # hf2: operation/openfield are free-form and uncapped POST-FORK (doc/41, generalized). Pre-fork the
+        # legacy 30 / 100000 truncation is part of FROZEN consensus: it defines the canonical signing-buffer
+        # and legacy-block-hash input even for an over-length field that a peer-relayed block could carry
+        # (such a block bypasses the mempool caps), so it MUST be preserved below the fork. Gate on the
+        # DESTINATION height — below the fork: truncate (byte-identical to legacy); at/after: full value.
+        _post_fork = (fork_height is not None and block_height is not None and block_height >= fork_height)
+        self.received_operation = str(transaction[6]) if _post_fork else str(transaction[6])[:30]
+        self.received_openfield = str(transaction[7]) if _post_fork else str(transaction[7])[:100000]
 
         # Check if this is the mining transaction (last in block)
         if index == tx_count - 1:

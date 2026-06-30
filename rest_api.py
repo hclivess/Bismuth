@@ -464,7 +464,11 @@ def _make_handler(node):
                 n = int(self.headers.get("Content-Length") or 0)
             except ValueError:
                 raise _BadRequest("bad Content-Length")
-            if n <= 0 or n > 2_000_000:               # generous (a RingCT spend openfield is ~95 KB)
+            # hf2: operation/openfield are uncapped post-fork, so this is a TRANSPORT-level DoS guard (bound
+            # the in-memory body read/JSON parse), NOT a consensus field cap — the socket path is unbounded
+            # and the per-byte openfield fee is the real economic backpressure. Generous enough for large
+            # free-form KV payloads.
+            if n <= 0 or n > 64_000_000:
                 raise _BadRequest("missing or oversized request body")
             try:
                 return json.loads(self.rfile.read(n) or b"{}")

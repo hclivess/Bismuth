@@ -91,7 +91,7 @@ def _encode_tx(tx):
     out += _uv(amounts.to_units(amount))                                 # amount integer units (varint)
     out += sigbytes.pack_from_wire(sig, addr)                            # tag||u16len||raw (self-delimiting)
     out += _pack_pubkey(pubkey)                                          # flag||varint len||bytes
-    out += _lp1(str(op).encode("utf-8"))                                 # u8 len + operation (cap 30)
+    out += _lp4(str(op).encode("utf-8"))                                 # u32 len + operation (free-form, uncapped post-fork)
     of = openfield.encode("utf-8") if isinstance(openfield, str) else bytes(openfield)
     out += _lp4(of)                                                      # u32 len + openfield raw
     return bytes(out)
@@ -109,7 +109,7 @@ def _decode_tx(buf, i):
     slen = int.from_bytes(buf[i + 1:i + 3], "little"); sblob = buf[i:i + 3 + slen]; i += 3 + slen
     sig = sigbytes.to_wire(sblob)
     pubkey, i = _unpack_pubkey(buf, i)
-    op, i = _rd1(buf, i); operation = op.decode("utf-8")
+    op, i = _rd4(buf, i); operation = op.decode("utf-8")
     of, i = _rd4(buf, i); openfield = of.decode("utf-8")
     return [ts, addr, recip, amount, sig, pubkey, operation, openfield], i
 

@@ -205,7 +205,9 @@ class BlockProcessor:
 
         for tx_index, raw_transaction in enumerate(block):
             tx = Transaction()
-            potential_miner_tx = tx.from_raw_transaction(raw_transaction, tx_index, block_instance.tx_count)
+            potential_miner_tx = tx.from_raw_transaction(raw_transaction, tx_index, block_instance.tx_count,
+                                                          block_instance.block_height_new,
+                                                          getattr(self.node, "fork_height", None))
 
             if potential_miner_tx:
                 miner_tx = potential_miner_tx
@@ -288,8 +290,13 @@ class BlockProcessor:
             db_amount = '%.8f' % quantize_eight(transaction[3])
             db_signature = str(transaction[4])[:essentials.MAX_TX_SIGNATURE_LEN]
             db_public_key_b64encoded = str(transaction[5])[:essentials.MAX_TX_PUBKEY_LEN]
-            db_operation = str(transaction[6])[:30]
-            db_openfield = str(transaction[7])[:100000]
+            # hf2: operation/openfield are uncapped post-fork (doc/41, generalized). Pre-fork they stay within
+            # the legacy 30 / 100000 bounds. db_* feed the fee calc and the stored row, not the post-fork
+            # consensus hash (which is built from the raw tuple).
+            _post_fork = (getattr(self.node, "fork_height", None) is not None
+                          and block_instance.block_height_new >= self.node.fork_height)
+            db_operation = str(transaction[6]) if _post_fork else str(transaction[6])[:30]
+            db_openfield = str(transaction[7]) if _post_fork else str(transaction[7])[:100000]
 
             # Calculate block debits and fees for address
             block_debit_address, block_fees_address = self._calculate_address_totals(
@@ -684,7 +691,8 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         # Verify proof of work
         # Get last transaction for PoW verification
         last_tx = Transaction()
-        last_tx.from_raw_transaction(block[-1], len(block) - 1, len(block))
+        last_tx.from_raw_transaction(block[-1], len(block) - 1, len(block),
+                                     block_instance.block_height_new, getattr(node, "fork_height", None))
         # doc/30: in the trusted prefix skip the memory-hard PoW re-verify entirely (the checkpoint anchors
         # integrity); record the computed required difficulty. Outside it, verify PoW — a curated POW waiver
         # still lets a specific historical manually-inserted block through. diff[0] is the required difficulty.

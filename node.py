@@ -1246,7 +1246,7 @@ def verify(db_handler):
             db_amount = amounts.from_units(row[4]) if amounts.LEDGER_INTEGER else '%.8f' % (quantize_eight(row[4]))
             db_signature_enc = str(row[5])[:essentials.MAX_TX_SIGNATURE_LEN]
             db_public_key_b64encoded = str(row[6])[:essentials.MAX_TX_PUBKEY_LEN]
-            db_operation = str(row[10])[:30]
+            db_operation = str(row[10])  # no limit: operation is uncapped post-fork (matches openfield)
             db_openfield = str(row[11])  # no limit for backward compatibility
             # Centralized consensus pre-image (the legacy 6-field signing buffer) — byte-identical to the
             # old inline str((...)).encode(), now sourced from the single frozen authority in bismuth_serialize.

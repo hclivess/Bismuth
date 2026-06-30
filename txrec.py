@@ -59,12 +59,12 @@ def pack_row(t, addr_idx, recip_idx):
       addr_idx    varint              recip_idx          varint   (-> envelope "a" dict)
       signature   sigbytes blob (tag||u16len||raw, self-delimiting)
       pubkey_id   varint              (block_hash is NOT stored — hoisted to the block envelope)
-      operation   u8 len + utf8       openfield          u32 len + raw bytes
+      operation   u32 len + utf8      openfield          u32 len + raw bytes
 
-    Note: the u8 length prefixes (operation; the "a"-dict address blobs) rely on the consensus-layer
-    truncation upstream (address/recipient [:56], operation [:30]) staying under 255 bytes — an inherited
-    invariant, not re-enforced here (_lp1 raises if ever handed > 255 bytes). t[1] (address string) is still
-    used to derive the signature scheme tag.
+    Note: operation now uses a u32 length prefix (free-form/uncapped post-fork, like openfield). The u8
+    length prefixes that remain (the "a"-dict address blobs) rely on the consensus-layer address/recipient
+    [:56] truncation staying under 255 bytes — an inherited invariant, not re-enforced here (_lp1 raises if
+    ever handed > 255 bytes). t[1] (address string) is still used to derive the signature scheme tag.
     """
     out = bytearray()
     out += txfields.pack_timestamp(t[0])                       # timestamp
@@ -77,7 +77,7 @@ def pack_row(t, addr_idx, recip_idx):
     # envelope hash, so block_store._expand fills it from there (one source of truth, ~33B/tx saved).
     out += txfields.pack_num(t[7])                             # fee
     out += txfields.pack_num(t[8])                             # reward
-    out += _lp1(str(t[9]).encode("utf-8"))                     # operation (cap 30)
+    out += _lp4(str(t[9]).encode("utf-8"))                     # operation (free-form, uncapped post-fork)
     of = t[10].encode("utf-8") if isinstance(t[10], str) else bytes(t[10])
     out += _lp4(of)                                            # openfield raw
     return bytes(out)
@@ -100,7 +100,7 @@ def unpack_row(blob):
     pkid, i = _ud(buf, i)
     fu, i = _ud(buf, i); fee = str(fu) if amounts.LEDGER_INTEGER else amounts.from_units(fu)
     ru, i = _ud(buf, i); reward = str(ru) if amounts.LEDGER_INTEGER else amounts.from_units(ru)
-    ob, i = _rd1(buf, i); operation = ob.decode("utf-8")
+    ob, i = _rd4(buf, i); operation = ob.decode("utf-8")
     fb, i = _rd4(buf, i); openfield = fb.decode("utf-8")
     return [timestamp, addr_idx, recip_idx, amount, sig, pkid, None, fee, reward, operation, openfield]
 

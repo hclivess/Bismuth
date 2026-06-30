@@ -325,14 +325,16 @@ block and rejects the block unless each sender can cover its total. This block-c
 address from spending the same balance twice through several transactions in one block, and it is enforced before the
 block is committed.</p>
 <p>The <code>operation</code> and <code>openfield</code> fields are the heart of the design. <code>operation</code>
-is a free-form namespaced command &#8212; for example <code>token:issue</code>, <code>token:transfer</code>,
+is a free-form, uncapped namespaced command &#8212; for example <code>token:issue</code>, <code>token:transfer</code>,
 <code>alias:register</code>, <code>vm:deploy</code>, <code>vm:call</code>, or <code>shield:spend</code> &#8212; and
 <code>openfield</code> carries the associated data. The base node orders and archives these transactions without
 needing to understand them; the subsystems that do understand them &#8212; the token and alias indexes, the virtual
 machine, the shielded pool &#8212; read the same canonical rows. Consensus validation of <code>vm:</code> and <code>shield:</code> operations activates at hf2 (Sections&#160;10, 11, and&#160;16). A protocol can therefore be added at the
 interpretation layer without a new block format and without enlarging the consensus core. Both extension fields are
 optional: an ordinary payment carries neither, and an empty operation or openfield is dropped from the canonical
-transaction bytes entirely rather than encoded as an empty field (Section&#160;6). The eight slots in the tuple above
+transaction bytes entirely rather than encoded as an empty field (Section&#160;6). When present they are free-form and
+carry no fixed length limit; the only restraint on size is the per-byte fee on the <code>openfield</code> payload
+(Section&#160;9), which prices bulk data rather than forbidding it. The eight slots in the tuple above
 are the wire and ledger shape of a transaction; the bytes it actually commits to &#8212; the content it signs and is
 identified by &#8212; exclude the signature and public key and include only the extension fields it uses.</p>
 
