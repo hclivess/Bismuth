@@ -382,8 +382,11 @@ class ShieldedState:
         if v is None:
             return None
         d = json.loads(v)
+        # "version" defaults to 2: legacy notes stored before the v-tag are all transparent. Callers use it
+        # to keep transparent (v2) and confidential (v3) notes in strictly separate ring paths.
         return {"note_id": note_id_hex, "create_height": d["h"], "token": d["tok"], "amount": d["amt"],
-                "r_pub": d["R"], "p_pub": d["P"], "memo": d.get("memo", ""), "commitment": d["C"]}
+                "r_pub": d["R"], "p_pub": d["P"], "memo": d.get("memo", ""), "commitment": d["C"],
+                "version": int(d.get("v", 2))}
 
     def has_note(self, note_id_hex: str) -> bool:
         with self.store.txn() as txn:
@@ -409,18 +412,26 @@ class ShieldedState:
 
     def add_note(self, height: int, note: dict):
         nid = note_id(bytes.fromhex(note["P"]))
+        # "v":2 tags this as a TRANSPARENT note whose value IS the stored integer amount. The version tag is
+        # what segregates the two value models: a v2 note may only ever be resolved by the v2 (transparent)
+        # ring path, never by a RingCT ring (and vice versa) — see _resolve_ring / _resolve_ring_v3.
         self._pending.append(("note", nid, int(height),
-                              {"h": int(height), "tok": note["tok"], "amt": int(note["amt"]),
+                              {"h": int(height), "tok": note["tok"], "amt": int(note["amt"]), "v": 2,
                                "R": note["R"], "P": note["P"], "memo": note.get("memo", ""), "C": note["c"]}))
 
     def add_confidential_note(self, height: int, note: dict):
         """Stage-3 (RingCT) note: the commitment field holds the Pedersen commitment ``C`` and the amount is
         HIDDEN (0 for spend outputs; a public deposit amount only for a mint). Same store/rollback as
-        transparent notes, so reorg handling is unchanged."""
+        transparent notes, so reorg handling is unchanged.
+
+        "v":3 tags this CONFIDENTIAL note. The stored ``amt`` is NEVER trusted as value for a v3 note — its
+        value lives in the Pedersen commitment C — and the version tag bars it from the v2 redeem/spend path
+        (which pays out the stored integer amount). Spend outputs carry amt=0 (their value is hidden in C);
+        only a mint carries a public deposit amt, validated against C by _mint3_validate."""
         nid = note_id(bytes.fromhex(note["P"]))
         self._pending.append(("note", nid, int(height),
                               {"h": int(height), "tok": note.get("tok", "bis"), "amt": int(note.get("amt", 0)),
-                               "R": note["R"], "P": note["P"], "memo": note.get("memo", ""), "C": note["C"]}))
+                               "v": 3, "R": note["R"], "P": note["P"], "memo": note.get("memo", ""), "C": note["C"]}))
 
     def add_key_image(self, height: int, image_hex: str):
         self._pending.append(("kimg", image_hex, int(height), None))
@@ -550,6 +561,13 @@ def _resolve_ring(state, data, height):
         note = state.note(rid)
         if note is None:
             raise ShieldError(f"ring references unknown note {str(rid)[:16]} at {height}")
+        # CRITICAL (consensus audit): the v2 path pays out the note's STORED INTEGER amount. A confidential
+        # (v3) note's stored amount is meaningless (value lives in its Pedersen commitment) and is NOT bound
+        # to anything here, so allowing a v3 note into a v2 ring let an attacker mint an arbitrary stored
+        # amount via a v3 spend output and then redeem it transparently. Refuse any non-v2 note: transparent
+        # and confidential notes never share a ring.
+        if int(note.get("version", 2)) != 2:
+            raise ShieldError(f"v2 ring member {str(rid)[:16]} is not a transparent note at {height}")
         notes.append(note)
     if len({nt["amount"] for nt in notes}) != 1 or len({nt["token"] for nt in notes}) != 1:
         raise ShieldError(f"ring members are not the same amount/token at {height}")
@@ -572,14 +590,25 @@ def _resolve_ring_v3(state, ring_ids, height):
             raise ShieldError(f"v3 ring references unknown note {str(rid)[:16]} at {height}")
         if not note.get("commitment"):
             raise ShieldError(f"v3 ring member {str(rid)[:16]} has no commitment at {height}")
+        # Symmetric segregation (consensus audit): a v3 (RingCT) ring may contain ONLY confidential notes. A
+        # transparent (v2) note's commitment is Bismuth's own commitment(P,amt,tok), not a Pedersen amount
+        # commitment, so it must never be mixed into a RingCT ring where verify_spend/verify_redeem treat the
+        # commitment as a hidden-amount Pedersen point.
+        if int(note.get("version", 2)) != 3:
+            raise ShieldError(f"v3 ring member {str(rid)[:16]} is not a confidential note at {height}")
         notes.append(note)
     return notes
 
 
-def _require_confidential_note(o, what, height):
+def _require_confidential_note(o, what, height, is_output=False):
     """Validate a v3 output/mint note has the fields apply will read, with real curve points, and a
     note_id matching P. Returns the canonical note_id. (Amount validity for OUTPUTS is enforced by the
-    range proof inside ringct.verify_spend, not here.)"""
+    range proof inside ringct.verify_spend, not here.)
+
+    ``is_output=True`` marks a confidential SPEND output, whose value lives ONLY in the commitment C: such a
+    note must carry NO public ``amt`` at all (an honest output has none). Rejecting it here stops an attacker
+    smuggling a large stored amount onto a v3 note — the stored amount is never trusted for v3 anyway, but
+    this keeps the sidecar honest as belt-and-suspenders alongside the v2/v3 ring segregation."""
     if not isinstance(o, dict):
         raise ShieldError(f"{what} is not an object at {height}")
     for k in ("R", "P", "C"):
@@ -599,6 +628,9 @@ def _require_confidential_note(o, what, height):
     # validate-pass can never apply-fail. (Adversarial-pass / consensus-audit find.)
     if "amt" in o and (not isinstance(o["amt"], int) or isinstance(o["amt"], bool) or o["amt"] < 0):
         raise ShieldError(f"{what} amount must be a non-negative integer at {height}")
+    # A confidential spend OUTPUT must not carry any public amount: its value is hidden in C and range-proven.
+    if is_output and "amt" in o:
+        raise ShieldError(f"{what} confidential output must not carry a public amount at {height}")
     nid = note_id(P)
     if "note_id" in o and o["note_id"] != nid:
         raise ShieldError(f"{what} note_id does not match P at {height}")
@@ -684,7 +716,7 @@ def _spend3_validate(data, height, seen_notes, seen_images, state):
     if not (1 <= len(outs) <= ringct.MAX_OUTPUTS):
         raise ShieldError(f"shield:spend(v3) bad output count at {height}")
     for o in outs:                                          # outputs must be fresh, well-formed v3 notes
-        oid = _require_confidential_note(o, "shield:spend(v3) output", height)
+        oid = _require_confidential_note(o, "shield:spend(v3) output", height, is_output=True)
         if oid in seen_notes or state.has_note(oid):
             raise ShieldError(f"shield:spend(v3) output note {oid[:16]} already exists at {height}")
         seen_notes.add(oid)
@@ -707,6 +739,11 @@ def _redeem3_validate(data, height, seen_images, state):
         image, amt, to = ringct.verify_redeem(notes, data)
     except ValueError as e:
         raise ShieldError(f"shield:redeem(v3) invalid: {e} at {height}")
+    # Defense-in-depth on the field-wraparound inflation hole (verify_redeem also enforces this): the revealed
+    # payout must be in [1, 2^RANGE_BITS). commit()/MLSAG bind it only mod N, so an unbounded amt could be
+    # a_real + k·N and mint ~2^256 units at the shielded->transparent boundary.
+    if not (0 < int(amt) < (1 << ringct.RANGE_BITS)):
+        raise ShieldError(f"shield:redeem(v3) amount out of range at {height}")
     if not isinstance(to, str) or not (0 < len(to) <= 56):
         raise ShieldError(f"shield:redeem(v3) bad payout address at {height}")
     if to == SHIELD_SINK:

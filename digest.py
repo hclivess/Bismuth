@@ -420,9 +420,16 @@ class BlockProcessor:
                                        node.logger.app_log)
                      if (_fh_mat is not None and _ovr_h >= _fh_mat) else Decimal(0))
         _spendable = quantize_eight(balance_pre - _immature)
-        if _spendable < quantize_eight(amount) and not _ovr_trusted:
+        # Compare against the CUMULATIVE per-address block debit, not the single-tx `amount`. `debit`
+        # (block_debit_address) is the address's total spend across the whole block and is identical for each
+        # of its txs; `amount` is just this one tx. Using `amount` let a holder of S mature + I immature
+        # coinbase split a spend into N txs each <= S — every tx individually passes a per-tx `amount` check
+        # while the cumulative no-overspend check (line below) only caps total at mature+immature — draining
+        # immature coinbase before maturity. Mirroring the cumulative `debit` here closes that split bypass
+        # (consensus audit, doc/47).
+        if _spendable < quantize_eight(debit) and not _ovr_trusted:
             if not validation_exceptions.is_exempt(node, _ovr_h, validation_exceptions.OVERSPEND):
-                raise ValueError(f"{address} sending more than spendable: {amount}/{_spendable} "
+                raise ValueError(f"{address} sending more than spendable: {debit}/{_spendable} "
                                  f"(balance {balance_pre}, immature coinbase {_immature})")
             validation_exceptions.note(node, _ovr_h, validation_exceptions.OVERSPEND,
                                        f"{address} {amount}/{_spendable} immature {_immature}")

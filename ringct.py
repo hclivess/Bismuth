@@ -317,6 +317,17 @@ def verify_redeem(ring_notes, redeem):
         raise ValueError("malformed redeem")
     if amt <= 0:
         raise ValueError("redeem amount must be positive")
+    if amt >= (1 << RANGE_BITS):
+        # CRITICAL inflation guard (consensus audit): commit() reduces the amount mod N (~2^256) and the
+        # MLSAG ties C_real to C_pseudo only as a commitment-to-ZERO, so BOTH the opening below and the MLSAG
+        # bind `amt` only MODULO N. verify_redeem carries NO Bulletproof range proof of its own (unlike
+        # verify_spend), so without this bound an attacker could redeem amt = a_real + k·N — congruent mod N,
+        # so commit() still opens and the MLSAG still verifies — and mint ~2^256 transparent units at the
+        # shielded->transparent boundary. Every legitimate note value is in [0, 2^RANGE_BITS) (a mint deposit
+        # is a real BIS amount; spend outputs are Bulletproof range-proven), and 2^RANGE_BITS << N, so two
+        # in-range values can't be congruent mod N: bounding `amt` here makes the opening a TRUE binding to
+        # the note's real value and closes the field-wraparound hole.
+        raise ValueError("redeem amount out of range [1, 2^%d)" % RANGE_BITS)
     if commit(amt, pseudo_blind).format() != C_pseudo.format():
         raise ValueError("revealed (amount, blind) does not open C_pseudo")
     ring_D = [_add(ring_C[i], _neg(C_pseudo)) for i in range(len(ring_notes))]

@@ -136,7 +136,9 @@ def test_on_disk_bytes_identical_to_direct_lmdb(tmp_path):
 
     hbe = sh._hbe
     kb = sh._kb(nid)            # hf2 Stage-4: note_id stored as RAW 32 bytes, not its 64-hex .encode()
-    payload = {"h": height, "tok": note["tok"], "amt": int(note["amt"]),
+    # "v": 2 tags a transparent note (consensus-audit fix: the version tag segregates v2/v3 ring paths so a
+    # confidential note can never be redeemed through the transparent stored-amount path).
+    payload = {"h": height, "tok": note["tok"], "amt": int(note["amt"]), "v": 2,
                "R": note["R"], "P": note["P"], "memo": note.get("memo", ""), "C": note["c"]}
 
     # mint: one note, no key images, one +amt flow (seq 1), meta counters as decimal strings
