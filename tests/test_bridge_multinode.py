@@ -224,7 +224,7 @@ def test_bridge_artifacts_agree_across_nodes(tmp_path):
         assert vbal["A"] == vbal["B"] == vbal["C"] == 500000000, "vault custody disagrees: %s" % vbal
         vstore = {nm: _storage(p, vault)[0] for nm, p in ports.items()}
         assert vstore["A"] == vstore["B"] == vstore["C"], "vault lock record disagrees: %s" % vstore
-        assert vstore["A"].get("8") == "500000000", "lock amount slot wrong/absent: %s" % vstore["A"]
+        assert vstore["A"].get("16") == "500000000", "lock amount slot wrong/absent: %s" % vstore["A"]  # base=1*16
         print("VAULT ok: custody 5 BIS + lock record identical across A,B,C (slots=%s)" % sorted(vstore["A"]))
 
         # 4) CRYPTO SYSCALLS: probe storage (keccak + ecrecover outputs) identical across nodes

@@ -119,7 +119,8 @@ proof that ONE entry (a specific locked-BIS slot) is in the committed state.
   internal/debug function.
 - **Stage 2c — peg-in vault (SHIPPED).** `contracts/bridge_vault.py` — `FN_LOCK` locks attached BIS naming
   an Ethereum recipient; the BIS sits in the contract's OWN custody (no operator) and the lock
-  (`amount` + the 20-byte recipient) is written to storage under an incrementing id, so it is
+  (`amount` + the 20-byte recipient, the latter as ten `0x10000`-sentinel'd 16-bit chunks so no chunk is ever
+  a droppable `0` — see §9) is written to storage under an incrementing id (stride 16), so it is
   **Merkle-provable** against the committed root. Tested `tests/test_bridge_vault.py`: lock → custody held →
   `merkle_prove_storage` verifies against `merkle_root()` → tamper-rejection → two independent locks each
   provable. This is the custody + provable-record half of peg-in; the Ethereum-side mint (Stage 3) consumes
@@ -156,7 +157,9 @@ safety (require N confirmations / finality before mint), proof malleability, and
 | 2c | peg-in vault `bridge_vault.py` (custody + provable lock) | **done** — `tests/test_bridge_vault.py` |
 | 3 | zk-SNARK of Bismuth PoW consensus (EVM-verifiable) | planned (frontier — needs a proving stack) |
 | — | peg-out MPT/finality verifier on Bismuth | partial — `eth_verify.py` (signer) done; MPT walk + finality (1b) pending |
-| — | wBIS verifier + mint/burn contracts (Solidity, Ethereum) | design (§9) — depends on Stage 3 |
+| — | wBIS bridge + Merkle/Blake2b verifier (Solidity) | **done** — `bridge/evm/` (§9); 21 Hardhat tests vs the `vm_merkle` oracle. Mints against the **interim guardian** verifier today; zk verifier (Stage 3) is a timelocked drop-in |
+| — | consensus verifier (interim) | **done** — `GuardianSetVerifier.sol` (honest M-of-N) |
+| — | consensus verifier (endgame, zk) | seam built — `ZkBismuthVerifier.sol`; the Stage-3 circuit/verifying-key is the only missing piece |
 | — | permissionless relayer reference client | design (§10) |
 
 ---
@@ -222,17 +225,36 @@ and a zk proving toolchain (Stage 3).
 Neither flow has a custodian or a signer set: step 3/4 is contract code re-verifying the *other chain's
 consensus*. Relayers only carry data the destination independently re-checks (`§1`).
 
-## 9. Ethereum side (design)
+## 9. Ethereum side (BUILT — `bridge/evm/`, Hardhat, solc 0.8.24)
 
-A Solidity verifier + the wBIS mint/burn authority (replacing today's wBIS minter with a trustless one):
-- `verifyBismuthState(zkProof, stateRoot, height)` — a Groth16/Plonk verifier (auto-generated from the
-  Stage-3 circuit) attesting the root was committed at a finalized Bismuth height.
-- `mint(inclusionProof, lockId, recipient, amount, stateRoot)` — checks `verifyBismuthState` + the Merkle
-  inclusion of the lock leaf (the same `vm_merkle` scheme, re-implemented in Solidity: blake2b + the
-  `0x00/0x01` domain tags + promotion rule), marks `lockId` consumed, mints wBIS.
-- `burn(amount, bismuthRecipient)` — burns wBIS and emits `Burn(bismuthRecipient, amount, nonce)` for the
-  peg-out proof.
-The blake2b + Merkle verify in Solidity is cheap; the zk verify is one pairing-check precompile call.
+The whole EVM side is implemented and tested (21 Hardhat tests green) against a Python oracle
+(`bridge/evm/oracle/gen_vectors.py`) that derives the exact cross-chain vectors from `vm_merkle.py`. It
+**links native BIS to the already-deployed wBIS token** by becoming that token's `owner` (mint authority) —
+no token redeploy. The deployed wBIS is already bridge-shaped: `mint(to, amount, bytes32 trans)` (onlyOwner;
+`trans` is a built-in nullifier via its `transactions` map) and `burn(value, bytesBismuthAddr)`; `decimals=8`,
+so the peg is **1:1 at atomic units**.
+
+| File | Role |
+|---|---|
+| `contracts/BismuthBridge.sol` | The peg-in mint authority. `pegInMint(height, stateRoot, attestation, lockId, amount, ethRecipient, amountProof, recipientProofs[10])`: (1) `verifier.verifyStateRoot` attests the root is a **finalized** Bismuth commitment; (2) a `(vaultAddress, lockId)` nullifier (`consumed[...]`, idempotent across roots) — double-checked by the token's own `transactions[trans]`; (3) rebuilds the 11 lock leaves **from the claim** and Merkle-verifies each against `stateRoot` (a forged amount/recipient simply isn't in the tree); (4) `wbis.mint(ethRecipient, amount, trans)`. Timelocked (`CHANGE_DELAY=2d`) `setVerifier` / `returnWbisOwnership` / `setGovernance`; immediate `pause` + a `pauseWbis` passthrough (so the token's emergency brake survives the ownership handoff). Non-reentrant. |
+| `lib/Blake2b.sol` | Unkeyed BLAKE2b-256 via the **EIP-152 `0x09`** precompile — byte-identical to `hashlib.blake2b(digest_size=32)` (7 KATs incl. block boundaries). |
+| `lib/BismuthMerkle.sol` | The `vm_merkle.py` verifier in Solidity: `0x00/0x01` domain tags, lone-node **promotion** (`Step.present=false`), `EMPTY_ROOT`, self-contained `verify(root, leaf, Step[])`. |
+| `verifiers/GuardianSetVerifier.sol` | **Interim** trust root (honest M-of-N — deployable today): counts distinct guardian EIP-191 sigs over `keccak(chainid, address(this), root, height)` ≥ threshold. Labeled as a federation, not the endgame. |
+| `verifiers/ZkBismuthVerifier.sol` + `interfaces/IGroth16Verifier.sol` | **Endgame** drop-in: forwards `(a,b,c,[root,height])` to a Stage-3-circuit Groth16 verifier. Swapped in via the timelock with **no wBIS-ownership migration**. |
+| `interfaces/IWBIS.sol` | Exact interface of the live token (mint/relayMint/burn/owner/transferOwnership/pause). |
+| `mocks/MockWBIS.sol`, `contracts/test/*`, `test/*.js` | Faithful token mock + harnesses + the suite. |
+
+**Peg-out** stays on the token: a holder calls `wBIS.burn(amount, bismuthAddrBytes)` directly; the Bismuth-side
+release contract consumes a proof of that `Burn` log (the `eth_verify.py` signer core is built; MPT walk +
+finality (Stage 1b) remain). The blake2b + Merkle verify in Solidity is cheap; the eventual zk verify is one
+pairing-check precompile call.
+
+**Recipient encoding (a real bug found + fixed in adversarial review).** The vault commits the 20-byte ETH
+recipient as **ten 16-bit chunks, each stored `0x10000 | chunk`** (a sentinel bit). Reason: `vm_state` drops a
+`0` storage value as a *deletion*, so a 32-bit recipient word of `0x00000000` (e.g. a leading-zero / vanity
+address) would be unprovable and the locked BIS would be **stranded forever**. Sub-32-bit chunks leave room for
+an always-set sentinel, so every recipient is always provable. Regression-tested both sides (`bridge_vault`
+zero-chunk test + an EVM mint to `0x00000000aabb…`).
 
 ## 10. Relayer (design)
 
@@ -252,3 +274,38 @@ until an honest one (or the user) submits. Liveness, not trust (`§1`).
 Both are environment/dependency decisions, not code that can be conjured deterministically here; everything
 they depend on (the VM crypto, the provable Merkle state, the vault, the signer verifier) is already built
 and tested.
+
+## 12. Deployment / integration runbook (EVM side, `bridge/evm/`)
+
+The contracts are chain-agnostic — the SAME `BismuthBridge` deploys on Ethereum and BNB Chain, pointed at that
+chain's wBIS. Live token + pool addresses (EIP-55 checksummed):
+
+| Chain | wBIS token | DEX pool |
+|---|---|---|
+| Ethereum | `0xf5cB350b40726B5BcF170d12e162B6193b291B41` | `0xF4F82f8d84C529987201609cecee8ab136A50c8c` (Uniswap) |
+| BNB Chain | `0x56672ecb506301b1E32ED28552797037c54D36A9` | `0x731B8244F818FD488d9DC516Edd976A96459Ae59` |
+
+> The BNB wBIS is assumed to expose the same `mint(address,uint256,bytes32)` / `burn(uint256,bytes)` / `owner`
+> interface as the Ethereum token (it is the same wBIS). Confirm its verified source before the handoff; if it
+> differs, deploy a per-chain `IWBIS` shim.
+
+**Bring-up (per chain):**
+1. Deploy the Bismuth peg-in vault (`contracts/bridge_vault.py`) and note its 56-hex VM contract address `V`.
+2. Deploy a verifier — `GuardianSetVerifier(guardians, threshold, governance)` for go-live (or `ZkBismuthVerifier`
+   once the Stage-3 circuit exists).
+3. Deploy `BismuthBridge(wbis, verifier, vaultAddressBytes, governance)` where `vaultAddressBytes` is the **ASCII
+   bytes of `V`** (56 bytes, not the decoded 28) and `governance` is a multisig/timelock.
+4. **The non-custodial handoff:** the *current* wBIS `owner` calls `wBIS.transferOwnership(bridge)` (single-step
+   `Ownable`). From that tx on, wBIS can be minted **only** by `BismuthBridge.pegInMint` — no operator key on the
+   value path. (To migrate to a new bridge later, governance uses the timelocked `returnWbisOwnership`.)
+
+**Per peg-in (anyone — permissionless):** user calls `bridge_vault FN_LOCK(eth_recipient)` on Bismuth with the
+BIS to lock (≤ ~42.94 BIS per lock, VM-callvalue cap); after finality, a relayer (or the user) reads the lock
+proof (`vm_state.merkle_prove_storage` for the amount + 10 recipient slots, against the committed `vm_state_root`),
+obtains the verifier attestation for that `(root, height)`, and submits `pegInMint`. The bridge re-verifies
+everything on-chain and mints. **Peg-out:** call `wBIS.burn(amount, bismuthAddrBytes)` on the token.
+
+**Trust statement (do not overclaim):** the mint/burn wiring, the nullifier, the BLAKE2b/Merkle inclusion check,
+units, pause and the timelock are unconditional on-chain logic. The ONE trust assumption is the verifier: honest
+M-of-N today (`GuardianSetVerifier`), reducible to *only the two chains' consensus* once the zk verifier
+(`ZkBismuthVerifier` + the Stage-3 circuit) replaces it through the timelock.
