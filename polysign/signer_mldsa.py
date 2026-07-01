@@ -22,7 +22,24 @@ Category-3 `SignerMLDSA65`.
 
 Depends on `dilithium-py` (pure-Python ML-DSA), imported lazily by the factory so RSA-only nodes have
 no hard dependency on it.
+
+NATIVE VERIFY ACCELERATION (perf): pure-Python ML-DSA *verification* is the expensive part once a `pq`
+fork activates these signers on consensus — every node re-verifies every ML-DSA signature. A node may
+opt into a native (C) verifier for a 10-100x speed-up WITHOUT changing the pure-Python default that
+keeps RSA-only / dependency-light nodes working: set `BISMUTH_MLDSA_NATIVE_MODULE=<importable.module>`
+to a module exposing `verify(level_name, pk: bytes, msg: bytes, sig: bytes) -> bool`
+(level_name in {"ML-DSA-44","ML-DSA-65","ML-DSA-87"}). It is adopted PER LEVEL only if it passes a
+startup interop self-test (it must accept a pure-Python-produced signature and reject a tampered /
+wrong-message one), so a mismatched native lib (e.g. a different context-string convention) can never
+make one node accept what another rejects — it just falls back to pure-Python and does not accelerate.
+ONLY verification is accelerated; keygen + signing stay pure-Python (wallet-side, not the bottleneck,
+and seed-deterministic KeyGen interop is the hard part). The accelerator changes NO bytes and is NOT
+fork-gated: it produces identical accept/reject results, and ML-DSA verify only runs post-fork anyway
+(pre-fork ML-DSA senders are already rejected at the block level — the hf2 timing gate in digest.py).
 """
+import importlib
+import os
+import sys
 from base64 import b64decode, b64encode
 from hashlib import sha256
 from os import urandom
@@ -32,6 +49,61 @@ import base58
 from dilithium_py.ml_dsa import ML_DSA_44, ML_DSA_65, ML_DSA_87
 
 from polysign.signer import Signer, SignerType, SignerSubType
+
+
+# --- native verify backend (opt-in, per level, interop-gated) -------------------------------------
+# Cache of level_name -> native verify callable(pk, msg, sig)->bool, or None for "use pure-Python".
+# Resolved lazily on first verify of each level so import stays cheap for RSA-only nodes.
+_NATIVE_VERIFY: dict = {}
+
+
+def _native_selftest(native_verify, ml_dsa) -> bool:
+    """A native verifier is adopted ONLY if it agrees with the pure-Python signer: accept a valid
+    pure-Python signature, and reject a tampered signature and a wrong-message one. This pins the
+    native lib to the SAME (FIPS 204 external, empty-context) convention dilithium-py uses, so it can
+    never make one node accept a signature another rejects (a consensus split). Any exception -> reject."""
+    try:
+        seed = bytes(range(32))
+        pk, sk = ml_dsa._keygen_internal(seed)
+        msg = b"bismuth-mldsa-native-verify-selftest"
+        sig = ml_dsa.sign(sk, msg)                       # pure-Python external sign (empty ctx)
+        if not native_verify(pk, msg, sig):
+            return False                                 # must ACCEPT a valid pure-Python signature
+        tampered = bytearray(sig)
+        tampered[0] ^= 0x01
+        if native_verify(pk, msg, bytes(tampered)):
+            return False                                 # must REJECT a tampered signature
+        if native_verify(pk, b"a different message", sig):
+            return False                                 # must REJECT a wrong-message signature
+        return True
+    except Exception:
+        return False
+
+
+def _resolve_native_verify(level_name: str, ml_dsa):
+    """Return a native verify callable for this ML-DSA level, or None to use pure-Python. Default is
+    None (pure-Python). If BISMUTH_MLDSA_NATIVE_MODULE is set and its verifier passes the interop
+    self-test for this level, the native callable is cached and returned; otherwise pure-Python."""
+    if level_name in _NATIVE_VERIFY:
+        return _NATIVE_VERIFY[level_name]
+    chosen = None
+    mod_name = os.environ.get("BISMUTH_MLDSA_NATIVE_MODULE", "").strip()
+    if mod_name:
+        try:
+            module = importlib.import_module(mod_name)
+            native_verify = (lambda pk, msg, sig, _ln=level_name, _m=module: _m.verify(_ln, pk, msg, sig))
+            if _native_selftest(native_verify, ml_dsa):
+                chosen = native_verify
+                sys.stderr.write(f"[PQ] native ML-DSA verify backend '{mod_name}' enabled for {level_name} "
+                                 f"(interop self-test passed)\n")
+            else:
+                sys.stderr.write(f"[PQ] native backend '{mod_name}' FAILED interop self-test for {level_name} "
+                                 f"(convention mismatch?); using pure-Python\n")
+        except Exception as e:  # operator-supplied module: never crash the node over it
+            sys.stderr.write(f"[PQ] native backend '{mod_name}' unavailable for {level_name} ({e}); "
+                             f"using pure-Python\n")
+    _NATIVE_VERIFY[level_name] = chosen
+    return chosen
 
 
 class _SignerMLDSABase(Signer):
@@ -97,13 +169,23 @@ class _SignerMLDSABase(Signer):
 
     # --- verify / sign ----------------------------------------------------
     @classmethod
+    def _verify_backend(cls, public_key: bytes, buffer: bytes, signature: bytes) -> bool:
+        """Verify via the native backend if one passed the interop self-test for this level, else
+        pure-Python dilithium-py. Both produce identical accept/reject results (guaranteed by the
+        self-test), so this is consensus-safe and NOT fork-gated."""
+        native_verify = _resolve_native_verify(cls._level_name, cls._ml_dsa)
+        if native_verify is not None:
+            return native_verify(public_key, buffer, signature)
+        return cls._ml_dsa.verify(public_key, buffer, signature)
+
+    @classmethod
     def verify_signature(cls, signature: Union[bytes, str], public_key: Union[bytes, str], buffer: bytes,
                          address: str = '') -> None:
         if isinstance(signature, str):
             signature = bytes.fromhex(signature)
         if isinstance(public_key, str):
             public_key = bytes.fromhex(public_key)
-        if not cls._ml_dsa.verify(public_key, buffer, signature):
+        if not cls._verify_backend(public_key, buffer, signature):
             raise ValueError(f"Invalid {cls._level_name} signature from {address}")
         # rebuild with the SAME network subtype the address carries (its version bytes), so a testnet
         # address verifies against a testnet rebuild instead of always failing a hard-coded mainnet one.

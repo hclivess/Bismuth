@@ -149,6 +149,35 @@ honest consequences:
 These costs are **why the pivot is held in reserve and not done now** (§1). They are acceptable as
 insurance against a broken chain; they are not worth paying years early.
 
+> **Note — optional native verify acceleration (the "heavier verification" cost is opt-out).** The
+> pure-Python `dilithium-py` verify is the expensive part once the `pq` fork activates — every node
+> re-verifies every ML-DSA signature (and re-checks the whole chain on IBD / `replay_verify.py`). A
+> node may opt into a native (C) verifier for a ~10–100× speed-up **without** giving up the
+> pure-Python default that keeps dependency-light nodes working: set
+> `BISMUTH_MLDSA_NATIVE_MODULE=<importable.module>` to a module exposing
+> `verify(level_name, pk, msg, sig) -> bool` (`level_name` ∈ {`ML-DSA-44`,`ML-DSA-65`,`ML-DSA-87`}).
+> Design points (`polysign/signer_mldsa.py`):
+> - **Verification only.** Keygen + signing stay pure-Python (wallet-side, not the bottleneck, and
+>   seed-deterministic KeyGen interop is the hard part). Only the consensus-hot `verify` is swappable.
+> - **Interop-gated, per level.** The native verifier is adopted **only if it passes a startup
+>   self-test** — it must accept a pure-Python-produced signature and reject a tampered / wrong-message
+>   one. This pins the native lib to the same FIPS 204 *external, empty-context* convention
+>   dilithium-py uses (Bismuth calls `ML_DSA.verify(pk, m, sig)` with the default empty ctx — which is
+>   what liboqs/`oqs` implements, so there is **no** internal-vs-external context mismatch to trip on).
+>   A lib that fails the self-test is **refused** and the node falls back to pure-Python, so a
+>   mismatched or malicious native verifier can **never** make one node accept a signature another
+>   rejects (a consensus split).
+> - **Not fork-gated; changes no bytes.** It produces identical accept/reject results, and ML-DSA
+>   verify only ever runs post-fork anyway (pre-fork ML-DSA senders are already rejected by the `hf2`
+>   timing gate in `digest.py`, §4.4). It therefore inherits the fork gating for free — no separate
+>   activation.
+> - **Cross-validated multi-node.** `tests/test_two_node_signatures.py` mines real ML-DSA-44/65/87 txs
+>   post-fork on node A and has node B independently re-validate the whole chain over REST (0
+>   mismatches), exercising this verify path across two independent nodes crossing `hf2`.
+>
+> This is the same *per-node* verification cost the aggregation research in §3.c (below) attacks at the
+> *network* level (verify one recursive proof instead of N signatures); the two are complementary.
+
 > **Note — the full ML-DSA family is wired up, not just 65.** `polysign` now ships all three NIST
 > levels as distinct, self-identifying signers — **ML-DSA-44** (Cat 2), **ML-DSA-65** (Cat 3) and
 > **ML-DSA-87** (Cat 5) — each with its own `SignerType` and address-version prefix, sharing one base
