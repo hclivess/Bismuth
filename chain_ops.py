@@ -166,11 +166,24 @@ def recompress_ledger(node, rebuild=False, depth=15000):
     if rebuild:
         node.logger.app_log.warning(f"Status: Hyperblocks will be rebuilt")
 
-        shutil.copy(node.ledger_path, node.ledger_path + '.temp')
-        hyper = sqlite3.connect(node.ledger_path + '.temp')
-    else:
-        shutil.copy(node.hyper_path, node.ledger_path + '.temp')
-        hyper = sqlite3.connect(node.ledger_path + '.temp')
+    # Consistent snapshot of the source before copying. The source (hyper.db, or ledger.db when
+    # rebuilding) is a WAL-mode DB, so committed rows can still live in its `-wal` sidecar that hasn't
+    # been checkpointed into the main file yet. `shutil.copy` copies ONLY the main file, so without a
+    # checkpoint first the copy silently drops those committed frames — an inconsistent snapshot that
+    # is BEHIND the real tip. A non-clean exit (an impatient double Ctrl-C / hard kill — the graceful
+    # stop flag is only honoured by the main loop, not during this startup step) is exactly when the WAL
+    # is left un-checkpointed, which is why this only bites after an unclean stop. TRUNCATE folds the
+    # frames into the main file and empties the WAL so the copy is complete.
+    source = node.ledger_path if rebuild else node.hyper_path
+    try:
+        src_conn = sqlite3.connect(source, timeout=30)
+        src_conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        src_conn.close()
+    except sqlite3.Error as e:
+        node.logger.app_log.warning(f"Recompress: could not checkpoint {source} before copy ({e}); "
+                                    f"proceeding with current main-file state")
+    shutil.copy(source, node.ledger_path + '.temp')
+    hyper = sqlite3.connect(node.ledger_path + '.temp', timeout=30)
     if node.trace_db_calls:
        hyper.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"HYPER"))
     hyper.text_factory = str
@@ -202,10 +215,31 @@ def recompress_ledger(node, rebuild=False, depth=15000):
     hyper.commit()
 
     hyp.execute("VACUUM")
+    # Fold the temp DB's own WAL back into its main file before we close+rename, so `.temp` is a single
+    # self-contained file. Otherwise a surviving `.temp-wal` would either be dropped by the rename (main
+    # file only) or, worse, get mis-associated with the renamed hyper.db.
+    hyp.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     hyper.close()
 
     if os.path.exists(node.hyper_path):
-        os.remove(node.hyper_path)  # remove the old hyperblocks to rebuild
+        # Remove the old hyperblock DB **and its WAL sidecars**. Removing only hyper.db (the old
+        # behaviour) left any stale `hyper.db-wal`/`-shm` from a non-clean exit orphaned next to the
+        # freshly-renamed DB; SQLite then mis-associates that sidecar (whose page refs belong to the OLD
+        # file) with the new hyper.db on the next open, wedging WAL recovery ("disk image is malformed" /
+        # indefinite stall) — the "hangs at Recompressing" that only a wipe + ledger.tar.gz re-extract
+        # cleared. bootstrap()/seed_genesis() already clear these sidecars on every DB swap; match them.
+        for ext in ("", "-wal", "-shm"):
+            try:
+                os.remove(node.hyper_path + ext)
+            except OSError:
+                pass
+        # Drop any leftover temp sidecars too (the checkpoint above should have removed them) so only the
+        # self-contained `.temp` main file is promoted to hyper.db.
+        for ext in ("-wal", "-shm"):
+            try:
+                os.remove(node.ledger_path + '.temp' + ext)
+            except OSError:
+                pass
         os.rename(node.ledger_path + '.temp', node.hyper_path)
 
 

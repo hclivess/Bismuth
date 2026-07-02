@@ -135,3 +135,104 @@ def test_many_addresses_random_equivalence():
                      "fee": "%.8f" % rng.uniform(0, 0.1),
                      "reward": "%.8f" % (rng.uniform(0, 12) if a == "addr00" else 0)})
     _assert_equiv(rows, depth_specific=300)
+
+
+# ---------------------------------------------------------------------------
+# On-disk swap hygiene: the "hangs at Recompressing" wedge after a non-clean stop.
+#
+# recompress_ledger() rebuilds hyper.db by writing a `.temp` clone and swapping it in. The swap used
+# to remove ONLY hyper.db, so a stale `hyper.db-wal`/`-shm` left by a non-clean exit (impatient
+# Ctrl-C / hard kill — the graceful flag is only honoured by the main loop, not during startup)
+# survived and got mis-associated with the freshly-renamed hyper.db on the next open, wedging SQLite
+# WAL recovery ("disk image is malformed" / indefinite stall). The only cure users found was wiping
+# and re-extracting ledger.tar.gz. These tests pin the corrected, sidecar-clean swap.
+# ---------------------------------------------------------------------------
+import types
+
+MISC_SCHEMA = "CREATE TABLE misc (block_height INTEGER, difficulty TEXT)"
+
+
+class _FakeLog:
+    def warning(self, *a, **k):
+        pass
+    info = debug = error = warning
+
+
+def _fake_node(tmp_path):
+    hyper = str(tmp_path / "hyper.db")
+    node = types.SimpleNamespace()
+    node.logger = types.SimpleNamespace(app_log=_FakeLog())
+    # full-ledger recompress path: ledger_path and hyper_path are distinct; the copy source is hyper.db
+    node.ledger_path = str(tmp_path / "ledger.db")
+    node.hyper_path = hyper
+    node.trace_db_calls = False
+    return node
+
+
+def _build_hyper_wal(path, heights):
+    """Create a WAL-mode hyper.db, insert `heights` as reward rows, and leave committed frames stranded
+    in the -wal (autocheckpoint off, connection left open) so the on-disk state mimics a hard kill."""
+    conn = sqlite3.connect(path)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA wal_autocheckpoint=0")   # frames stay in -wal, not the main file
+    conn.execute(SCHEMA)
+    conn.execute(MISC_SCHEMA)
+    for h in heights:
+        conn.execute("INSERT INTO transactions (block_height,timestamp,address,recipient,amount,"
+                     "signature,public_key,block_hash,fee,reward,operation,openfield) "
+                     "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                     (h, 1600000000 + h, "miner", "A%d" % h, "0", "s", "p", "b", "0", "10.0", "0", ""))
+        conn.execute("INSERT INTO misc VALUES (?,?)", (h, "1"))
+    conn.commit()
+    return conn  # deliberately left open — caller closes after recompress
+
+
+def _no_orphan_sidecars(path):
+    return not os.path.exists(path + "-wal") and not os.path.exists(path + "-shm")
+
+
+def test_recompress_clears_stale_hyper_sidecars(tmp_path):
+    """A pre-existing stale hyper.db-wal/-shm (from an unclean stop) must not survive the swap."""
+    node = _fake_node(tmp_path)
+    # a clean hyper.db plus bogus leftover sidecars beside it
+    conn = sqlite3.connect(node.hyper_path)
+    conn.execute(SCHEMA)
+    conn.execute(MISC_SCHEMA)
+    for h in range(1, 12):
+        conn.execute("INSERT INTO transactions (block_height,timestamp,address,recipient,amount,"
+                     "signature,public_key,block_hash,fee,reward,operation,openfield) "
+                     "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                     (h, 1600000000 + h, "miner", "R%d" % h, "0", "s", "p", "b", "0", "10.0", "0", ""))
+        conn.execute("INSERT INTO misc VALUES (?,?)", (h, "1"))
+    conn.commit(); conn.close()
+    with open(node.hyper_path + "-wal", "wb") as f:
+        f.write(b"\x00" * 4096)          # garbage sidecars that would poison the next open
+    with open(node.hyper_path + "-shm", "wb") as f:
+        f.write(b"\x00" * 4096)
+
+    chain_ops.recompress_ledger(node, depth=2)
+
+    assert _no_orphan_sidecars(node.hyper_path), "stale hyper.db-wal/-shm survived the swap"
+    assert not os.path.exists(node.ledger_path + ".temp"), "temp DB was not consumed by the swap"
+    # hyper.db must open and read cleanly (no 'disk image is malformed')
+    c = sqlite3.connect(node.hyper_path)
+    assert int(c.execute("SELECT max(block_height) FROM transactions").fetchone()[0]) == 11
+    c.close()
+
+
+def test_recompress_preserves_committed_wal_frames(tmp_path):
+    """The copy must include committed rows still stranded in the source WAL (checkpoint-before-copy),
+    otherwise the rebuilt hyper.db is silently BEHIND the real tip."""
+    node = _fake_node(tmp_path)
+    writer = _build_hyper_wal(node.hyper_path, range(1, 11))  # heights 1..10 sit in the -wal
+    # sanity: the frames really are stranded in the WAL, not yet in the main file
+    assert os.path.exists(node.hyper_path + "-wal") and os.path.getsize(node.hyper_path + "-wal") > 0
+
+    chain_ops.recompress_ledger(node, depth=2)
+    writer.close()
+
+    assert _no_orphan_sidecars(node.hyper_path)
+    c = sqlite3.connect(node.hyper_path)
+    top = int(c.execute("SELECT max(block_height) FROM transactions").fetchone()[0])
+    c.close()
+    assert top == 10, "committed WAL frames were dropped by the copy (top=%s, expected 10)" % top
