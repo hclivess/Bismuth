@@ -833,7 +833,11 @@ def _make_handler(node):
             # shielded pool health (doc/22). pool_units MUST equal the SHIELD_SINK ledger balance — that
             # invariant (publicly checkable, since amounts are transparent) is the supply-safety guarantee.
             st = getattr(node, "shielded_state", None)
-            base = {"enabled": st is not None, "fork_height": getattr(node, "fork_height", None)}
+            # STAGED/DEFERRED (doc/22): report the shielded-value activation height (node.shielded_fork_height),
+            # NOT hf2's node.fork_height. Default None on all networks => shielded consensus never runs. `enabled`
+            # is the sidecar-opened (config.shield) flag; `active` is whether an activation height is scheduled.
+            _sfh = getattr(node, "shielded_fork_height", None)
+            base = {"enabled": st is not None, "shielded_fork_height": _sfh, "active": _sfh is not None}
             if st is None:
                 return base
             import shieldedv1
@@ -954,7 +958,7 @@ def _make_handler(node):
             """Current fee parameters. Post-fork the base fee is CONGESTION-responsive (fee_dynamics):
             it scales with recent block WEIGHT (tx count + openfield bytes // w_unit) over a window,
             clamped — wallets should read `base_fee` here for the live minimum. vm: txs additionally pay
-            vm_surcharge; +len(openfield)/100000 per tx; shield: txs +0.01."""
+            vm_surcharge; +len(openfield)/100000 per tx."""
             import fee_dynamics
             bf = getattr(node, "base_fee", None)
             return {"base_fee": str(bf) if bf is not None else str(essentials.BASE_FEE),

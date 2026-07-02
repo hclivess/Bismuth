@@ -32,4 +32,5 @@ pk_registry_consensus=primary
 parity_strict=True
 vm=True
 shield=True
+shielded_fork_height=10
 token_index=True

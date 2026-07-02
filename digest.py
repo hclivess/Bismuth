@@ -762,8 +762,10 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         # safety), so reject any block carrying such a SENDER at/below the fork height. Receiving INTO one of
         # these addresses is always fine (just an address). _t[2] is the sender (12-field converted row).
         _mfh = getattr(node, "fork_height", None)
-        # active at height >= fork_height, identical to the shield/VM gates above (which use >= _fh). Using
-        # '<' (not '<=') so these activate at the SAME block as shield/VM, not one block later.
+        # active at height >= fork_height, identical to the VM gate (which uses >= node.fork_height). NOTE: the
+        # shielded gate is NO LONGER on fork_height — it moved to its own node.shielded_fork_height (decoupled
+        # from hf2, doc/22); do not re-couple it here. Using '<' (not '<=') so these activate at the SAME block
+        # as the VM gate, not one block later.
         if _mfh is None or block_instance.block_height_new < _mfh:
             from polysign.signerfactory import SignerFactory as _SF
             for _t in processor.block_transactions:
@@ -774,11 +776,14 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
 
         # shielded value (doc/22): consensus-validate this block's shield: txs BEFORE committing — a block
         # that double-spends a nullifier, spends an unknown/already-spent note, fails an ownership proof,
-        # or breaks value conservation RAISES here and is rejected (never written). POST-FORK only; inert
-        # pre-fork exactly like vm:. The parsed ops are stashed to apply after to_db succeeds.
+        # or breaks value conservation RAISES here and is rejected (never written). STAGED/DEFERRED — the
+        # Monero-style privacy stack is DECOUPLED FROM hf2 (2026-07): it gates on its own node.shielded_fork_height
+        # (a plain config knob, default None on ALL networks — NOT a miner-activated signal, NOT node.fork_height).
+        # While None the branch never runs and shield: txs are ordinary txs everywhere (no split); set a height
+        # only to schedule/test (regnet/dev). The parsed ops are stashed to apply after to_db succeeds.
         _shield_parsed = []
         _sst = getattr(node, "shielded_state", None)
-        _sfh = getattr(node, "fork_height", None)
+        _sfh = getattr(node, "shielded_fork_height", None)
         if _sst is not None and _sfh is not None and block_instance.block_height_new >= _sfh:
             import shieldedv1
             _shield_parsed = shieldedv1.validate_block(

@@ -60,8 +60,8 @@ duplicate, format), so the endpoint is a new transport, not a new consensus rule
 | `GET /api/vm/contracts` | deployed contracts + the current VM `state_root`, `fork_height`, `enabled` |
 | `GET /api/vm/contract/{addr}` | a contract: `engine` (`riscv`), code, custody `balance`, storage slots |
 | `GET /api/vm/market/{addr}` | prediction-market contract state: pots, odds, resolution |
-| `GET /api/shield/stats` | shielded pool (doc/22): `notes`/`key_images` counts, `pool_units`, `sink` |
-| `GET /api/shield/note/{note_id}` | public fields of a shielded note (nothing decryptable) |
+| `GET /api/shield/stats` | shielded pool (doc/22): `notes`/`key_images` counts, `pool_units`, `sink`; the activation-height field is now `shielded_fork_height` (+ an `active` bool), **not** hf2's `fork_height`. Reflects the **staged/deferred** shielded feature — empty/inert unless `shielded_fork_height` is set |
+| `GET /api/shield/note/{note_id}` | public fields of a shielded note (nothing decryptable); part of the **staged/deferred** shielded feature — empty/inert unless `shielded_fork_height` is set |
 | `GET /api/proxy?target={url}` | same-origin relay to another node's read-only `/api` (lets the https explorer browse an http node despite the browser's mixed-content block); read-only, GET-only, `/api`-paths-only, SSRF-guarded (IP-pinned, no-redirect, port-allowlisted, rate-limited); gated by `rest_api_proxy` (default on) |
 | `POST /api/transaction` | submit a signed tx (gated by `rest_api_write`; aliases: `POST /api/sendtx`, `POST /api/mempool`). The response echoes each tx's canonical id in `txids` (post-fork the content-hash txid; pre-fork the legacy signature prefix)¹ |
 | `GET /api/stats/summary` | network dashboard: height, difficulty, recent avg block time, peers, consensus, mempool, token count (`rest_stats.network_summary`) |

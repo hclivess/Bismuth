@@ -1451,8 +1451,13 @@ if __name__ == "__main__":
     node.vm_enabled = config.vm                         # opt-in decentralized-apps VM (doc/17); POST-FORK only
     node.vm_state = None                               # the contract state store, built at startup if enabled
     node.vm_state_root = None                          # committed VM state root (doc/19), maintained post-fork
-    node.shield_enabled = config.shield                # opt-in shielded value (doc/22); POST-FORK only
+    node.shield_enabled = config.shield                # opt-in shielded value (doc/22): builds/opens the note sidecar when True
     node.shielded_state = None                         # the note/nullifier sidecar, built at startup if enabled
+    # doc/22: STAGED/DEFERRED — Monero-style shielded value is DECOUPLED FROM hf2. Its consensus validation
+    # gates on this height (plain config knob, default None on EVERY network — NOT a miner version-bits signal,
+    # NOT node.fork_height). None => shielded validation never runs, shield: txs are ordinary txs (no split).
+    # Set unconditionally (even when shield=False) so digest can read it via getattr. Set a height only to schedule/test.
+    node.shielded_fork_height = getattr(config, "shielded_fork_height", None)
     node.token_index = None                            # the LMDB token/alias side-index store; set by the
     #                                                    tokens_aliases plugin at startup (doc/27) when the
     #                                                    token_index flag is on, else None (legacy index.db).
@@ -1728,15 +1733,17 @@ if __name__ == "__main__":
                     node.vm_state = None
 
             # optional shielded-value sidecar (doc/22). Off unless shield=True. A note/nullifier projection
-            # of the chain's shield: txs, maintained by the digester POST-FORK and rolled back on a reorg,
-            # namespaced per ledger (no regnet->mainnet bleed). Just open it; no startup rescan needed.
+            # of the chain's shield: txs, maintained by the digester WHEN shielded_fork_height is set (STAGED/
+            # DEFERRED — decoupled from hf2) and rolled back on a reorg, namespaced per ledger (no regnet->mainnet
+            # bleed). Just open it; no startup rescan needed. The sidecar opening is independent of activation,
+            # so a dev node can hold an inert store (shielded_fork_height=None) for wallet/read use.
             if getattr(node, "shield_enabled", False):
                 try:
                     import shieldedv1 as _shield_mod
                     node.shielded_state = _shield_mod.open_state_for(node.ledger_path)
                     node.logger.app_log.warning(
-                        "Status: shielded value enabled (validates shield: txs post-fork): {}".format(
-                            node.shielded_state.stats()))
+                        "Status: shielded sidecar opened (STAGED/DEFERRED, gated on shielded_fork_height={}): {}".format(
+                            node.shielded_fork_height, node.shielded_state.stats()))
                 except Exception as e:
                     node.logger.app_log.warning("Status: shielded value could not start: {}".format(e))
                     node.shielded_state = None

@@ -8,6 +8,30 @@ engine-seam stage, not the SQLite retirement.
 
 ---
 
+## 2026-07-02 — Shielded value decoupled from hf2 (doc/22)
+
+**What:** the Monero-style shielded-value stack is now **staged/deferred** and no longer part of
+the `hf2` bundle. Consensus validation of `shield:` transactions no longer gates on
+`node.fork_height`; it gates on a new, separate `node.shielded_fork_height` — a **plain config
+knob, not a miner-activated version-bits signal** — which defaults to `None` on every network
+(mainnet/testnet/regnet). The crypto library and its tests (`shieldedv1.py` stealth addresses +
+CryptoNote ring signatures, `ringct.py` RingCT confidential amounts, `bulletproof.py` range
+proofs) are **preserved and fully implemented**. Regnet/dev opt in by setting
+`shielded_fork_height` explicitly (regnet configs set it to `10`).
+
+**Why:** shielded is not ready to lock into the single hf2 fork; decoupling lets hf2 ship on
+schedule while shielded is scheduled independently in a later fork — or dropped entirely —
+without a chain split. hf2 itself is unchanged (VM, LWMA, blake2b Heavy3, dynamic fees,
+serialization/txid, coinbase free-fields, native multisig) — only shielded left the bundle.
+
+**Effect:** while `shielded_fork_height` is `None`, `shield:` txs are **ordinary transactions
+everywhere** and are never consensus-validated. The `shield:` fee surcharge in
+`essentials.fee_calculate` was **removed** (`shield:` txs pay the ordinary fee now; re-added
+later, gated on `shielded_fork_height`, if scheduled). `/api/shield/stats` now reports
+`shielded_fork_height` (+ an `active` bool) instead of `fork_height`.
+
+---
+
 ## 1. Decentralized multiplayer Hold'em dApp (doc/28, 32, 33, 34)
 
 A no-trusted-dealer, on-chain-refereed multiplayer poker app: an RV32I VM contract is the

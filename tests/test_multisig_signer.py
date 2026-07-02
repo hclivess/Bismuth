@@ -251,8 +251,11 @@ def _mine_until(client, predicate, rounds=30):
 
 
 def _wait_fork_active(client):
+    # native multisig / post-fork signing gate on the hf2 fork_height — read the general /api/fork probe
+    # (like the VM/AMM/DEX tests), NOT /api/shield/stats: shielded value is now decoupled from hf2 (doc/22),
+    # and these tests perform no shielded ops.
     for _ in range(30):
-        d = _get("/api/shield/stats")
+        d = _get("/api/fork")
         fh = d.get("fork_height")
         if fh is not None and client.block_height() > fh:
             return

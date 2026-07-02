@@ -193,11 +193,12 @@ RSA (the scheme in dominant use on the public network today), secp256k1, Ed25519
 and native multisignature (the last three activate as spendable sender families only at hf2) &#8212; selected by the
 sender&#8217;s address rather than hard-coded into consensus, which
 positions the protocol to adopt post-quantum signatures without redefining how it thinks about identity. A
-deterministic RISC-V virtual machine that lets contracts custody and move real BIS, and a consensus-validated
-shielded layer that carries private transfers inside ordinary transactions, take effect at the
-<em class="term">hf2</em> upgrade. As of the date of this document the public network has not activated hf2, so a
-holder should not assume those capabilities, or the other hf2 features, are live on the public network yet; their
-status is set out in Section&#160;16.</p>
+deterministic RISC-V virtual machine that lets contracts custody and move real BIS takes effect at the
+<em class="term">hf2</em> upgrade. A consensus-validated shielded layer that carries private transfers inside
+ordinary transactions is implemented and consensus-wired but is not part of hf2; its activation is staged behind a
+separate, default-disabled height, to be scheduled in a later fork or omitted. As of the date of this document the
+public network has not activated hf2, so a holder should not assume those capabilities, or the other hf2 features,
+are live on the public network yet; their status is set out in Section&#160;16.</p>
 
 <p>BIS confers no claim against any person and grants no right to income, dividend, redemption, or governance. It is
 a volatile crypto-asset whose supply has no fixed maximum (Part&#160;G); its environmental footprint as a
@@ -329,7 +330,7 @@ is a free-form, uncapped namespaced command &#8212; for example <code>token:issu
 <code>alias:register</code>, <code>vm:deploy</code>, <code>vm:call</code>, or <code>shield:spend</code> &#8212; and
 <code>openfield</code> carries the associated data. The base node orders and archives these transactions without
 needing to understand them; the subsystems that do understand them &#8212; the token and alias indexes, the virtual
-machine, the shielded pool &#8212; read the same canonical rows. Consensus validation of <code>vm:</code> and <code>shield:</code> operations activates at hf2 (Sections&#160;10, 11, and&#160;16). A protocol can therefore be added at the
+machine, the shielded pool &#8212; read the same canonical rows. Consensus validation of <code>vm:</code> operations activates at hf2; consensus validation of <code>shield:</code> operations is staged for a separate later scheduled activation, not part of hf2 (Sections&#160;10, 11, and&#160;16). A protocol can therefore be added at the
 interpretation layer without a new block format and without enlarging the consensus core. Both extension fields are
 optional: an ordinary payment carries neither, and an empty operation or openfield is dropped from the canonical
 transaction bytes entirely rather than encoded as an empty field (Section&#160;6). When present they are free-form and
@@ -464,7 +465,8 @@ implementation bug surfaces as a visible block rejection rather than silent dive
 committed state root activate at hf2 (Section&#160;16).</p>
 
 <h2 id="s11">11. Shielded value</h2>
-<p>The shielded layer is a consensus-validated privacy pool carried inside ordinary transactions, not a second chain.
+<p>This layer is implemented and consensus-wired but is not part of the hf2 upgrade; its consensus activation is
+staged behind a separate, default-disabled height (Section&#160;16). The shielded layer is a consensus-validated privacy pool carried inside ordinary transactions, not a second chain.
 Its transfers are Bismuth transactions whose <code>shield:*</code> operations carry notes, ring members, key images,
 and commitments; their transparent envelope gives them a place in the total order while their inner cryptographic
 content determines private ownership and spend validity. The shielded state &#8212; notes, height-indexed rollback
@@ -476,7 +478,7 @@ second stage spends with linkable ring signatures and key images, so the chain p
 image may appear once &#8212; without revealing which ring member was spent. The third stage hides amounts with
 RingCT: Pedersen commitments, logarithmic Bulletproof range proofs, and a multilayer ring signature, built over the
 secp256k1 curve. The shielded layer replaces an earlier off-chain prototype whose spent-set logic lived outside
-consensus; here, validity is enforced by every full node as a consensus rule. Like the virtual machine, the shielded layer is gated on hf2 activation (Section&#160;16).</p>
+consensus; here, validity is enforced by every full node as a consensus rule. Unlike the virtual machine, the shielded layer is not part of hf2; it is implemented and consensus-wired, but its activation is staged behind a separate, default-disabled activation height, to be scheduled in a later fork or omitted (Section&#160;16).</p>
 
 <h2 id="s12">12. Storage architecture</h2>
 <p>Storage separates canonical chain data from rebuildable projections. The chain itself is the only authoritative
@@ -545,12 +547,15 @@ public network runs the predecessor ruleset: SHA-224 Heavy3, the feedback-contro
 transaction identifiers, text-form signing and block hashing, the fixed base fee, and SQLite as the store of record.
 The hf2 features &#8212; BLAKE2b Heavy3, LWMA difficulty, binary and integer serialization, content-addressed
 identity, recoverable secp256k1 signatures, coinbase compaction and reward maturity, the responsive base fee, the
-committed virtual-machine state root, the virtual machine, the shielded layer, key-value storage as the read path,
+committed virtual-machine state root, the virtual machine, key-value storage as the read path,
 and the base-layer sender families a pre-fork node refuses (native-multisignature, NIST&#160;P-256, and ML-DSA
 senders) &#8212; are implemented and exercised on the development network and in the test suite, but a holder should not assume
 any of them is live on the public network before activation. Activation depends on miner adoption; it may be delayed
 and is not guaranteed (Part&#160;I). This is the single most important operational fact for reading the rest of this
 document.</p>
+<p>The shielded layer is implemented and exercised on the development network and in the test suite, but it is not
+bundled into hf2: its consensus activation is staged behind a separate, default-disabled activation height that hf2
+does not set, and it may be scheduled in a later fork or omitted entirely.</p>
 
 <h2 id="s17">17. Supply and the reward schedule</h2>
 <p>BIS was first mined on 1&#160;May&#160;2017 from a genesis block with no allocation to anyone; the entire supply
@@ -712,9 +717,11 @@ Article&#160;109 (in the form specified by Commission Delegated Regulation (EU)&
 crypto-asset category &#8212; <em class="term">other crypto-asset</em> (not an ART, not an EMT); distributed-ledger
 technology &#8212; the Bismuth proof-of-work blockchain; consensus mechanism &#8212; proof of work (Section&#160;3);
 native to its own ledger (not a token issued on a third-party ledger). Functionality timing: value transfer and fee
-payment function today; the programmable (virtual-machine) and shielded functionalities, together with the other
-protocol changes bundled into the hf2 upgrade, are implemented and activate with the <em class="term">hf2</em>
-boundary (full list and current status in Section&#160;16).</li>
+payment function today; the programmable (virtual-machine) functionality, together with the other protocol changes
+bundled into the hf2 upgrade, is implemented and activates with the <em class="term">hf2</em> boundary. The shielded
+(privacy) functionality is implemented but is not bundled into hf2; its consensus activation is staged for a separate
+later scheduled activation, and it may be scheduled in a later fork or omitted (full list and current status in
+Section&#160;16).</li>
 </ol>
 
 <h3 style="font-style:normal" id="partG"><span class="partlabel">Part G &#8212; Rights and obligations</span></h3>
@@ -798,8 +805,9 @@ holder&#8217;s jurisdiction and may change, and the regulatory characterisation 
 document could be assessed differently by a competent authority.</li>
 <li><b>Risks of project implementation.</b> The coordinated <em class="term">hf2</em> upgrade is miner-activated and,
 as of the date of this document, has not activated on the public network; the features it carries (the virtual
-machine, the shielded layer, BLAKE2b proof of work, and others in Section&#160;16) are inert on the public network
-until then. Activation depends on miner adoption and may be delayed, may not occur, or may surface defects on
+machine, BLAKE2b proof of work, and others in Section&#160;16) are inert on the public network
+until then. The shielded layer is not carried by hf2; it is separately staged behind a default-disabled activation
+height and is inert on the public network regardless of hf2. Activation depends on miner adoption and may be delayed, may not occur, or may surface defects on
 activation. These risks are mitigated by gating each change behind a single deterministic on-chain activation height,
 by replay-verifying every storage and serialization change to be byte-identical across the boundary, and by the
 consensus-invariant and characterization test suites; nevertheless, software of this complexity may contain defects.</li>

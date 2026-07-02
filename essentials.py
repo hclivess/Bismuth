@@ -326,10 +326,10 @@ def fee_calculate(openfield: str, operation: str = '', block: int = 0,
     if vm_surcharge and operation.startswith("vm:"):
         import fee_dynamics
         fee += fee_dynamics.VM_SURCHARGE
-    # shielded txs (doc/22) are larger and costlier to validate (EC ops); a flat post-fork surcharge
-    # discourages spamming the pool. Same gate as the vm surcharge (post-fork only).
-    if vm_surcharge and operation.startswith("shield:"):
-        fee += DECIMAL_ONE
+    # NOTE (doc/22): the shield: EC-validation surcharge was REMOVED when Monero-style shielded value was
+    # decoupled from hf2 (STAGED/DEFERRED). While shielded is inert (shielded_fork_height=None) a shield:
+    # tx is an ordinary tx and must pay the ordinary fee — no special consensus surcharge. If shielded is
+    # ever scheduled (shielded_fork_height set), re-add the surcharge gated on that height, not on hf2.
 
     return quantize_eight(fee)
 

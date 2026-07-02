@@ -58,7 +58,7 @@ difficulty)** — treat those as authoritative for validation rules.
 | [46-wbis-evm-bridge.md](46-wbis-evm-bridge.md) | **wBIS EVM bridge (BUILT)** — the Ethereum/BNB side that links native BIS to the live wBIS token: `BismuthBridge.sol` becomes the token's mint authority and mints only against on-chain-verified Bismuth lock proofs (BLAKE2b/Merkle port, guardian + zk verifiers, the oracle, deployment runbook) |
 | [20-post-quantum.md](20-post-quantum.md) | Post-quantum signatures: ML-DSA-65 signer, the `pq` fork path |
 | [21-mining.md](21-mining.md) | The built-in solo miner (`miner.py`) and dual-algo PoW signalling |
-| [22-shielded.md](22-shielded.md) | Shielded value: stealth addresses, ring signatures, RingCT confidential amounts (`shieldedv1.py`, `ringct.py`, `bulletproof.py`) |
+| [22-shielded.md](22-shielded.md) | Shielded value: stealth addresses, ring signatures, RingCT confidential amounts (`shieldedv1.py`, `ringct.py`, `bulletproof.py`) — **STAGED/DEFERRED: decoupled from hf2, gated on default-None `shielded_fork_height`** |
 | [23-hd-multisig.md](23-hd-multisig.md) | BIP32/BIP39 HD wallets and M‑of‑N multisig (native signer + VM vault) |
 | [24-defi-dex.md](24-defi-dex.md) | DeFi on the VM: DEX order book, constant-product AMM, multi-pool any-token router; HTLC/atomic-swap plans |
 | [25-security-audit.md](25-security-audit.md) | Adversarial security audit: findings, fixes, regression tests |

@@ -118,7 +118,8 @@ as a `node.*` attribute / config line.)
 | `rest_api_proxy_ports` | str/list | extra target ports the proxy may reach, beyond the built-in `80/443/5658/5659` + this node's `rest_api_port` (`rest_api.py:526`, `PROXY_DEFAULT_PORTS`); space/comma-separated. The allowlist stops the relay being used as an arbitrary-port scanner (audit M-1) |
 | `rest_api_geo` | bool | enable the geolocated peer map behind `/api/stats/geo` (default **ON**, `rest_stats.py:282`); set false to suppress the outbound geo lookup |
 | `txid_scan_limit` | int | max rows the bounded, recent-first content-txid (`/api/tx/<64-hex>`) scan will re-hash before erroring (default **250000**, `rest_api.py:1181`); deeper history is reachable with `?from_height` (audit H-4) |
-| `shield` | bool | opt-in shielded value (doc/22): validate/index `shield:` txs — inert until hf2 activates |
+| `shield` | bool | opt-in shielded value (doc/22): builds/opens the shielded sidecar and indexes `shield:` txs when True. Consensus validation is **separately gated** on `shielded_fork_height` (default None everywhere) — the shielded stack is **STAGED/DEFERRED, no longer part of hf2** |
+| `shielded_fork_height` | int/None | activation height for shielded-value consensus validation (doc/22); **default None on all networks (mainnet/testnet/regnet)** — while None, `shield:` txs are ordinary txs and shielded validation never runs (no chain split). **NOT a miner-activated signal** — a plain config knob; set explicitly only on dev/regnet (regnet configs use 10) or a future scheduled fork |
 | `token_index` | bool | opt-in LMDB token/alias side-index (doc/26 stage 2, served by the `tokens_aliases` plugin — doc/27), replacing the SQLite `index.db` projection post-fork |
 | `rpc_bitcoin` / `rpc_bitcoin_port`, `rpc_ethereum` / `rpc_ethereum_port` | bool/int | enable the external bitcoind-compatible (`:8332`) / `eth_*` (`:8545`) JSON-RPC adapters for exchange/explorer/web3 tooling (doc/17); both default off |
 

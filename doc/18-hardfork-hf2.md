@@ -120,8 +120,9 @@ secp256k1 senders.
     sign the txid and does **NOT** drop pubkeys — only ordinary single-sig secp256k1 moves to the
     recoverable/ecrecover path. The digest multisig gate (`digest.py:572-585`) is unchanged.
   - **SHIELDED / RingCT** txs (doc/22) KEEP their ring-signature scheme and their own message binding
-    (`shieldedv1._ring_message`), but the *enclosing* tx still gets the same content-hash txid for
-    indexing/lookup. ecrecover is never applied to them.
+    (`shieldedv1._ring_message`), but a `shield:` tx is still an ordinary tx and still gets hf2's
+    content-hash txid for indexing/lookup; ecrecover is never applied to them. Note shielded *consensus*
+    validation is not part of hf2 — it is staged behind a separate `node.shielded_fork_height` (doc/22).
 
 **6. txid computed ON READ; shape-dispatched lookup (every reader).** There is **NO `txid` DB column
 and NO migration** — the canonical content-hash txid is computed **on read** from the stored row by
@@ -226,7 +227,10 @@ post-fork-only (inert pre-fork), so there was **no legacy contract address to pr
 switch with no dual path. (`digest_size=28` keeps the contract address a 56-hex Bismuth-style address.)
 
 **Gate.** Everything above keys on the single `block_height >= node.fork_height` (no second signal),
-matching the existing VM / shield / multisig / LWMA / blake2b gates in `digest.py`. Pre-fork:
+matching the existing VM / multisig / LWMA / blake2b gates in `digest.py`. Shielded value is **NOT**
+in this list — it is staged behind a separate, default-`None` `node.shielded_fork_height` (doc/22), so
+it is not part of hf2 (a plain config knob, not a version-bits signal — the "no second signal" claim for
+hf2 still holds). Pre-fork:
 `signature[:56]` id, DER/base64 sig, explicit pubkey, buffer-signing — **unchanged**, so no history
 rewrite (doc/18 "Continuity"). Replay-validated: pre-fork blocks re-hash identically (the txid is never
 stored and never enters the block-hash pre-image); post-fork blocks round-trip
@@ -282,10 +286,11 @@ block-rejection rather than a silent divergence. Full map: **doc/19**. (`tests/t
 
 ### F. Dynamic fees → congestion-responsive base fee — ✅ **implemented, fork-gated, tested**
 A smooth, clamped, *deterministic* base fee that tracks recent network **congestion** over a window
-(`fee_dynamics.py`, the fee analogue of the LWMA), plus post-fork operation surcharges — a `vm:`
-execution surcharge (`fee_dynamics.VM_SURCHARGE`) and a flat `shield:` surcharge (+1, EC-validation cost,
-`essentials.py:280-286`); exposed at `/api/fee` for wallets. *Risk: low* — gated; pre-fork the static
-`BASE_FEE` is unchanged.
+(`fee_dynamics.py`, the fee analogue of the LWMA), plus the post-fork `vm:` execution surcharge
+(`fee_dynamics.VM_SURCHARGE`); exposed at `/api/fee` for wallets. (The flat `shield:` surcharge was
+**removed** when shielded value was decoupled from hf2 — `shield:` txs now pay the ordinary fee; it is
+re-added later gated on `shielded_fork_height` if shielded is ever scheduled. Only the `vm:` surcharge
+remains in hf2.) *Risk: low* — gated; pre-fork the static `BASE_FEE` is unchanged.
 
 Congestion is measured by **block WEIGHT**, not just tx count: `weight = tx count + openfield bytes //
 W_UNIT` (`block_store.BlockStore.recent_block_weights`, `W_UNIT=1000`), a gas/vbyte-style measure — so a

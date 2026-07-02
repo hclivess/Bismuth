@@ -77,7 +77,7 @@ signature (`r‖s‖recovery_id`) as lowercase hex; the **`public_key` field is 
 address)`) recovers the signer via **ecrecover** and requires the derived address to equal the sender
 — there is no explicit public key to check. **Low-s is enforced** (high-s/zero is rejected, never
 normalised) so the signature is non-malleable. Everything else — all pre-fork txs, and post-fork
-**RSA / ED25519 / native multisig / shielded (RingCT)** — keeps the legacy
+**RSA / ED25519 / native multisig / shielded (RingCT)** (shielded staged behind `shielded_fork_height`, doc/22) — keeps the legacy
 `verify_bis_signature(signature, public_key, buffer, address)` path over the frozen
 `signature_buffer` with an explicit public key (multisig signs the buffer with N-of-M explicit
 pubkeys; it does **not** sign the txid). All post-fork txs still get the content-hash txid as their
@@ -101,8 +101,9 @@ gas/vbyte-style measure), **not** tx count alone. The weight window is read from
 store** (`block_store.recent_block_weights`, `block_store.py:148`), **never SQLite** — there is no
 SQLite on any post-fork path. `digest` passes this `base_fee` (and `vm_surcharge=node.fee_post_fork`)
 into every `fee_calculate` call (`digest.py:207-209, 248-250`). With `vm_surcharge` on, `vm:` txs add
-`fee_dynamics.VM_SURCHARGE = 0.01` (gas) and `shield:` txs add **+1** (larger, EC-heavy to validate;
-discourages pool spam) — `essentials.py:280-286`. Wallets read the live minimum from `/api/fee`
+`fee_dynamics.VM_SURCHARGE = 0.01` (gas). The `shield:` surcharge was **removed** when shielded was
+decoupled from hf2 — `shield:` txs now pay the **ordinary fee** (the +1 EC-heavy surcharge returns
+only if shielded is later scheduled, gated on `shielded_fork_height`) — `essentials.py:280-286`. Wallets read the live minimum from `/api/fee`
 (`base_fee`, plus `static_base_fee`, `post_fork`, `vm_surcharge`, `target_weight`, `window`, the mult
 clamps). The formula is a pure, deterministic function of the recent chain (no saved fee state across
 restarts), and the store is rolled back with the chain so the window is always canonical.

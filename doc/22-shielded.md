@@ -1,8 +1,20 @@
 # doc/22 — Shielded value (core, post-fork)
 
+> **STAGED / DEFERRED — NOT part of hf2 (2026-07 decision).** Shielded value has been **decoupled from
+> the hf2 hard fork**. The crypto library (`shieldedv1.py` stealth addresses + ring signatures,
+> `ringct.py` confidential amounts, `bulletproof.py` range proofs) and its full test suite are
+> **preserved and implemented** — nothing was ripped out. What changed is *activation*: consensus
+> validation no longer gates on `node.fork_height` (hf2). It now gates on a **separate config knob,
+> `node.shielded_fork_height`**, which is a **plain config value, defaulting to `None` on every network
+> (mainnet/testnet/regnet)** and is **NOT** a miner-activated version-bits signal. While it is `None`,
+> `shield:` txs are **ordinary transactions everywhere** — never consensus-validated — so there is **no
+> chain split**. Shielded may be scheduled in a later fork or dropped entirely. Regnet/dev can exercise
+> it by explicitly setting `shielded_fork_height` (regnet configs set it to `10`).
+
 Status: **stages 1, 2, and 3 implemented** (this branch). Stage 3 = RingCT confidential amounts with
 aggregated Bulletproof range proofs — see §13.
-Gated on: **hf2** (`node.fork_height`) — the same activation as the VM (doc/19). Inert until then.
+Gated on: **`node.shielded_fork_height`** — a plain config knob (default `None` on every network; **not**
+hf2, **not** the VM gate). Inert unless `shielded_fork_height` is explicitly set.
 
 > **Stage 2 (ring signatures) is live.** Spends/redeems now hide *which* output is consumed behind a
 > CryptoNote ring signature, and the spent-set is a set of **key images** (not per-note nullifiers).
@@ -30,16 +42,19 @@ transactions. PoW and block format are **unchanged**, and mining is untouched: s
 ordinary signed transactions with a known `operation`, and the extra validation runs in the digest path
 next to the token/VM logic, not in the miner.
 
-Note, however, that **hf2 — the same fork that gates shielded — separately changes transparent
-single-sig signing.** Post-fork, an ordinary single-sig secp256k1 sender uses an Ethereum-shape model:
-the signature is a 65-byte recoverable compact sig over the **content-hash txid** (blake2b-256 of the
-frozen pre-image: timestamp/address/recipient/amount/operation/openfield), the `public_key` field is
-**dropped**, the signer is recovered via `ecrecover` and must match the sender address, and low-s is
-enforced. This applies *only* to ordinary single-sig secp256k1; **RSA, ED25519, native MULTISIG, and
-shielded/RingCT keep their existing legacy signing** post-fork (multisig: explicit pubkeys + N-of-M over
-the frozen `signature_buffer` — it does **not** sign the txid). The block-hash pre-image is **unchanged**
-(it hashes the 8-field tx tuples as before, and excludes nothing new). That change is part of hf2, not of
-the shielded feature, and is documented here only because the two activate together.
+Note, however, that **hf2 separately changes transparent single-sig signing.** hf2 no longer gates
+shielded, and the two do **not** activate together — hf2 changes single-sig signing independently of
+whether shielded is ever scheduled. Post-fork, an ordinary single-sig secp256k1 sender uses an
+Ethereum-shape model: the signature is a 65-byte recoverable compact sig over the **content-hash txid**
+(blake2b-256 of the frozen pre-image: timestamp/address/recipient/amount/operation/openfield), the
+`public_key` field is **dropped**, the signer is recovered via `ecrecover` and must match the sender
+address, and low-s is enforced. This applies *only* to ordinary single-sig secp256k1; **RSA, ED25519,
+native MULTISIG, and shielded/RingCT keep their existing legacy signing** post-fork (multisig: explicit
+pubkeys + N-of-M over the frozen `signature_buffer` — it does **not** sign the txid). The block-hash
+pre-image is **unchanged** (it hashes the 8-field tx tuples as before, and excludes nothing new). That
+change is part of hf2, not of the shielded feature. Because shielded is now decoupled, a `shield:` tx is
+still an **ordinary transaction** — and *if/when* shielded is scheduled (necessarily post-hf2), it would
+be subject to hf2's txid/signing rules like any other post-fork tx.
 
 The post-fork content-hash txid becomes the canonical id for **all** post-fork txs (regardless of which
 scheme verified them). It is computed **on read** (`essentials.format_raw_tx`, with the amount taken via
@@ -208,7 +223,10 @@ sig       = ECDSA_p( SHA256("bis-shield-spend/v1" || note_id || canonical(output
 
 Validation runs in `digest.process_block_data` **before `to_db`**, so a violating block is rejected and
 never committed (same placement as the VM state-root check). Enforced only when
-`block_height >= node.fork_height` (pre-fork these ops are inert data, exactly like `vm:`).
+`node.shielded_state is not None and node.shielded_fork_height is not None and block_height >= node.shielded_fork_height`.
+Unlike `vm:` (which stays gated on `node.fork_height`/hf2), `shield:` moved to the separate
+`shielded_fork_height` knob, which defaults to `None` — so `shield:` ops are inert data everywhere unless
+that knob is explicitly set.
 
 > **Stage-2 supersedes the spend/redeem rule below.** The live consensus rule for spends/redeems is the
 > **ring + key-image** check in §12 (no `nullifier`, no referenced-input lookup). The mint rule is
@@ -278,15 +296,20 @@ deterministic projection of the chain and can also be rebuilt from scratch by re
 
 ## 8. Fees, config, API
 
-- **Fee:** `shield:` txs pay a surcharge on top of the openfield-size fee (`essentials.fee_calculate`),
-  alongside the existing `vm:`/`token:issue` surcharges. Tunable; the point is anti-spam, since shielded
-  txs are larger and cost more to validate.
-- **Config:** `shield=True` (off by default; `options.py`), mirroring `vm`. The sidecar opens at startup
-  when enabled; inert until hf2 activates.
+- **Fee:** the `shield:` fee **surcharge was removed** when shielded was decoupled — `shield:` txs now
+  pay the **ordinary** openfield-size fee (`essentials.fee_calculate`), with no extra on top. The
+  anti-spam surcharge (shielded txs are larger and cost more to validate) returns **only if** shielded is
+  later scheduled, at which point it would be re-added gated on `shielded_fork_height`.
+- **Config:** `shield=True` (off by default; `options.py`), mirroring `vm`. This flag only **builds/opens
+  the sidecar** at startup; it does **not** enable consensus validation. Consensus additionally requires
+  `shielded_fork_height` to be set (default `None` everywhere) — two independent knobs now. Inert until
+  `shielded_fork_height` is set.
 - **API (read-only):**
-  - `GET /api/shield/stats` → `{enabled, fork_height, sink, notes, key_images, pool_units}`
-    (`rest_api.py` `_shield_stats`; the spent-set count is **`key_images`**, not `nullifiers`, and the
-    response also pins the `sink` address whose ledger balance must equal `pool_units`)
+  - `GET /api/shield/stats` → `{enabled, shielded_fork_height, active, sink, notes, key_images, pool_units}`
+    (`rest_api.py` `_shield_stats`; `shielded_fork_height` replaces the old `fork_height` key and defaults
+    to `None`, and `active` is a bool that is true only when shielded is both configured and past its fork
+    height; the spent-set count is **`key_images`**, not `nullifiers`, and the response also pins the
+    `sink` address whose ledger balance must equal `pool_units`)
   - `GET /api/shield/note/{note_id}` → public note fields (never anything decryptable without keys)
   Wallets *scan* by pulling `shield:` txs from the existing `/api/address/.../transactions` /
   block endpoints and trial-decrypting locally; the node never holds view keys.

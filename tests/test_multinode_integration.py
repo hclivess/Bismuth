@@ -219,12 +219,14 @@ def test_multinode_integration(tmp_path):
 
         # --- populate shieldedv1 (CORE consensus sidecar): a shield:mint deposits transparent BIS into the
         # pool and creates one stealth note. This is the lightest populating tx (no ring / no key image) and
-        # MUST be post-fork (shield: rules are inert pre-hf2). Mirrors tests/test_shielded.py::_mint.
+        # MUST be past shielded activation (shield: rules are inert until then). Shielded value is DECOUPLED
+        # FROM hf2 (doc/22): it gates on node.shielded_fork_height, reported by /api/shield/stats. Mirrors
+        # tests/test_shielded.py::_mint.
         shield_note = None
         try:
             import shieldedv1 as sh
             sstats = _rest(A_R, "shield/stats")
-            sfh = sstats.get("fork_height")
+            sfh = sstats.get("shielded_fork_height")
             if sstats.get("enabled") and sfh is not None and _tip_via_rest(A_R) > int(sfh):
                 note = sh.make_output(sh.new_keypair()["address"], "20")
                 ca.send(sh.SHIELD_SINK, 20, sh.OP_MINT, json.dumps(note))
@@ -399,7 +401,11 @@ def test_multinode_integration(tmp_path):
         # stops the coverage from silently degrading to a vacuous pass if a future change breaks shield/token.
         if fork_height is not None and tip > int(fork_height):
             assert token_name, "token population did not land despite active fork — coverage would be vacuous"
-            assert shield_note, "shield mint did not land despite active fork — coverage would be vacuous"
+            # Shielded value is decoupled from hf2 (doc/22): only require the shield mint to have landed when
+            # shielded activation was actually configured on this cluster (shielded_fork_height set + crossed).
+            _ssfh = _rest(A_R, "shield/stats").get("shielded_fork_height")
+            if _ssfh is not None and tip > int(_ssfh):
+                assert shield_note, "shield mint did not land despite active shielded fork — coverage would be vacuous"
 
         # === 3. DETECTOR: /api/difficulty agrees across the cluster (no false divergence) ===============
         diffs = {nm: float(_rest(p, "difficulty").get("difficulty")) for nm, p in ports.items()}

@@ -52,16 +52,17 @@ def _key_images():
 
 
 def _wait_fork_active(client):
-    """Mine until hf2 has activated (shield: rules are inert before then), like the VM tests."""
+    """Mine until shielded value has activated. Shielded is DECOUPLED FROM hf2 (doc/22): it gates on its
+    own node.shielded_fork_height (reported by /api/shield/stats), not the hf2 fork_height. Inert before then."""
     for _ in range(30):
         d = _get("/api/shield/stats")
         assert d["enabled"], "shield not enabled on this node"
-        fh = d.get("fork_height")
+        fh = d.get("shielded_fork_height")
         if fh is not None and client.block_height() > fh:
             return d
         client.mine(3)
-    raise AssertionError("hf2 not active (tip %s, fork_height %s)"
-                         % (client.block_height(), d.get("fork_height")))
+    raise AssertionError("shielded not active (tip %s, shielded_fork_height %s)"
+                         % (client.block_height(), d.get("shielded_fork_height")))
 
 
 def _ensure_balance(client, need_bis):

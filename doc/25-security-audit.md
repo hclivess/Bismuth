@@ -6,6 +6,13 @@ the **DEX** VM contract (`contracts/dex.py`), the **REST write path** (`rest_api
 **rollback/reorg** machinery they depend on (`chain_ops.py`, `vm_engine.py`). The audit threat-models the
 well-known crypto/blockchain attack classes of the past decade. Crypto was tested empirically, not assumed.
 
+**Note (2026-07): shielded activation staged.** The shielded/RingCT crypto audited here (`shieldedv1.py`,
+`ringct.py`, `bulletproof.py`) is **preserved and fully implemented**, but its consensus **activation is now
+staged/deferred** — no longer bundled into hf2. It gates on a separate `node.shielded_fork_height`, which
+defaults to **None** on every network (never miner-signalled). While None, `shield:` txs are ordinary
+transactions everywhere and are never consensus-validated. Every finding and fix below is on the crypto itself
+and **remains valid as written** — no re-scope is needed; the guarantees apply whenever activation is scheduled.
+
 **Method.** Each primitive was validated adversarially *in isolation before consensus wiring* (an
 amount-privacy bug is silent inflation). The audit then red-teamed the integrated consensus paths with two
 independent reviewers (rollback completeness; validate/apply soundness + determinism) plus direct crypto
@@ -18,7 +25,7 @@ attacks. Every finding below has a regression test.
 | 1 | **Critical** | Inflation (range-proof soundness) | The Bulletproof verifier trusted the proof's bit-width `n`. An attacker sets `n=256`, proves a "negative" amount `v = N−k ≈ 2²⁵⁶` is "in range", and — because the RingCT balance check holds mod N and the MLSAG ties to the real input — **mints supply from nothing**. | Pin `n == RANGE_BITS` (and `1 ≤ m ≤ MAX_AGG`) in `bulletproof._verify_prep`. | `test_bulletproof::test_bit_width_is_pinned_no_wraparound_bypass` |
 | 2 | **High** | Rollback / reorg (VM custody inflation + consensus wedge) | `blocknf()` (the live reorg handler) and both `sequencing_check()` branches rolled back the ledger + shielded + token sidecars but **never rebuilt `vm_state`**. After a reorg, contract custody balances outrun their `VM_SINK` ledger backing (custody inflation/double-spend), and a stale `vm_state_root` makes the mandatory state-root check reject the canonical branch (consensus wedge). Only `chain_ops.rollback()` was correct. | One shared `chain_ops._rebuild_derived_state(node, db, keep_height)` (VM rebuild + root recompute + balance index + aux stores) called on **every** rollback path. | `test_vm_rollback::test_vm_custody_and_state_root_roll_back` (drives the `regtest_rollback`→`rollback` path, same helper) |
 | 3 | **Medium** | Validate-pass / apply-fail (sidecar desync) | A v3 confidential spend output normally has no `amt` (hidden in `C`), but an attacker could attach a junk `amt` (`"x"`, `1.5`, `{}`) that **passed `validate_block`** yet threw `int(amt)` in `apply_block`. Since apply runs *after* `to_db` under a swallowed `except`, the block commits while the shielded sidecar silently, permanently desyncs (key image burned, outputs dropped) — uniformly on every node. | Validate `amt` (when present) as a non-negative non-bool int in `_require_confidential_note`. | `test_ringct_consensus::test_v3_spend_output_junk_amt_rejected_at_validate` |
-| 4 | Low | Fork-activation consistency | The native-multisig fork-gate used `<= fork_height` (reject), activating multisig **one block later** than the shield/VM gates (`>= fork_height`). Benign for split-safety (more conservative) but a spec inconsistency. | `digest.py` gate changed to `< fork_height`, aligning activation. | (consistency; covered by the multisig live test post-fork) |
+| 4 | Low | Fork-activation consistency | The native-multisig fork-gate used `<= fork_height` (reject), activating multisig **one block later** than the VM gate (`>= fork_height`). Benign for split-safety (more conservative) but a spec inconsistency. | `digest.py` gate changed to `< fork_height`, aligning activation. | (consistency; covered by the multisig live test post-fork) |
 
 ## Attack classes checked and the defense that holds
 

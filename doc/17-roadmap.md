@@ -147,8 +147,8 @@
     content txid, carries a 65-byte recoverable hex signature, **drops the `public_key` field**, recovers
     the signer via `ecrecover`, and enforces **low-s** (`signer_ecdsa.sign_buffer_for_bis_recoverable` /
     `verify_recoverable`). **RSA, ED25519, native MULTISIG, and shielded/RingCT keep their existing
-    legacy signing** post-fork (multisig: explicit pubkeys + N-of-M over the frozen buffer — it does
-    **not** sign the txid). **ALL post-fork txs still receive the content-hash txid as their canonical
+    legacy signing** post-fork (shielded is staged behind `shielded_fork_height`, doc/22) (multisig:
+    explicit pubkeys + N-of-M over the frozen buffer — it does **not** sign the txid). **ALL post-fork txs still receive the content-hash txid as their canonical
     id.** Pre-fork is byte-identical; historical txs keep their `signature[:56]` ids. Covered by
     `tests/test_hf2_recoverable.py` and `tests/test_hf2_fork_transition.py`.
   - **Signature & public-key storage optimization (a stated goal for the fork; spec'd in doc/29 §2-3).**
@@ -268,8 +268,8 @@
   3. **Full validating node** — mempool, digest, peer serving; able to mine and be mined against,
      cross-validated node-to-node with the Python node before it carries any real peering.
   Consensus-critical paths (Heavy3 PoW, LWMA/legacy retarget, serialization, signature schemes, and —
-  post-fork — the RV32I VM and shielded ring-sig verification) are **ported with parity tests, never
-  reinterpreted**. Default-off and non-authoritative until it matches Python block-for-block.
+  post-fork — the RV32I VM (and, if later scheduled, shielded ring-sig verification, doc/22)) are
+  **ported with parity tests, never reinterpreted**. Default-off and non-authoritative until it matches Python block-for-block.
 - **Supersede the legacy socket / peer / block-processing stack with the API system.** This is the
   project's worst code — blocking, no asyncio, stall-prone — and the long-term plan moves its capability
   onto the HTTP/REST API (parallel, compressed, non-stalling). That replacement is the *destination*, but
