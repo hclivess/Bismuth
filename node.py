@@ -28,7 +28,7 @@ around consensus.
 """
 
 
-VERSION = "4.6.0.3"
+VERSION = "4.6.0.4"
 
 import platform
 import shutil
