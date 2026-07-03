@@ -129,8 +129,6 @@ class Get:
         "pk_registry_consensus": ["str"],
         "parity_strict": ["bool"],
         "vm": ["bool"],
-        "shield": ["bool"],
-        "shielded_fork_height": ["int"],
         "token_index": ["bool"],
     }
 
@@ -209,8 +207,6 @@ class Get:
         "balance_index_consensus": "off",    # doc/26 stage 4: off|shadow|primary. off=ledger_balance3 (SQLite) authoritative (default/mainnet). shadow=compute the LMDB balance_index too + compare at the overspend read (warn, or raise under parity_strict). primary=index authoritative, still cross-check SQLite + RAISE on mismatch (halt > inflate). Needs balance_index + integer-units + post-fork; never engages pre-fork.
         "parity_strict": False,              # doc/26 stage 4: turn store/index parity mismatches (balance seam) into a raised AssertionError instead of a log warning — for CI/regnet, NEVER prod.
         "vm": False,                         # opt-in decentralized-apps VM (doc/17); executes vm: txs POST-FORK only. Off by default; inert until hf2 activates.
-        "shield": False,                     # opt-in shielded value (doc/22): builds/opens the note sidecar + indexes shield: txs when True. Off by default. Consensus validation is a SEPARATE knob (shielded_fork_height) — STAGED/DEFERRED, NOT bundled in hf2.
-        "shielded_fork_height": None,        # doc/22: activation height for shielded-value CONSENSUS validation. STAGED/DEFERRED — decoupled from hf2. Default None on ALL networks => shielded validation never runs and shield: txs are ordinary txs. NOT a miner-activated signal; set a height only on dev/regnet or a future scheduled fork.
         "token_index": False,                # opt-in LMDB token/alias side-index (doc/26 stage 2), replacing the SQLite index.db projection. Off by default (mainnet stays on index.db pre-fork); becomes the post-fork home for tokens/aliases.
         "mandatory_message": {
             "Address": "Comment - Dict for addresses that require a message. tx to these addresses withjout a message will not be accepted by mempool.",

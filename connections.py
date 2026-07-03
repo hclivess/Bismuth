@@ -26,6 +26,20 @@ import platform
 LTIMEOUT = 45
 # Fixed header length
 SLEN = 10
+# Upper bound on a single framed payload. A peer declares the payload length in
+# the 10-byte header before any bytes are read; without this cap a hostile (or
+# corrupt) header forces an arbitrarily large ``bytearray`` allocation on the
+# receiving node — a single-message memory-exhaustion DoS. 100 MB comfortably
+# exceeds any legitimate legacy message (largest is a block-sync segment batch).
+MAX_PAYLOAD = 100 * 1024 * 1024
+
+
+def _validate_data_len(data_len: int) -> None:
+    """Reject a framed payload length that is negative or exceeds ``MAX_PAYLOAD``."""
+    if data_len < 0:
+        raise ValueError(f"Invalid data length: {data_len}")
+    if data_len > MAX_PAYLOAD:
+        raise ValueError(f"Data too large: {data_len} bytes")
 
 
 def send(sdef, data, slen: int = SLEN) -> None:
@@ -68,10 +82,28 @@ if "Linux" in platform.system():
                     raise RuntimeError("Socket POLLHUP")
 
             if flag & READ_FLAGS:
-                data = sdef.recv(slen)
-                if not data:
-                    raise RuntimeError("Socket EOF")
-                data_len = int(data)
+                # Read the fixed-length header in a loop. TCP is a byte stream: a single recv(slen)
+                # can legitimately return fewer than slen bytes (segment boundary inside the header,
+                # or a hostile peer dribbling it one byte at a time). Because the header is zero-padded,
+                # a short read parses via int() to a WRONG, smaller length and corrupts framing.
+                header = bytearray()
+                while len(header) < slen:
+                    chunk = sdef.recv(slen - len(header))
+                    if not chunk:
+                        raise RuntimeError("Socket EOF")
+                    header += chunk
+                    if len(header) < slen:
+                        ready = poller.poll(timeout_ms)
+                        if not ready:
+                            raise RuntimeError("Socket Timeout header")
+                        fd, flag = ready[0]
+                        if flag & ERROR_FLAGS and not (flag & READ_FLAGS):
+                            raise RuntimeError("Socket POLLHUP header")
+                        if not (flag & READ_FLAGS):
+                            raise RuntimeError(f"Socket Unexpected Error: {flag}")
+                data_len = int(bytes(header))
+                # Bound the declared length before allocating (see MAX_PAYLOAD).
+                _validate_data_len(data_len)
             else:
                 raise RuntimeError(f"Socket Unexpected Error: {flag}")
 
@@ -125,19 +157,28 @@ else:
                 raise ConnectionError("Socket in error state")
 
             if ready[0]:
-                header = sdef.recv(slen)
-                if not header:
-                    raise ConnectionError("Connection closed by remote host")
+                # Loop the fixed-length header read: a single recv(slen) may return a short read on a
+                # fragmented segment (or a byte-dribbling peer), and the zero-padded header would then
+                # parse to a wrong, smaller length and corrupt framing.
+                header = bytearray()
+                while len(header) < slen:
+                    chunk = sdef.recv(slen - len(header))
+                    if not chunk:
+                        raise ConnectionError("Connection closed by remote host")
+                    header += chunk
+                    if len(header) < slen:
+                        ready = select.select([sdef], [], [sdef], timeout)
+                        if ready[2]:
+                            raise ConnectionError("Socket in error state")
+                        if not ready[0]:
+                            raise ConnectionError("Socket timeout reading header")
 
                 try:
-                    data_len = int(header)
+                    data_len = int(bytes(header))
                 except ValueError:
-                    raise ValueError(f"Invalid header received: {header!r}")
+                    raise ValueError(f"Invalid header received: {bytes(header)!r}")
 
-                if data_len < 0:
-                    raise ValueError(f"Invalid data length: {data_len}")
-                if data_len > 100 * 1024 * 1024:  # 100MB sanity check
-                    raise ValueError(f"Data too large: {data_len} bytes")
+                _validate_data_len(data_len)
             else:
                 return "*"  # Logical timeout
 

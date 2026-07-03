@@ -78,7 +78,7 @@ def start_node(fresh=False):
             except OSError:
                 pass
         for d in ("static/blockstore", "static/balanceindex", "static/vmstate",
-                  "static/shielded-regmode.db", "static/tokenindex-regmode.db"):
+                  "static/tokenindex-regmode.db"):
             shutil.rmtree(os.path.join(ROOT, d), ignore_errors=True)
         try:
             os.remove(SIDECAR)

@@ -5,9 +5,9 @@ layout (no per-instance ``__dict__``); the methods are unchanged and run on the 
 instance, so ``self.app_log``/``self.config`` and cross-domain ``self.api_*`` calls resolve via the MRO.
 """
 import base64
-import json
 import amounts
 import connections
+import essentials
 
 
 class TxApiMixin:
@@ -155,17 +155,26 @@ class TxApiMixin:
                 addresses = connections.receive(socket_handler)
                 # and format
                 format = connections.receive(socket_handler)
-                recipients = json.dumps(addresses).replace("[", "(").replace(']', ')')  # format as sql
+                # Validate the recipient list: it must be a bounded list of well-formed addresses.
+                # NEVER interpolate received data into SQL text; the IN(...) list is bound with
+                # placeholders below so a crafted address element cannot break out of the string.
+                if (not isinstance(addresses, (list, tuple)) or not addresses
+                        or len(addresses) > 500
+                        or not all(isinstance(a, str) and essentials.address_validate(a) for a in addresses)):
+                    connections.send(socket_handler, None)
+                    return
+                placeholders = ",".join("?" * len(addresses))
+                sig_like = transaction_id + '%'
                 # raw tx details
                 if self.config.old_sqlite:
                     db_handler.execute_param(db_handler.h,
-                                            "SELECT * FROM transactions WHERE recipient IN {} AND signature LIKE ?1".format(recipients),
-                                            (transaction_id + '%', ))
+                                            "SELECT * FROM transactions WHERE recipient IN ({}) AND signature LIKE ?".format(placeholders),
+                                            (*addresses, sig_like))
                 else:
                     db_handler.execute_param(db_handler.h,
-                                             "SELECT * FROM transactions WHERE recipient IN {} AND substr(signature,1,4)=substr(?1,1,4) and signature LIKE ?1".format(
-                                                 recipients),
-                                             (transaction_id + '%',))
+                                             "SELECT * FROM transactions WHERE recipient IN ({}) AND substr(signature,1,4)=substr(?,1,4) and signature LIKE ?".format(
+                                                 placeholders),
+                                             (*addresses, sig_like, sig_like))
 
                 raw = db_handler.h.fetchone()
                 if not format:
@@ -181,9 +190,9 @@ class TxApiMixin:
                 transaction['hash'] = raw[5]
                 transaction['address'] = raw[2]
                 transaction['recipient'] = raw[3]
-                transaction['amount'] = raw[4]
-                transaction['fee'] = raw[8]
-                transaction['reward'] = raw[9]
+                transaction['amount'] = amounts.display_amount(raw[4])
+                transaction['fee'] = amounts.display_amount(raw[8])
+                transaction['reward'] = amounts.display_amount(raw[9])
                 transaction['operation']= raw[10]
                 transaction['openfield'] = raw[11]
 

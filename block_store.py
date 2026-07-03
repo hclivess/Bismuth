@@ -219,11 +219,16 @@ class BlockStore:
                 return None
             return self._expand(txn, height, _unpack(v))
 
-    def recent_block_weights(self, tip_height, window, w_unit=1000):
+    def recent_block_weights(self, tip_height, window, w_unit=1000, strict=False):
         """Per-block WEIGHT (tx count + openfield bytes // w_unit) for the last ``window`` blocks up to
         ``tip_height`` — the post-fork dynamic-fee congestion signal, read from THIS store (LMDB), NEVER
         SQLite. Deterministic: a pure function of the stored canonical blocks. openfield is the last stored
-        field (block_height is dropped as the key, so no pubkey re-expansion is needed for the length)."""
+        field (block_height is dropped as the key, so no pubkey re-expansion is needed for the length).
+
+        ``strict``: when True (the CONSENSUS fee read) a missing height in [lo, tip] raises instead of being
+        skipped. Skipping would let a node with a partial/lagging store average over fewer blocks than its
+        peers and derive a DIFFERENT base_fee -> a chain split. The consensus caller fails closed on the gap
+        rather than computing a divergent fee. When False (diagnostics/RPC) the old skip behaviour stands."""
         weights = []
         lo = max(1, int(tip_height) - int(window) + 1)
         unit = max(1, int(w_unit))
@@ -231,6 +236,10 @@ class BlockStore:
             for h in range(lo, int(tip_height) + 1):
                 v = txn.get(self.blocks, _hk(h))
                 if v is None:
+                    if strict:
+                        raise ValueError(
+                            f"block store missing height {h} in the dynamic-fee window [{lo}, {tip_height}] "
+                            f"— cannot compute a consensus-consistent base_fee (re-sync / rebuild the store)")
                     continue
                 rows = _unpack(v)["t"]
                 # openfield length per tx: legacy list -> last field; txrec blob -> decode the openfield.

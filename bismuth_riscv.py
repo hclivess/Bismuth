@@ -56,7 +56,7 @@ is still a pure function of (code, calldata, context, the host's committed state
 """
 import hashlib
 
-import coincurve                                  # secp256k1 — the same lib shielded/ringct already use; SYS_ECRECOVER
+import coincurve                                  # secp256k1 backend for SYS_ECRECOVER
 from Cryptodome.Hash import keccak as _keccak     # Ethereum keccak-256 (NOT NIST sha3); SYS_KECCAK256 / SYS_ECRECOVER
 
 WMASK = 0xFFFFFFFF
@@ -71,8 +71,20 @@ MAX_CALL_DEPTH = 16            # hard cap on nested CALL/DELEGATECALL frames. Fi
 GAS_CALL = 100                 # base cost of a CALL / DELEGATECALL (the callee's own gas adds on top)
 GAS_SETCODE = 50               # base cost of SETCODE; + 1 gas / byte of new code (bounds code-churn griefing)
 GAS_SELFDESTRUCT = 50          # cost of SELFDESTRUCT
-GAS_KECCAK256 = 60             # flat per-call, matches SHA256 (a 32-byte sponge hash of comparable cost)
+GAS_KECCAK256 = 60             # base per-call, matches SHA256 (a 32-byte sponge hash of comparable cost)
+GAS_SHA256 = 60                # base per-call for SYS_SHA256
+GAS_HASH_WORD = 6              # per 32-byte input word for SHA256/KECCAK256 — WITHOUT it a flat 60-gas call
+#                                hashes up to a full 64KB buffer, so a tight loop does ~1GB of hashing for
+#                                ~1M gas: an asymmetric block-validation DoS (cheap to include, costly for
+#                                every node to validate). Length-proportional pricing bounds the work.
 GAS_ECRECOVER = 300            # secp256k1 pubkey recovery — an EC op, priced ~5x a hash (cf. ETH's 3000-gas precompile, scaled to this VM)
+GAS_SSTORE = 100               # per SSTORE: persists a ~64-byte key/value into the LMDB vm_state. WITHOUT a charge a
+#                                guest writes a distinct permanent slot in ~6 instructions, so ~150k slots/1M gas grow
+#                                the store toward its 4 GiB cap for near-free. Priced so the gas budget bounds it (EVM
+#                                prices storage as its single most expensive common op; scaled to this VM's ~1-gas base).
+GAS_TRANSFER = 200             # per SYS_TRANSFER: each queued payout becomes a PERMANENT ledger row (one INSERT + commit
+#                                per payout at digest). Unpriced, a tight loop emits ~150k payouts/1M gas — an asymmetric
+#                                block-validation cost. Priced substantially so the gas budget, not just custody, caps it.
 ADDR_MASK = (1 << 224) - 1     # 224-bit (28-byte / 56-hex) Bismuth address mask
 _SELF = "self"                 # sentinel address of the lone contract on the hostless (single-contract) path
 
@@ -293,6 +305,7 @@ def execute(code, calldata=b"", caller=0, callvalue=0, storage=None, gas_limit=1
                     elif s == SYS_RETURN:
                         return _result(True, (reg[10] & WMASK).to_bytes(4, "big"), gas_limit - gas)
                     elif s == SYS_SSTORE:
+                        gas -= GAS_SSTORE                                  # bound permanent state growth
                         host.sstore(address, reg[10] & WMASK, reg[11] & WMASK)
                     elif s == SYS_SLOAD:
                         reg[10] = host.sload(address, reg[10] & WMASK) & WMASK
@@ -306,7 +319,7 @@ def execute(code, calldata=b"", caller=0, callvalue=0, storage=None, gas_limit=1
                         ptr, ln, out = reg[10] & WMASK, reg[11] & WMASK, reg[12] & WMASK
                         if ptr + ln > mem_size or out + 32 > mem_size:
                             return _result(False, b"", gas_limit - gas)
-                        gas -= 60
+                        gas -= GAS_SHA256 + GAS_HASH_WORD * ((ln + 31) >> 5)   # length-proportional (anti-DoS)
                         mem[out:out + 32] = hashlib.sha256(bytes(mem[ptr:ptr + ln])).digest()
                     elif s == SYS_TRANSFER:
                         aptr, vptr = reg[10] & WMASK, reg[11] & WMASK   # a0=ptr 28-byte addr, a1=ptr 8-byte amount
@@ -315,6 +328,7 @@ def execute(code, calldata=b"", caller=0, callvalue=0, storage=None, gas_limit=1
                         to = int.from_bytes(mem[aptr:aptr + 28], "big")    # full 224-bit recipient
                         amount = int.from_bytes(mem[vptr:vptr + 8], "big")  # 64-bit units (regs are 32-bit)
                         if 0 < amount <= host.get_balance(address):    # can't transfer more than held
+                            gas -= GAS_TRANSFER                        # each payout is a permanent ledger row
                             host.add_balance(address, -amount)
                             host.add_payout(to, amount)
                             reg[10] = 1
@@ -427,7 +441,7 @@ def execute(code, calldata=b"", caller=0, callvalue=0, storage=None, gas_limit=1
                         ptr, ln, out = reg[10] & WMASK, reg[11] & WMASK, reg[12] & WMASK
                         if ptr + ln > mem_size or out + 32 > mem_size:
                             return _result(False, b"", gas_limit - gas)
-                        gas -= GAS_KECCAK256
+                        gas -= GAS_KECCAK256 + GAS_HASH_WORD * ((ln + 31) >> 5)   # length-proportional (anti-DoS)
                         kh = _keccak.new(digest_bits=256)
                         kh.update(bytes(mem[ptr:ptr + ln]))
                         mem[out:out + 32] = kh.digest()

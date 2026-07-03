@@ -82,6 +82,10 @@ class BlockApiMixin:
                                          "WHERE block_hash = ? ",
                                          (block_hash,))
             blocks = block_format.blockstojson(result)
+            if not blocks:
+                # Unknown or pruned hash: reply explicitly so the client is not left blocking.
+                connections.send(socket_handler, None)
+                return
             block = list(blocks.values())[0]
 
             block["previous_block_hash"] = db_handler.fetchone(db_handler.h,
@@ -90,9 +94,10 @@ class BlockApiMixin:
             block["next_block_hash"] = db_handler.fetchone(db_handler.h,
                                                            "SELECT block_hash FROM transactions WHERE block_height = ?",
                                                            (block['block_height'] + 1,))
-            block["difficulty"] = int(float(db_handler.fetchone(db_handler.h,
-                                                                "SELECT difficulty FROM misc WHERE block_height = ?",
-                                                                (block['block_height'],))))
+            difficulty_row = db_handler.fetchone(db_handler.h,
+                                                 "SELECT difficulty FROM misc WHERE block_height = ?",
+                                                 (block['block_height'],))
+            block["difficulty"] = int(float(difficulty_row)) if difficulty_row is not None else 0
             # print(block)
             connections.send(socket_handler, block)
         except Exception as e:
@@ -100,7 +105,11 @@ class BlockApiMixin:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
             self.app_log.warning("{} {} {}".format(exc_type, fname, exc_tb.tb_lineno))
-            raise
+            # Always reply so a request/response client is not left blocking until timeout.
+            try:
+                connections.send(socket_handler, None)
+            except Exception:
+                pass
 
     def api_getblockfromheight(self, socket_handler, db_handler, peers):
         """

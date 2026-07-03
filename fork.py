@@ -172,7 +172,11 @@ def fork_status(read_signal, tip, window=FORK2_WINDOW, boundary=FORK2_BOUNDARY, 
     run = 0
     if tip:
         h = tip
-        while h >= 1 and read_signal(h):
+        # Cap the back-scan at `window`: the signalling run is only meaningful up to the window size
+        # (lock-in needs `window` consecutive signals). Post-activation EVERY coinbase signals, so an
+        # uncapped scan walks from the tip back to fork_height — millions of iterations per uncached
+        # call, growing forever as the chain grows.
+        while h >= 1 and run < window and read_signal(h):
             run += 1
             h -= 1
     return {"tip": tip, "window": window, "signalling_run": run,

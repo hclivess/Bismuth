@@ -38,7 +38,9 @@ def weighted_tip(opinions, weight_of):
     weight. Returns the height carrying the most total weight (0 if none). A flood of low-weight peers
     lying about the tip is outvoted by fewer high-weight (proven) peers."""
     tally = {}
-    for ip, height in opinions.items():
+    # Snapshot first: peer_opinion_dict is mutated (add/pop) by other peer threads with no lock,
+    # and iterating the live dict raises "dictionary changed size during iteration".
+    for ip, height in list(opinions.items()):
         tally[height] = tally.get(height, 0) + weight_of(ip)
     return max(tally, key=tally.get) if tally else 0
 

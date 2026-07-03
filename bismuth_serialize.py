@@ -159,8 +159,17 @@ def _v2_tx_bytes(tx, is_coinbase=False) -> bytes:
             + _v2_lp(_utf8(tx[1]), 1)      # address
             + _v2_lp(_utf8(tx[2]), 1))     # recipient
     if is_coinbase:
-        mid = (_v2_lp(_utf8(tx[4]), 1)     # PoW nonce (freed signature slot)
-               + _v2_lp(_utf8(tx[5]), 1))  # mining commitment (freed public_key slot)
+        # The mining-header slots use a u8 length prefix, so each must fit in 255 bytes. Validation
+        # (digest_tx.Transaction.validate) rejects an over-long coinbase before we get here; guard again so a
+        # slot that somehow reaches the hash raises a CLEAN ValueError instead of a bare OverflowError from
+        # to_bytes(1). Honest nonce (~16 B) and commitment (~70 B) are far under the bound.
+        _nonce_b, _commit_b = _utf8(tx[4]), _utf8(tx[5])
+        if len(_nonce_b) > 255 or len(_commit_b) > 255:
+            raise ValueError(
+                f"coinbase mining-header slot too long for u8 length prefix "
+                f"(nonce {len(_nonce_b)} B, commitment {len(_commit_b)} B; max 255)")
+        mid = (_v2_lp(_nonce_b, 1)     # PoW nonce (freed signature slot)
+               + _v2_lp(_commit_b, 1))  # mining commitment (freed public_key slot)
     else:
         mid = (_v2_lp(_utf8(tx[4]), 2)     # signature
                + _v2_lp(_utf8(tx[5]), 2))  # public_key

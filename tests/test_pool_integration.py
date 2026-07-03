@@ -56,7 +56,7 @@ def _clean_state():
         except OSError:
             pass
     for d in ("static/blockstore", "static/balanceindex", "static/txidindex", "static/vmstate",
-              "static/pkregistry", "static/shielded-regmode.db", "static/tokenindex-regmode.db"):
+              "static/pkregistry", "static/tokenindex-regmode.db"):
         shutil.rmtree(os.path.join(ROOT, d), ignore_errors=True)
 
 

@@ -54,9 +54,15 @@ def sql_trace_callback(log, id, statement):
 class Mempool(MempoolQueriesMixin):
     """The mempool manager. Thread safe"""
 
-    def __init__(self, app_log, config=None, db_lock=None, testnet=False, trace_db_calls=True):
+    def __init__(self, app_log, config=None, db_lock=None, testnet=False, trace_db_calls=True, node=None):
         try:
             self.app_log = app_log
+            # Live authoritative source for the hf2 mirror fields (fork_height / pk_registry / base_fee /
+            # fee_post_fork). The digester also pushes these into self.* each block, but that leaves a stale
+            # window from process start until the first digest — on a restart on an ALREADY post-fork chain,
+            # admission would run PRE-fork rules and either admit poison txs or reject valid post-fork txs.
+            # Reading through node closes that window. None (tests) => fall back to the self.* mirror.
+            self.node = node
             self.config = config
             self.db_lock = db_lock
             self.ram = self.config.mempool_ram
@@ -77,6 +83,14 @@ class Mempool(MempoolQueriesMixin):
             # hf2 pubkey-by-reference (doc/40): the digester mirrors node.pk_registry here so mempool can
             # resolve a by-reference tx's omitted pubkey by address (same authority the digester uses).
             self.pk_registry = None
+            # hf2 dynamic fees (fee_dynamics, doc/17): the digester mirrors node.base_fee (demand-scaled) and
+            # node.fee_post_fork (the VM-surcharge flag) here so mempool ADMISSION computes the SAME fee
+            # consensus will require. Without this, admission used the static BASE_FEE with no VM surcharge,
+            # so an under-funded tx passed admission but was rejected at block apply — a validate/apply desync
+            # that stalls solo/regnet block production (the poison tx is re-tried every mine). Pre-fork these
+            # are the static defaults, so admission is byte-identical below the fork.
+            self.base_fee = None
+            self.fee_post_fork = False
 
             self.testnet = testnet
 
@@ -94,6 +108,13 @@ class Mempool(MempoolQueriesMixin):
         except Exception as e:
             self.app_log.error("Error creating mempool: {}".format(e))
             raise
+
+    def _hf(self, name):
+        """Live read of an hf2 mirror field: prefer node's authoritative value, fall back to the
+        digester-pushed self.* mirror when no node reference is available (unit tests)."""
+        if self.node is not None:
+            return getattr(self.node, name, getattr(self, name))
+        return getattr(self, name)
 
     def check(self):
         """
@@ -368,12 +389,13 @@ class Mempool(MempoolQueriesMixin):
                         # so the DESTINATION block height (tip+1) decides whether the caps apply. The flag is
                         # resolved here once and reused for the signing-scheme check below.
                         mempool_post_fork = False
-                        if self.fork_height is not None:
+                        _fork_height = self._hf('fork_height')
+                        if _fork_height is not None:
                             essentials.execute_param_c(c, "SELECT block_height FROM transactions WHERE 1 ORDER by block_height DESC limit ?",
                                                        (1,), self.app_log)
                             _tip_row = c.fetchone()
                             _tip = _tip_row[0] if _tip_row and _tip_row[0] is not None else 0
-                            mempool_post_fork = (_tip + 1) >= self.fork_height
+                            mempool_post_fork = (_tip + 1) >= _fork_height
 
                         if mempool_post_fork:
                             mempool_operation = str(transaction[6])
@@ -418,7 +440,7 @@ class Mempool(MempoolQueriesMixin):
                                 mempool_post_fork, mempool_timestamp, mempool_address, mempool_recipient,
                                 mempool_amount, mempool_operation, mempool_openfield,
                                 mempool_signature_enc, mempool_public_key_b64encoded,
-                                registry=self.pk_registry)
+                                registry=self._hf('pk_registry'))
                         except Exception as e:
                             mempool_result.append(f"Mempool: Signature did not match for address ({e})")
                             continue
@@ -433,16 +455,22 @@ class Mempool(MempoolQueriesMixin):
                         # reject transactions which are already in the ledger
                         # TODO: not clean, will need to have ledger as a module too.
                         # TODO: need better txid index, this is very sloooooooow
+                        # Bound to the confirmed tip: a crash/rollback can leave orphan rows ABOVE the
+                        # committed tip (or negative-height mirror rows); trusting them here re-opens the
+                        # same "stuck, not syncing" wedge the digest replay check was fixed to avoid.
                         if self.config.old_sqlite:
-                            essentials.execute_param_c(c, "SELECT timestamp FROM transactions WHERE signature = ?1",
-                                                       (mempool_signature_enc,), self.app_log)
+                            essentials.execute_param_c(c, "SELECT timestamp FROM transactions WHERE signature = ?1 AND block_height >= 0 AND block_height <= ?2",
+                                                       (mempool_signature_enc, last_block), self.app_log)
                         else:
                             essentials.execute_param_c(c,
-                                                       "SELECT timestamp FROM transactions WHERE substr(signature,1,4) = substr(?1,1,4) AND signature = ?1",
-                                                       (mempool_signature_enc,), self.app_log)
-                        ledger_in = bool(c.fetchone())
+                                                       "SELECT timestamp FROM transactions WHERE substr(signature,1,4) = substr(?1,1,4) AND signature = ?1 AND block_height >= 0 AND block_height <= ?2",
+                                                       (mempool_signature_enc, last_block), self.app_log)
+                        # Keep the timestamp: it is used below to decide whether the peer is just one
+                        # block late. bool() here discarded it, making the 15-minute grace dead code.
+                        ledger_row = c.fetchone()
+                        ledger_in = float(ledger_row[0]) if ledger_row else None
                         # remove from mempool if it's in both ledger and mempool already
-                        if mempool_in and ledger_in:
+                        if mempool_in and ledger_in is not None:
                             try:
                                 # Do not lock, we already have the lock for the whole merge.
                                 if self.config.old_sqlite:
@@ -454,7 +482,7 @@ class Mempool(MempoolQueriesMixin):
                             except:  # experimental try and except
                                 mempool_result.append("Mempool: Transaction was not present in the pool anymore")
                             continue
-                        if ledger_in:
+                        if ledger_in is not None:
                             mempool_result.append("That transaction is already in our ledger")
                             # Can be a syncing node. Do not request mempool from this peer until FREEZE_MIN min
                             # ledger_in is the ts of the tx in ledger. if it's recent, maybe the peer is just one block late.
@@ -482,7 +510,12 @@ class Mempool(MempoolQueriesMixin):
                         if result:
                             for x in result:
                                 debit_tx = quantize_eight(x[0])
-                                fee = essentials.fee_calculate(x[1], x[2], last_block)  # fee_calculate sends back a Decimal 8
+                                # Match consensus: dynamic base_fee + VM surcharge post-fork (mirrored from the
+                                # digester). Pre-fork base_fee is None + fee_post_fork False -> static BASE_FEE,
+                                # byte-identical to the old call.
+                                fee = essentials.fee_calculate(x[1], x[2], last_block,
+                                                               base_fee=self._hf('base_fee'),
+                                                               vm_surcharge=self._hf('fee_post_fork'))  # Decimal 8
                                 debit_mempool += debit_tx + fee
 
                         credit = DECIMAL0
@@ -510,13 +543,19 @@ class Mempool(MempoolQueriesMixin):
                         # doc/42: post-fork, carve the IMMATURE coinbase reward out of the spendable balance
                         # (mirror the authoritative digest check, so an immature-spend is rejected at admission
                         # rather than left to fail at block validation). Pre-fork (fork_height None): no carve-out.
-                        if self.fork_height is not None and (last_block + 1) >= self.fork_height:
+                        _fh_bal = self._hf('fork_height')
+                        if _fh_bal is not None and (last_block + 1) >= _fh_bal:
                             _mat = essentials.coinbase_maturity(self.config.version == 'regnet')
                             _immature = essentials.immature_coinbase(mempool_address, last_block + 1, c, _mat, self.app_log)
                             balance -= _immature
                             balance_pre -= _immature
 
-                        fee = essentials.fee_calculate(mempool_openfield, mempool_operation, last_block)
+                        # Match consensus fee inputs (mirrored from the digester): dynamic base_fee + VM
+                        # surcharge post-fork, static BASE_FEE pre-fork. Prevents admitting a tx that block
+                        # apply will reject for underpaying — the desync that wedges block production.
+                        fee = essentials.fee_calculate(mempool_openfield, mempool_operation, last_block,
+                                                       base_fee=self._hf('base_fee'),
+                                                       vm_surcharge=self._hf('fee_post_fork'))
 
                         # print("Balance", balance, fee)
 

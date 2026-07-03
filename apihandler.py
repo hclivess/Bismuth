@@ -108,9 +108,14 @@ class ApiHandler(BlockApiMixin, AddressApiMixin, TxApiMixin):
         print('api_getpeerinfo')
         # TODO: Get what we can from peers, more will come when connections and connection stats will be modular, too.
         try:
-            info = [{'id':id, 'addr':ip, 'inbound': True} for id, ip in enumerate(peers.consensus)]
+            # peers.consensus is a block HEIGHT (int/None), not iterable — enumerate the actual
+            # peer opinion map so the endpoint returns real peer addresses instead of always raising.
+            info = [{'id': idx, 'addr': ip, 'inbound': True}
+                    for idx, ip in enumerate(peers.peer_opinion_dict)]
             # TODO: peers will keep track of extra info, like port, last time, block_height aso.
             # TODO: add outbound connection
             connections.send(socket_handler, info)
         except Exception as e:
             self.app_log.warning(e)
+            # Fixed-length wire protocol: always reply so the client is not left blocking.
+            connections.send(socket_handler, [])

@@ -39,7 +39,21 @@ class SignerECDSA(Signer):
         if subtype != SignerSubType.MAINNET_REGULAR:
             self._subtype = subtype
         if type(private_key) == str:
-            return self.from_seed(private_key, subtype=self._subtype)
+            # A private key hex string is NOT a passphrase: interpret it strictly. A 32-byte scalar
+            # with leading zero bytes renders to < 64 hex chars, and the old code routed anything < 64
+            # through from_seed()'s Mersenne-Twister stretch, silently replacing the real key with an
+            # unrelated one (fund loss). Validate as hex and left-zero-pad to 32 bytes instead. Passphrase
+            # stretching remains available only via the explicit from_seed() entry point.
+            hexkey = private_key.strip().lower()
+            if hexkey.startswith('0x'):
+                hexkey = hexkey[2:]
+            try:
+                raw = bytes.fromhex(hexkey)
+            except ValueError:
+                raise ValueError("SignerECDSA.from_private_key: private key is not valid hex")
+            if not (1 <= len(raw) <= 32):
+                raise ValueError("SignerECDSA.from_private_key: private key must be a 1..32-byte scalar")
+            return self.from_seed(raw.rjust(32, b'\x00').hex())
         return self.from_seed(private_key.hex())
 
     def from_full_info(self, private_key: Union[bytes, str], public_key: Union[bytes, str]=b'', address: str='',
@@ -72,7 +86,9 @@ class SignerECDSA(Signer):
             self._private_key = key.to_hex()  # == seed
             self._public_key = public_key
         except Exception as e:
-            print("Exception {} reading RSA private key".format(e))
+            # Fail loud: a bad seed/key otherwise leaves self._key=None and the signer silently
+            # broken (and the old message misnamed it an "RSA" key).
+            raise ValueError("SignerECDSA.from_seed: invalid secp256k1 private key/seed: {}".format(e))
         # print("identifier", self.identifier().hex())
         self._address = self.address()
 

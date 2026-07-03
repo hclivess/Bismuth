@@ -257,6 +257,11 @@ class DbHandler(DbQueriesMixin, DbWriteMixin):
         self._address_cache.clear()
         self._max_cache.clear()
         self._max_cache_time = 0
+        # Also drop the process-wide balance cache: it is keyed only on chain height, so a
+        # same-height reorg (rollback to H, then digest a different block back to H) would otherwise
+        # keep serving pre-reorg balances. This runs on every rollback path (backup_higher / rollback_under).
+        import balance_cache
+        balance_cache.invalidate()
 
     def commit(self, connection):
         """Secure commit for slow nodes"""

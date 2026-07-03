@@ -25,6 +25,17 @@ import wallet_helpers
 MAX_TX_SIGNATURE_LEN = 8192
 MAX_TX_PUBKEY_LEN = 4096
 
+# doc/41 post-fork coinbase bounds. The coinbase is PoW-authorized (no signature) and pays no fee, so its
+# wire slots are free, unauthenticated miner data — and the mining-header slots are hashed into the consensus
+# block hash under a u8 length prefix (bismuth_serialize._v2_tx_bytes). Bound them at validation so a
+# malformed/oversized coinbase is rejected cleanly rather than (a) overflowing that u8 prefix (nonce /
+# state-root commitment) or (b) ballooning the fee-free operation/openfield into an unbounded block-size DoS
+# (a valid block's coinbase free-fields are not covered by the PoW, so anyone can re-pad and rebroadcast it).
+# Honest coinbases are tiny — nonce ~16 B, commitment ~70 B, operation/openfield empty — so these never bite
+# a legitimate block; they only cap abuse. u8-safe slot cap = 255; free-form fields kept generous but bounded.
+COINBASE_MINING_SLOT_MAX = 255      # nonce slot (tx[4]) + commitment slot (tx[5]): must fit the u8 length prefix
+COINBASE_FREEFIELD_MAX = 4096       # coinbase operation (tx[6]) + openfield (tx[7]): generous, DoS-bounded
+
 # Wallet & key management was lifted into wallet_helpers; re-bind here so the historical
 # `essentials.sign_rsa` / `essentials.keys_load` / `from essentials import ...` call sites keep working.
 sign_rsa = wallet_helpers.sign_rsa
@@ -172,8 +183,15 @@ def most_common(lst: list):
 
 
 def most_common_dict(a_dict: dict):
-    """Returns the most common value from a dict. Used by consensus"""
-    return max(a_dict.values())
+    """Returns the most common value (mode) from a dict. Used by consensus.
+
+    Must NOT be max(): the consensus height is the majority-agreed tip, so a single
+    peer reporting an inflated height cannot hijack it — and the height-lie ban in
+    peers_consensus.consensus_add relies on this being the mode, not the maximum.
+    """
+    if not a_dict:
+        raise ValueError("most_common_dict on empty dict")
+    return Counter(a_dict.values()).most_common(1)[0][0]
 
 
 def percentage_in(individual, whole):
@@ -286,31 +304,6 @@ def immature_coinbase(address, validate_height, cursor, maturity, app_log=None):
     return quantize_eight(amounts.to_decimal(raw) if amounts.LEDGER_INTEGER else Decimal(raw))
 
 
-def ledger_balance3_original(address, cache, db_handler):
-    """Keep original implementation as fallback if needed"""
-    if address in cache:
-        return cache[address]
-    credit_ledger = Decimal(0)
-
-    db_handler.execute_param(db_handler.c, "SELECT amount, reward FROM transactions WHERE recipient = ?;", (address,))
-    entries = db_handler.c.fetchall()
-
-    for entry in entries:
-        credit_ledger += quantize_eight(entry[0]) + quantize_eight(entry[1])
-
-    debit_ledger = Decimal(0)
-    db_handler.execute_param(db_handler.c, "SELECT amount, fee FROM transactions WHERE address = ?;", (address,))
-    entries = db_handler.c.fetchall()
-
-    for entry in entries:
-        debit_ledger += quantize_eight(entry[0]) + quantize_eight(entry[1])
-
-    cache[address] = quantize_eight(credit_ledger - debit_ledger)
-    return cache[address]
-
-
-
-
 def fee_calculate(openfield: str, operation: str = '', block: int = 0,
                   base_fee=None, vm_surcharge: bool = False) -> Decimal:
     # base_fee: the post-fork DYNAMIC base fee (fee_dynamics); None -> the static BASE_FEE (pre-fork, and
@@ -326,10 +319,6 @@ def fee_calculate(openfield: str, operation: str = '', block: int = 0,
     if vm_surcharge and operation.startswith("vm:"):
         import fee_dynamics
         fee += fee_dynamics.VM_SURCHARGE
-    # NOTE (doc/22): the shield: EC-validation surcharge was REMOVED when Monero-style shielded value was
-    # decoupled from hf2 (STAGED/DEFERRED). While shielded is inert (shielded_fork_height=None) a shield:
-    # tx is an ordinary tx and must pay the ordinary fee — no special consensus surcharge. If shielded is
-    # ever scheduled (shielded_fork_height set), re-add the surcharge gated on that height, not on hf2.
 
     return quantize_eight(fee)
 

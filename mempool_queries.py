@@ -82,7 +82,11 @@ class MempoolQueriesMixin:
         """
         try:
             limit = time.time()
-            frozen = [peer for peer in self.peers_sent if self.peers_sent[peer] > limit]
+            # Snapshot under the lock: peers_sent is mutated by merge()/sent() from other threads,
+            # so iterating it unlocked raises "dictionary changed size during iteration".
+            with self.peers_lock:
+                peers_snapshot = dict(self.peers_sent)
+            frozen = [peer for peer in peers_snapshot if peers_snapshot[peer] > limit]
             self.app_log.warning("Status: MEMPOOL Frozen = {}".format(", ".join(frozen)))
             # print(limit, self.peers_sent, frozen)
             # Cleanup old nodes not synced since 15 min
@@ -91,7 +95,7 @@ class MempoolQueriesMixin:
                 self.peers_sent = {peer: self.peers_sent[peer] for peer in self.peers_sent if
                                    self.peers_sent[peer] > limit}
             self.app_log.warning(
-                "Status: MEMPOOL Live = {}".format(", ".join(set(self.peers_sent.keys()) - set(frozen))))
+                "Status: MEMPOOL Live = {}".format(", ".join(set(peers_snapshot.keys()) - set(frozen))))
             status = self.fetchall(SQL_STATUS)
             count, open_len, senders, recipients = status[0]
             self.app_log.warning(
@@ -99,7 +103,9 @@ class MempoolQueriesMixin:
                     format(count, senders, recipients, open_len))
             return status[0]
         except:
-            return 0
+            # Contract is a 4-tuple (tx#, openfield len, senders, recipients); callers index it,
+            # so never fall back to a bare int.
+            return (0, 0, 0, 0)
 
     def size(self):
         """
@@ -121,12 +127,12 @@ class MempoolQueriesMixin:
         """
         # TODO: have a purge
         when = time.time()
-        if peer_ip in self.peers_sent:
-            # can be frozen, no need to lock and update, time is already in the future.
-            if self.peers_sent[peer_ip] > when:
-                return
+        # Check-and-set under the lock: an unlocked check lets a peer-freeze written by merge()
+        # (a future timestamp) land between the read and the write and get silently overwritten,
+        # un-freezing a misbehaving peer.
         with self.peers_lock:
-            self.peers_sent[peer_ip] = when
+            if self.peers_sent.get(peer_ip, 0) <= when:
+                self.peers_sent[peer_ip] = when
 
     def sendable(self, peer_ip):
         """

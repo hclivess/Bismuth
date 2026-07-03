@@ -51,7 +51,7 @@ def _rebuild_derived_state(node, db_handler, keep_height):
     rollback-attack vector: a stale ``node.vm_state_root`` makes the mandatory state-root check (digest.py)
     REJECT the canonical branch — a consensus wedge — AND leaves contract custody balances ahead of their
     VM_SINK ledger backing, i.e. inflation / double-spend of VM custody across the reorg. The height-keyed
-    DELETE stores (ledger / tokens / aliases / shielded) are rolled back at each call site with the site's
+    DELETE stores (ledger / tokens / aliases) are rolled back at each call site with the site's
     own boundary; this rebuilds the RE-EXECUTABLE projections. All guarded + logged; disabled stores skip."""
     # auxiliary block stores (block-store / reward sidechain) keep <= keep_height
     _rollback_aux_stores(node, keep_height)
@@ -92,7 +92,15 @@ def _rebuild_derived_state(node, db_handler, keep_height):
             vm_engine.rebuild(node.vm_state, db_handler.h, node.fork_height, keep_height)
             node.vm_state_root = node.vm_state.merkle_root()   # doc/45 Stage 2b: committed root = Merkle root
         except Exception as e:
-            node.logger.app_log.warning(f"vm state rollback rebuild failed: {e}")
+            # The VM is mandatory consensus post-hf2, so a failed reorg rebuild must HALT — exactly like the
+            # sibling projections above (balance/txid/pk when consensus-on). Continuing with a stale
+            # node.vm_state_root would make the mandatory coinbase state-root check REJECT the canonical branch
+            # (a consensus wedge) and leave contract custody ahead of its VM_SINK ledger backing. Invalidate
+            # the root first so the failure is diagnosable even if this raise is caught upstream, then re-raise.
+            node.vm_state_root = None
+            node.logger.app_log.error(
+                f"vm state rollback rebuild failed: {e} — halting (VM is mandatory consensus post-fork)")
+            raise
 
 
 def rollback(node, db_handler, block_height):
@@ -103,8 +111,6 @@ def rollback(node, db_handler, block_height):
     # rollback indices
     db_handler.tokens_rollback(node, block_height)
     db_handler.aliases_rollback(node, block_height)
-    if getattr(node, "shielded_state", None) is not None:   # shielded note/nullifier set (doc/22)
-        node.shielded_state.rollback_under(block_height)
     # rollback indices
 
     # rollback_under(block_height) drops heights >= block_height, so the derived stores keep <= height-1
@@ -519,8 +525,6 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler, hyperblocks=False):
                 # rollback indices
                 db_handler.tokens_rollback(node, db_block_height)
                 db_handler.aliases_rollback(node, db_block_height)
-                if getattr(node, "shielded_state", None) is not None:   # shielded set (doc/22)
-                    node.shielded_state.rollback_under(db_block_height)
                 # rebuild the re-executable projections (VM state + root, balance index, aux stores) — this
                 # is the LIVE reorg path; without the VM rebuild a stale vm_state_root wedges consensus and
                 # custody balances outrun their ledger backing (inflation across the reorg).
@@ -781,15 +785,18 @@ def sequencing_check(node, db_handler):
                         c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0],))
                         conn2.commit()
 
-                        # rollback indices
-                        db_handler.tokens_rollback(node, y)
-                        db_handler.aliases_rollback(node, y)
-                        if getattr(node, "shielded_state", None) is not None:   # shielded set (doc/22)
-                            node.shielded_state.rollback_under(y)
+                        # rollback indices to the SAME boundary as the ledger DELETE above (row[0], the ACTUAL
+                        # break) and _rebuild_derived_state below — NOT y (the EXPECTED height). On a
+                        # duplicate-height break y is one past row[0], so rolling these height-keyed side
+                        # indexes to y stranded height-row[0] entries ABOVE the ledger cut, which then
+                        # double-count tokens/aliases when the resync re-digests row[0] (token inflation wedge).
+                        _cut = row[0]
+                        db_handler.tokens_rollback(node, _cut)
+                        db_handler.aliases_rollback(node, _cut)
                         # the ledger DELETE above cuts at row[0]; rebuild the VM state + root to the SAME
                         # boundary (it re-executes from the ledger), else the startup vm_state OPEN reads a
                         # stale root and the state-root check wedges the resync.
-                        _rebuild_derived_state(node, db_handler, row[0] - 1)
+                        _rebuild_derived_state(node, db_handler, _cut - 1)
                         # rollback indices
 
                         node.logger.app_log.warning(f"Status: Due to a sequencing issue at block {y}, {chain} has been rolled back and will be resynchronized")
@@ -828,28 +835,25 @@ def sequencing_check(node, db_handler):
                         c2 = conn2.cursor()
                         node.logger.app_log.warning(
                             f"Status: Chain {chain} difficulty sequencing error at: {row[0]}. {row[0]} instead of {y}")
-                        c2.execute("DELETE FROM transactions WHERE block_height >= ?", (row[0],))
+                        # Delete positive rows AND every negative-height mirror row generically (block_height
+                        # <= -row[0]) — matching the transactions branch above. The old code enumerated only
+                        # "Development Reward" and "Hypernode Payouts" negative mirrors, so the generic
+                        # vm:payout (VM_SINK) and shield:payout (SHIELD_SINK) negative mirrors survived above
+                        # the cut as orphans and were re-credited by the balance-index rebuild below —
+                        # balance-index inflation. One generic delete covers all mirror addresses.
+                        c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?",
+                                   (row[0], -row[0],))
                         conn2.commit()
                         c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0],))
                         conn2.commit()
-
-                        db_handler.execute_param(conn2, (
-                            'DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'),
-                                                 (-row[0],))
-                        conn2.commit()
-
-                        db_handler.execute_param(conn2, (
-                            'DELETE FROM transactions WHERE address = "Hypernode Payouts" AND block_height <= ?'),
-                                                 (-row[0],))
-                        conn2.commit()
                         conn2.close()
 
-                        # rollback indices
-                        db_handler.tokens_rollback(node, y)
-                        db_handler.aliases_rollback(node, y)
-                        if getattr(node, "shielded_state", None) is not None:   # shielded set (doc/22)
-                            node.shielded_state.rollback_under(y)
-                        _rebuild_derived_state(node, db_handler, row[0] - 1)   # VM/root to the ledger cut
+                        # rollback indices to the ACTUAL break (row[0]), matching the ledger DELETE and
+                        # _rebuild_derived_state — NOT y (the expected height); see the transactions branch.
+                        _cut = row[0]
+                        db_handler.tokens_rollback(node, _cut)
+                        db_handler.aliases_rollback(node, _cut)
+                        _rebuild_derived_state(node, db_handler, _cut - 1)   # VM/root to the ledger cut
                         # rollback indices
 
                         node.logger.app_log.warning(f"Status: Due to a sequencing issue at block {y}, {chain} has been rolled back and will be resynchronized")
@@ -893,8 +897,8 @@ def detect_recent_sequence_break(db_handler, tip, window=2000):
 def autoheal_live(node, db_handler, window=2000):
     """Self-heal a sequence/dupe corruption WITHOUT a restart. Detect a break in the recent tail (read-only);
     if found, roll the chain back to the clean prefix using the SAME rollback() blocknf uses (truncate
-    ledger+hyper + rebuild every derived projection: balance/txid index, VM state+root, tokens/aliases,
-    shielded set), reset the node's in-memory tip from disk, and let the normal sync loop re-fetch the
+    ledger+hyper + rebuild every derived projection: balance/txid index, VM state+root, tokens/aliases),
+    reset the node's in-memory tip from disk, and let the normal sync loop re-fetch the
     discarded blocks. No-op (just the cheap recent scan) on a healthy chain. MUST be called holding
     node.db_lock (serialised with digestion). ram=False assumed (disk is the tip source). Returns True iff
     it repaired."""

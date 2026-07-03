@@ -333,7 +333,12 @@ def worker(host, port, node):
                     # receive theirs
                     segments = receive(s)
 
-                    node.logger.app_log.info(mp.MEMPOOL.merge(segments, peer_ip, db_handler_instance.c, True))
+                    # size_bypass=False: these txs come from an arbitrary remote peer during the
+                    # outbound mempool exchange, so they MUST be subject to the pool size cap, exactly
+                    # like the inbound handler (node.py). size_bypass is only for trusted local
+                    # submissions (node.py local paths, rest_api). Passing True here let any peer flood
+                    # past the fee-tiered congestion control.
+                    node.logger.app_log.info(mp.MEMPOOL.merge(segments, peer_ip, db_handler_instance.c, False))
 
                     # receive theirs
                     # Tell the mempool we just send our pool to a peer

@@ -59,6 +59,17 @@ class PubkeyRegistry:
                 h = int(r[_H])
                 if h <= 0 or h < int(fork_height):
                     continue
+                # Skip the coinbase reward row. Post-fork its _PUB slot holds the mining-header state-root
+                # commitment ('vmsr'<root>), NOT a public key, and the coinbase carries no signable key. The
+                # coinbase is the unique positive-height row with a non-zero reward (digest.py identifies it
+                # the same way, via _t[9]). Registering its header would permanently shadow the miner
+                # address's REAL key behind the first-appearance gate — breaking pubkey-by-reference for that
+                # address — and violate the invariant that the registry only holds keys the address commits to.
+                try:
+                    if r[_REWARD] and float(r[_REWARD]) != 0:
+                        continue
+                except (ValueError, TypeError):
+                    pass
                 pub = r[_PUB]
                 if not pub or str(pub).strip() == "":        # by-reference tx — nothing to register
                     continue
@@ -80,11 +91,18 @@ class PubkeyRegistry:
                 return 0
             n = 0
             for r in cursor.execute(
-                    "SELECT block_height, address, public_key FROM transactions "
+                    "SELECT block_height, address, public_key, reward FROM transactions "
                     "WHERE block_height >= ? ORDER BY block_height ASC, rowid ASC", (int(fork_height),)):
-                h, addr, pub = int(r[0]), r[1], r[2]
+                h, addr, pub, rew = int(r[0]), r[1], r[2], r[3]
                 if h <= 0 or not pub or str(pub).strip() == "":
                     continue
+                # Skip the coinbase reward row (its _PUB slot is the mining-header state-root commitment, not a
+                # key) — must match register_from_block exactly so apply and rebuild register the same set.
+                try:
+                    if rew and float(rew) != 0:
+                        continue
+                except (ValueError, TypeError):
+                    pass
                 key = self._key(addr)
                 if txn.get(self.db, key) is not None:        # first-appearance gate
                     continue

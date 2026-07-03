@@ -71,8 +71,15 @@ class AddressApiMixin:
         starting_block = connections.receive(socket_handler)
         limit = connections.receive(socket_handler)
 
-        if limit > 500:
-            limit = 500
+        # Coerce and clamp both client-supplied bounds. A negative limit becomes SQLite
+        # "LIMIT -1" (unbounded), so clamp to [0, 500]; a non-int/negative starting_block
+        # would either error or scan the whole history.
+        try:
+            limit = min(500, max(0, int(limit)))
+            starting_block = max(0, int(starting_block))
+        except (TypeError, ValueError):
+            connections.send(socket_handler, [])
+            return
 
         db_handler.execute_param(db_handler.h, ("SELECT * FROM transactions "
                                                 "WHERE ? IN (address, recipient) "

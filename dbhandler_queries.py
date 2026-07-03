@@ -121,8 +121,11 @@ class DbQueriesMixin:
 
     def blocksync(self, block):
         blocks_fetched = []
-        while sys.getsizeof(
-                str(blocks_fetched)) < 500000:  # limited size based on txs in blocks
+        # Track the accumulated serialized size incrementally. The previous condition re-stringified
+        # the WHOLE accumulated list every iteration (O(n^2): serving one blocksget copied tens of MB
+        # of throwaway strings), on the peer-sync serving hot path against the 23 GB ledger.
+        total_size = 0
+        while total_size < 500000:  # limited size based on txs in blocks
             self.execute_param(self.h, (
                 "SELECT timestamp,address,recipient,amount,signature,public_key,operation,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),
                                               (str(int(block)), str(int(block + 1)),))
@@ -130,6 +133,7 @@ class DbQueriesMixin:
             if not result:
                 break
             blocks_fetched.extend([result])
+            total_size += sys.getsizeof(str(result))
             block = int(block) + 1
         return blocks_fetched
 

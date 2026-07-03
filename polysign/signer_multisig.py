@@ -18,7 +18,7 @@ Verification (:meth:`verify_bis_signature`): parse the redeem -> rebuild and mat
 parse the signature list -> require at least M valid DER signatures over the canonical tx buffer, each
 from a DISTINCT owner pubkey (strictly increasing index, which also canonicalises the ordering), every
 provided signature valid. Pure crypto — the post-fork TIMING gate (multisig senders are only valid
-after hf2 activates) lives in the digester (``digest.py``), exactly like the shielded / VM gates.
+after hf2 activates) lives in the digester (``digest.py``), exactly like the VM gate.
 
 HONEST CONSTRAINT: Bismuth truncates the tx ``signature`` field at 684 chars and ``public_key`` at 1068
 (the frozen base tx format — see ``digest_tx.py``). A 71-byte DER signature plus framing means the
@@ -163,8 +163,8 @@ class SignerMultisig(Signer):
         """Verify a Bismuth multisig spend. Raises ValueError on ANY failure (the node's reject path).
 
         1. public_key field -> redeem -> (M, N, owners); rebuild the address and require it == sender.
-        2. signature field  -> [(idx, der)]; require k >= M, indices strictly increasing and < N, EVERY
-           provided signature valid over ``buffer`` under owners[idx]. Threshold met iff valid count >= M.
+        2. signature field  -> [(idx, der)]; require EXACTLY M components (canonical form), indices strictly
+           increasing and < N, EVERY provided signature valid over ``buffer`` under owners[idx].
         """
         redeem = b64decode(public_key)
         m, n, pubkeys = cls.parse_redeem(redeem)
@@ -173,10 +173,15 @@ class SignerMultisig(Signer):
         if cls.redeem_to_address(redeem, subtype) != address:
             raise ValueError("multisig redeem does not match the spending address")
         entries = cls.parse_sigs(b64decode(signature))
-        if len(entries) < m:
-            raise ValueError("multisig needs >= %d signatures, got %d" % (m, len(entries)))
-        if len(entries) > n:
-            raise ValueError("more signatures (%d) than owners (%d)" % (len(entries), n))
+        # Canonical form: EXACTLY the threshold M components. Allowing k>M (over-signing) let ANYONE strip a
+        # redundant component from a confirmed tx to produce a DIFFERENT-but-valid signature blob over the
+        # SAME content-txid — a keyless malleability that defeats signature-keyed replay protection and
+        # double-spends the sender (consensus audit). M valid components already meet the threshold, so
+        # requiring exactly M removes the malleable slack at zero security cost (m <= n, so this is stricter
+        # than the old >=M / <=N bound and never rejects a canonical spend).
+        if len(entries) != m:
+            raise ValueError("multisig requires exactly %d signatures (canonical form), got %d"
+                             % (m, len(entries)))
         last = -1
         valid = 0
         for idx, sig in entries:

@@ -5,9 +5,8 @@ This is the heavier sibling of tests/test_two_node_api_sync.py. It brings up a T
 (no socket peering — regnet refuses it by design; api_sync over REST is the ONLY multi-node path) and proves
 that the just-migrated KVStore-backed LMDB stores produce IDENTICAL results across independently-built
 ledgers. config_custom.txt turns on, per node: the four core rebuildable side-indexes that were migrated
-onto kvstore.open_store (block_store / balance_index / txid_index / vm_state), PLUS shieldedv1 (a CORE,
-consensus-wired module opened directly in node.py — not a plugin) and token_index (owned by the optional
-tokens_aliases PLUGIN, doc/27 — node core never constructs it; it arrives as a plugin service). The
+onto kvstore.open_store (block_store / balance_index / txid_index / vm_state), PLUS token_index (owned by the
+optional tokens_aliases PLUGIN, doc/27 — node core never constructs it; it arrives as a plugin service). The
 KVStore-backed indexes serve the consensus reads; this test exercises all of them across the cluster.
 
     A  socket 4070 / REST 4071   — mines a chain CROSSING the regnet hf2 fork, deploys a vm: contract
@@ -22,9 +21,8 @@ Asserts, using ONLY the REST API surfaces (never opening the LMDB dirs directly)
                            * block bodies by height (/api/block/...) -> block_store
                            * vm state root + contract storage (/api/vm/...) -> vm_state
                            * token supply + holders (/api/token/<name>) -> token_index (tokens_aliases PLUGIN)
-                           * shield notes/key_images/pool (/api/shield/stats) -> shieldedv1 (CORE sidecar)
-                       The vm / token / shield checks run on POPULATED state: node A deploys a contract,
-                       issues+transfers a token, and shield:mints a note (all post-fork) BEFORE B/C sync.
+                       The vm / token checks run on POPULATED state: node A deploys a contract and
+                       issues+transfers a token (all post-fork) BEFORE B/C sync.
   3. DETECTOR          — every node's /api/difficulty agrees (the #23 difficulty-divergence detector reads
                           CLEAN: no false divergence on a healthy multi-node net).
 
@@ -138,7 +136,7 @@ def _canonical_block(port, height):
                            "run explicitly with BISMUTH_RUN_MULTINODE=1")
 def test_multinode_integration(tmp_path):
     # All regnet nodes read ROOT/config_custom.txt (regnet flags: block_store, balance_index=primary,
-    # txid_index=primary, parity_strict, vm, shield, token_index). Prod ignores it (BISMUTH_IGNORE_CONFIG_CUSTOM=1).
+    # txid_index=primary, parity_strict, vm, token_index). Prod ignores it (BISMUTH_IGNORE_CONFIG_CUSTOM=1).
     if not os.path.exists(os.path.join(ROOT, "config_custom.txt")):
         shutil.copy(os.path.join(ROOT, "tests/config_custom.txt"), os.path.join(ROOT, "config_custom.txt"))
 
@@ -217,33 +215,9 @@ def test_multinode_integration(tmp_path):
         except Exception as e:
             print("token populate best-effort skipped:", e)
 
-        # --- populate shieldedv1 (CORE consensus sidecar): a shield:mint deposits transparent BIS into the
-        # pool and creates one stealth note. This is the lightest populating tx (no ring / no key image) and
-        # MUST be past shielded activation (shield: rules are inert until then). Shielded value is DECOUPLED
-        # FROM hf2 (doc/22): it gates on node.shielded_fork_height, reported by /api/shield/stats. Mirrors
-        # tests/test_shielded.py::_mint.
-        shield_note = None
-        try:
-            import shieldedv1 as sh
-            sstats = _rest(A_R, "shield/stats")
-            sfh = sstats.get("shielded_fork_height")
-            if sstats.get("enabled") and sfh is not None and _tip_via_rest(A_R) > int(sfh):
-                note = sh.make_output(sh.new_keypair()["address"], "20")
-                ca.send(sh.SHIELD_SINK, 20, sh.OP_MINT, json.dumps(note))
-                for _ in range(8):
-                    ca.mine(2); time.sleep(0.2)
-                    try:
-                        nd = _rest(A_R, "shield/note/%s" % note["note_id"])
-                        if nd and nd.get("note_id"):
-                            shield_note = note; break
-                    except Exception:
-                        pass
-        except Exception as e:
-            print("shield populate best-effort skipped:", e)
-
         a_tip = _tip_via_rest(A_R)
-        print("A tip after mining (vm=%s/%s, token=%s, shield=%s): %d"
-              % (vm_deployed, vm_contract_addr, token_name, bool(shield_note), a_tip))
+        print("A tip after mining (vm=%s/%s, token=%s): %d"
+              % (vm_deployed, vm_contract_addr, token_name, a_tip))
 
         # --- nodes B and C: empty ledgers, catch up from A over REST ONLY ------------------------------
         src = {"BISMUTH_API_SYNC": "1", "BISMUTH_API_SYNC_SOURCE": "127.0.0.1:%d" % A_R}
@@ -370,42 +344,11 @@ def test_multinode_integration(tmp_path):
         else:
             print("STORE AGREEMENT token_index: SKIPPED (token did not land)")
 
-        # --- shieldedv1 (CORE consensus sidecar): the shielded note/key-image/pool state agrees across nodes.
-        # Shield is consensus-wired, so B/C re-validate+apply the mint during digestion of the api_sync'd block
-        # (a divergent shield state would have RAISED and broken chain parity above); this asserts the observable
-        # projection matches too. No single state-root exists, so compare the (notes,key_images,pool_units) triple.
-        if shield_note:
-            import shieldedv1 as sh
-            import amounts
-            sst = {nm: _rest(p, "shield/stats") for nm, p in ports.items()}
-            trip = {nm: (s["notes"], s["key_images"], s["pool_units"]) for nm, s in sst.items()}
-            assert trip["A"] == trip["B"] == trip["C"], "shield stats disagree across nodes: %s" % trip
-            assert sst["A"]["notes"] >= 1 and sst["A"]["pool_units"] >= shield_note["amt"], \
-                "unexpected shield state: %s" % sst["A"]
-            # the specific minted note resolves identically on every node
-            nds = {nm: _rest(p, "shield/note/%s" % shield_note["note_id"]) for nm, p in ports.items()}
-            assert nds["A"] == nds["B"] == nds["C"], "shield note record disagrees across nodes"
-            # SHIELD_SINK transparent balance agrees across nodes ...
-            sinks = {nm: _rest(p, "balance/%s" % sh.SHIELD_SINK)["balance"] for nm, p in ports.items()}
-            assert sinks["A"] == sinks["B"] == sinks["C"], "SHIELD_SINK balance disagrees across nodes: %s" % sinks
-            # ... and the doc/22 supply-safety invariant holds (pool_units == transparent SHIELD_SINK balance)
-            assert sst["A"]["pool_units"] == amounts.to_units(ca.balance(sh.SHIELD_SINK)), \
-                "supply-safety broken: pool_units %s != SHIELD_SINK balance" % sst["A"]["pool_units"]
-            print("STORE AGREEMENT shieldedv1 ok: stats(notes,ki,pool)=%s + note %s + pool==sink identical across A,B,C"
-                  % (trip["A"], shield_note["note_id"][:12]))
-        else:
-            print("STORE AGREEMENT shieldedv1: SKIPPED (shield mint did not land)")
-
-        # Coverage guard: this test EXISTS to prove POPULATED shield/token state agrees across nodes. The fork
+        # Coverage guard: this test EXISTS to prove POPULATED token state agrees across nodes. The fork
         # always activates here (mine(16) crosses fork=10), so REQUIRE the population to have happened — that
-        # stops the coverage from silently degrading to a vacuous pass if a future change breaks shield/token.
+        # stops the coverage from silently degrading to a vacuous pass if a future change breaks token indexing.
         if fork_height is not None and tip > int(fork_height):
             assert token_name, "token population did not land despite active fork — coverage would be vacuous"
-            # Shielded value is decoupled from hf2 (doc/22): only require the shield mint to have landed when
-            # shielded activation was actually configured on this cluster (shielded_fork_height set + crossed).
-            _ssfh = _rest(A_R, "shield/stats").get("shielded_fork_height")
-            if _ssfh is not None and tip > int(_ssfh):
-                assert shield_note, "shield mint did not land despite active shielded fork — coverage would be vacuous"
 
         # === 3. DETECTOR: /api/difficulty agrees across the cluster (no false divergence) ===============
         diffs = {nm: float(_rest(p, "difficulty").get("difficulty")) for nm, p in ports.items()}
@@ -454,7 +397,7 @@ def test_multinode_integration(tmp_path):
             print("DETECTOR in-process drive skipped (cluster /api/difficulty already agrees %s): %s" % (diffs, e))
 
         print("\nALL CHECKS PASSED: 3-node chain parity + block_store/balance_index/txid_index"
-              " agreement + vm_state + token_index + shieldedv1 (populated) + detector CLEAN at tip %d" % tip)
+              " agreement + vm_state + token_index (populated) + detector CLEAN at tip %d" % tip)
     finally:
         for proc, log, _ in procs:
             try:

@@ -57,13 +57,16 @@ class PeersPoolMixin:
         if self.is_whitelisted(host):
             return True
 
-        # Optimization: Cache C-class extraction
+        # Optimization: Cache C-class extraction. Prefix = first three octets, e.g. '2.3.4' for 2.3.4.5.
         if host not in self._c_class_cache:
-            self._c_class_cache[host] = '.'.join(host.split('.')[:-1]) + '.'
+            self._c_class_cache[host] = '.'.join(host.split('.')[:-1])
         c_class = self._c_class_cache[host]
 
-        # Optimization: Use generator expression for efficiency
-        matching_count = sum(1 for ip_port in self._connection_pool_set if c_class in ip_port)
+        # Compare each pool member's OWN /24 prefix for equality. A raw substring test
+        # ("2.3.4." in "12.3.4.6:5658") produces false positives that reject distinct peers.
+        def _c_class_of(ip_port):
+            return '.'.join(ip_port.rsplit(':', 1)[0].split('.')[:-1])
+        matching_count = sum(1 for ip_port in self._connection_pool_set if _c_class_of(ip_port) == c_class)
 
         if matching_count >= 2:
             self.app_log.warning(f"Ignoring {host_port} since we already have 2 ips of that C Class in our pool.")

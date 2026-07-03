@@ -405,7 +405,6 @@ class BlockProcessor:
             elif indexed is not None and mode == "primary":
                 balance_pre = indexed                   # the index is now the authoritative starting balance
 
-        balance = quantize_eight(balance_pre - debit)
         # doc/30: the block being validated is node.last_block + 1 (last_block is only advanced after this
         # whole block's balances are processed). A curated OVERSPEND waiver lets a historical manual coin
         # rescue / fork-edge balance edit replay from genesis instead of halting the sync here.
@@ -420,6 +419,12 @@ class BlockProcessor:
                                        node.logger.app_log)
                      if (_fh_mat is not None and _ovr_h >= _fh_mat) else Decimal(0))
         _spendable = quantize_eight(balance_pre - _immature)
+        # Spendable balance remaining after this address's cumulative block debit. BOTH the overspend check
+        # (below) and the fee-affordability check must measure against _spendable, so immature coinbase reward
+        # can be spent as neither a transfer NOR a fee before maturity (doc/42). This mirrors mempool
+        # admission (mempool.py), which subtracts the immature slice from both balances. Pre-fork _immature
+        # is 0, so `balance` == balance_pre - debit exactly as before — byte-identical below the fork.
+        balance = quantize_eight(_spendable - debit)
         # Compare against the CUMULATIVE per-address block debit, not the single-tx `amount`. `debit`
         # (block_debit_address) is the address's total spend across the whole block and is identical for each
         # of its txs; `amount` is just this one tx. Using `amount` let a holder of S mature + I immature
@@ -643,15 +648,36 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
             import fee_dynamics
             # congestion = block WEIGHT (tx count + openfield bytes // W_UNIT), so large RingCT/VM txs price
             # in their real footprint, not just count. Read from the post-fork BLOCK STORE (LMDB) — NO
-            # SQLite post-fork. Deterministic, storage-mode-independent, and the store is rolled back with
-            # the chain so the window is always canonical. No store -> empty window -> static base fee.
+            # SQLite post-fork. The base_fee is CONSENSUS (it sets the per-tx required fee and the coinbase
+            # reward), so it MUST be identical on every node. FAIL CLOSED: the store is mandatory post-fork
+            # (opened unconditionally in node.py) and the weight window must be fully present, else this node
+            # HALTS instead of silently falling back to a divergent static fee / a short-window average — the
+            # consensus split this guards against. A missing store or a window gap is an operator/env fault
+            # (re-sync or enable the block store before hf2), never a silent alternate fee schedule.
             _bs = getattr(node, "block_store", None)
-            _weights = (_bs.recent_block_weights(node.last_block, fee_dynamics.WINDOW, fee_dynamics.W_UNIT)
-                        if _bs is not None else [])
+            if _bs is None:
+                raise ValueError(
+                    "post-fork dynamic fee requires the block store, but it is not open — it is mandatory "
+                    "consensus since hf2 activation (fee window source). Fix/enable the block store and restart.")
+            # strict=True: raise on any missing height in the window rather than skipping it (a skipped height
+            # would make this node average over fewer blocks than its peers -> a different fee -> a fork).
+            _weights = _bs.recent_block_weights(node.last_block, fee_dynamics.WINDOW, fee_dynamics.W_UNIT,
+                                                strict=True)
             node.base_fee = fee_dynamics.base_fee(essentials.BASE_FEE, _weights,
                                                   target=fee_dynamics.TARGET_WEIGHT)
         else:
             node.base_fee = essentials.BASE_FEE
+
+        # Mirror the consensus fee inputs to the mempool so ADMISSION computes the same fee this block's
+        # apply will require (closes the validate/apply fee desync that otherwise wedges block production —
+        # a tx admitted at the static fee but rejected at the dynamic fee stays stuck in the mempool). The
+        # demand-scaled base_fee can lag admission by at most one block; the VM surcharge flag is exact.
+        try:
+            if mp.MEMPOOL is not None:
+                mp.MEMPOOL.base_fee = node.base_fee
+                mp.MEMPOOL.fee_post_fork = node.fee_post_fork
+        except Exception:
+            pass
 
         # Sort and validate transactions
         miner_tx = processor.sort_and_validate_transactions(block, block_instance)
@@ -731,7 +757,16 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         # silent). node.vm_state_root is still the pre-state here (this block's vm: txs run after to_db).
         _ev = getattr(node, "vm_state", None)
         _efh = getattr(node, "fork_height", None)
-        if _ev is not None and _efh is not None and block_instance.block_height_new >= _efh:
+        if _efh is not None and block_instance.block_height_new >= _efh:
+            # The VM is mandatory consensus post-hf2 (gated on the shared fork_height). If the store failed to
+            # open at startup, FAIL CLOSED: halt here rather than skip the check and silently fork onto lenient
+            # rules (the split this raise prevents was the whole reason vm_state is opened unconditionally in
+            # node.py). digest_block catches this, rolls back, and the block is not committed.
+            if _ev is None:
+                raise ValueError(
+                    f"post-fork block at {block_instance.block_height_new} requires the VM state store, but it "
+                    f"is not open — the VM is mandatory consensus since hf2 activation at {_efh}. Fix the VM "
+                    f"store (see 'VM state store could not open' at startup) and restart.")
             import vm_engine
             _claimed = None
             for _t in processor.block_transactions:
@@ -762,10 +797,8 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         # safety), so reject any block carrying such a SENDER at/below the fork height. Receiving INTO one of
         # these addresses is always fine (just an address). _t[2] is the sender (12-field converted row).
         _mfh = getattr(node, "fork_height", None)
-        # active at height >= fork_height, identical to the VM gate (which uses >= node.fork_height). NOTE: the
-        # shielded gate is NO LONGER on fork_height — it moved to its own node.shielded_fork_height (decoupled
-        # from hf2, doc/22); do not re-couple it here. Using '<' (not '<=') so these activate at the SAME block
-        # as the VM gate, not one block later.
+        # active at height >= fork_height, identical to the VM gate (which uses >= node.fork_height). Using '<'
+        # (not '<=') so these activate at the SAME block as the VM gate, not one block later.
         if _mfh is None or block_instance.block_height_new < _mfh:
             from polysign.signerfactory import SignerFactory as _SF
             for _t in processor.block_transactions:
@@ -773,21 +806,6 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
                     raise ValueError(
                         f"post-fork-only sender type {str(_t[2])[:12]} at block "
                         f"{block_instance.block_height_new} requires hf2 activation (fork_height {_mfh})")
-
-        # shielded value (doc/22): consensus-validate this block's shield: txs BEFORE committing — a block
-        # that double-spends a nullifier, spends an unknown/already-spent note, fails an ownership proof,
-        # or breaks value conservation RAISES here and is rejected (never written). STAGED/DEFERRED — the
-        # Monero-style privacy stack is DECOUPLED FROM hf2 (2026-07): it gates on its own node.shielded_fork_height
-        # (a plain config knob, default None on ALL networks — NOT a miner-activated signal, NOT node.fork_height).
-        # While None the branch never runs and shield: txs are ordinary txs everywhere (no split); set a height
-        # only to schedule/test (regnet/dev). The parsed ops are stashed to apply after to_db succeeds.
-        _shield_parsed = []
-        _sst = getattr(node, "shielded_state", None)
-        _sfh = getattr(node, "shielded_fork_height", None)
-        if _sst is not None and _sfh is not None and block_instance.block_height_new >= _sfh:
-            import shieldedv1
-            _shield_parsed = shieldedv1.validate_block(
-                _sst, processor.block_transactions, block_instance.block_height_new)
 
         # Save to database
         db_handler.to_db(block_instance, diff_save, processor.block_transactions)
@@ -857,22 +875,25 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
                 # commits. Post-fork only (this branch is already hf2-gated) — rides the one fork, no new signal.
                 node.vm_state_root = _vms.merkle_root()
             except Exception as e:
-                node.logger.app_log.warning(
-                    f"vm execution failed at {block_instance.block_height_new}: {e}")
-
-        # shielded value (doc/22): commit this block's validated shield: ops to the sidecar AFTER to_db, and
-        # settle each redeem as a consensus payout row SHIELD_SINK -> recipient (a negative-height mirror,
-        # like vm payouts / dev rewards — picked up by the balance index below and rolled back with the
-        # ledger). Placed BEFORE the balance-index maintenance so the payout mirror rows are indexed.
-        if _shield_parsed:
-            try:
-                import shieldedv1
-                for _to, _units in shieldedv1.apply_block(node.shielded_state, _shield_parsed):
-                    db_handler.shield_payout(block_instance.block_height_new, miner_tx.q_block_timestamp,
-                                             block_instance.mirror_hash, _to, _units)
-            except Exception as e:
-                node.logger.app_log.warning(
-                    f"shielded apply failed at {block_instance.block_height_new}: {e}")
+                # A VM apply failure post-fork is NOT safe to swallow: block N is already committed (to_db +
+                # apply_rewards above) but node.vm_state_root would be left at the pre-state, so block N+1's
+                # mandatory coinbase state-root check would mismatch and wedge the node forever
+                # (handle_processing_error's ledger>working heal does not fire here — the working store is
+                # legitimately ahead mid-batch). Individual contract faults are already isolated inside
+                # apply_block_rows (a bad contract is a no-op); reaching here is an infrastructure failure. Roll
+                # block N back so the ledger and vm_state unwind in lockstep (chain_ops.rollback rebuilds
+                # vm_state from the ledger at N-1), then re-raise so digestion aborts and the block is
+                # re-fetched. Fail-closed: a persistent failure keeps rejecting rather than silently diverging.
+                node.logger.app_log.error(
+                    f"vm execution failed at {block_instance.block_height_new}: {e} — rolling the block back")
+                try:
+                    import chain_ops
+                    chain_ops.rollback(node, db_handler, block_instance.block_height_new)
+                except Exception as _rb:
+                    node.logger.app_log.error(
+                        f"post-vm-failure rollback also failed at {block_instance.block_height_new}: {_rb} "
+                        f"— startup reconcile will heal on restart")
+                raise
 
         # Optional maintained balance index (doc/17): apply this block's net effect — the positive txs plus
         # any negative-height "mirror" rows (concluded dev/HN rewards AND VM custody payouts, both written
@@ -1030,7 +1051,7 @@ def handle_processing_error(node, db_handler, sdef, peer_ip, error):
     #     flushes at batch end), so trimming there would discard just-validated blocks.
     #   * read FRESH tips (clear_caches) so the 1-second read cache can't trim canonical blocks.
     #   * route through chain_ops.rollback, NOT bare rollback_under, so the DERIVED consensus stores
-    #     (vm_state + state root, shielded key-images, token/alias index, balance_index) roll back in
+    #     (vm_state + state root, token/alias index, balance_index) roll back in
     #     lockstep — a bare ledger delete would strand them above the tip (post-fork inflation / wedge).
     # All best-effort: a failure here must never mask the original rejection; the startup reconcile is the
     # backstop. The bounded replay guard (check_duplicate_signatures) is the complementary defense layer.

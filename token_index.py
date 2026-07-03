@@ -3,7 +3,7 @@
 
 ``tokens`` and ``aliases`` were always the most cleanly *separable* part of the SQLite trio: their own
 file (``index.db``), a derived projection of the ledger, never consensus. This module re-homes that
-projection in an embedded LMDB env, exactly mirroring stage 1's ``shieldedv1.ShieldedState``: same
+projection in an embedded LMDB env: same
 public *behaviour* (the balances/holders/alias maps callers see are byte-identical), height-ordered
 secondary keys so a reorg rollback is a range delete, and atomic per-op write txns. The SQLite ``tokens``
 / ``aliases`` row tables and their SUM/GROUP-BY queries are replaced by *materialized* indexes:
@@ -41,8 +41,7 @@ msgpack), so a running node reads its existing LMDB files unchanged. Ordered pre
 ``KVTxn.iterate``/``range`` (which forward the raw lmdb cursor, same byte order), and the per-db entry count
 in ``stats()`` uses ``KVStore.stat(db)`` (available on both backends).
 
-Deps: ``kvstore`` (which needs ``lmdb`` for the default backend). Values are JSON (small, readable; mirrors
-shieldedv1).
+Deps: ``kvstore`` (which needs ``lmdb`` for the default backend). Values are JSON (small, readable).
 """
 import json
 import os
@@ -500,8 +499,8 @@ class TokenIndex:
 
 def open_for(ledger_path: str) -> "TokenIndex":
     """Open the LMDB token/alias index NAMESPACED BY LEDGER FILENAME — tokenindex-<ledger> — so a regnet
-    run can never hand its token/alias projection to a mainnet node (the doc/18 pollution class), exactly
-    like the shielded sidecar. A stale pre-LMDB ``index.db`` is NOT touched here: it is a shared legacy file
+    run can never hand its token/alias projection to a mainnet node (the doc/18 pollution class),
+    namespaced per ledger. A stale pre-LMDB ``index.db`` is NOT touched here: it is a shared legacy file
     (tokens/aliases/staking) retired only when the whole SQLite trio is dropped; this store is the separate
     post-fork home for the tokens/aliases projection, rebuilt from the ledger by the scanners."""
     base = os.path.basename(ledger_path) or "ledger.db"

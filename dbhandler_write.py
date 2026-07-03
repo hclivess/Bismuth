@@ -178,18 +178,6 @@ class DbWriteMixin:
                             amt, "0", "0", str(mirror_hash), "0", "0", "vm:payout", "0"))
         self.commit(self.conn)
 
-    def shield_payout(self, block_height, timestamp, mirror_hash, recipient, amount_units):
-        """Settle a shield:redeem payout (doc/22): a consensus-generated negative-height ledger row
-        crediting `recipient` from the SHIELD_SINK pool (so the sink's ledger balance tracks the value of
-        the unspent shielded notes). Deterministic from the on-chain redeem op, and rolled back with the
-        ledger on a reorg, exactly like the reward / vm_payout mirrors."""
-        import shieldedv1
-        amt = str(int(amount_units) if amounts.LEDGER_INTEGER else amounts.to_decimal(amount_units))
-        self.execute_param(self.c, self.SQL_TO_TRANSACTIONS,
-                           (-int(block_height), str(timestamp), shieldedv1.SHIELD_SINK, str(recipient)[:56],
-                            amt, "0", "0", str(mirror_hash), "0", "0", "shield:payout", "0"))
-        self.commit(self.conn)
-
     def hn_reward(self,node,block_array,miner_tx,mirror_hash):
         fork = Fork()
 
@@ -291,6 +279,16 @@ class DbWriteMixin:
             node.logger.app_log.warning(f"Chain: {len(result1)} txs moved to HDD")
         except Exception as e:
             node.logger.app_log.warning(f"Chain: Exception Moving new data to HDD: {e}")
+            # Roll back any partial implicit transaction on the HDD connections. In legacy isolation
+            # mode a failed executemany leaves rows pending in the still-open transaction; since
+            # node.hdd_block is NOT advanced, the next flush re-fetches and re-inserts the SAME rows,
+            # committing duplicates. A best-effort rollback discards the partial write so the retry is clean.
+            for _conn in (self.hdd, self.hdd2):
+                try:
+                    if _conn is not None:
+                        _conn.rollback()
+                except Exception:
+                    pass
 
     def _db_to_drive_lockstep(self, node, result1, result2):
         """Atomic dual-marker flush for the live full-ledger path (ledger.db + ATTACHed hyper.db).
@@ -322,8 +320,14 @@ class DbWriteMixin:
                 raise
 
         # Same retry/durability discipline as self.commit (slow-node tolerant). An aborted attempt has
-        # already rolled back inside _do, so a retry re-runs the whole atomic unit cleanly.
-        db_helpers.retry_db(_do, delay=1, log=self.logger.app_log, describe="lockstep db_to_drive")
+        # already rolled back inside _do, so a retry re-runs the whole atomic unit cleanly. Bound the
+        # retries: _do runs schema-dependent marker UPDATEs, which fail DETERMINISTICALLY if a
+        # commit_marker table is missing (creation is tolerated as non-fatal at open). Retrying forever
+        # there wedges the node permanently while holding node.db_lock; instead fall back to the
+        # per-file legacy flush, which stamps the marker best-effort and cannot get stuck on it.
+        db_helpers.retry_db(_do, delay=1, max_tries=5, log=self.logger.app_log,
+                            describe="lockstep db_to_drive",
+                            on_give_up=lambda: self._db_to_drive_legacy(node, result1, result2))
 
         # Keep self.hdd / self.hdd2 (the readers' connections) seeing the just-committed state. Under WAL
         # a fresh statement on those connections already reads the latest commit, but ending any stale

@@ -116,6 +116,28 @@ class Transaction:
         if not essentials.address_validate(self.received_recipient):
             raise ValueError("Not a valid recipient address")
 
+        # doc/41 coinbase field bounds (post-fork). The coinbase is sig-less and fee-free, so its wire slots
+        # are free, unauthenticated miner data; the mining-header slots (nonce/commitment) are hashed into the
+        # consensus block hash under a u8 length prefix. Reject an oversized/malformed coinbase HERE (before
+        # the block hash is computed in process_block_data) so it fails with a clean error rather than an
+        # OverflowError inside the hash, and so the fee-free operation/openfield cannot balloon into a
+        # block-size DoS. Structural check (not a signature check) — runs even on the assume-valid fast path.
+        # Byte lengths (UTF-8) match what the u8 prefix and the serializer actually measure.
+        _cb_fh = getattr(node, "fork_height", None)
+        if is_coinbase and _cb_fh is not None and block_height is not None and block_height >= _cb_fh:
+            if len((self.received_signature_enc or "").encode("utf-8")) > essentials.COINBASE_MINING_SLOT_MAX:
+                raise ValueError("post-fork coinbase nonce slot exceeds %d bytes"
+                                 % essentials.COINBASE_MINING_SLOT_MAX)
+            if len((self.received_public_key_b64encoded or "").encode("utf-8")) > essentials.COINBASE_MINING_SLOT_MAX:
+                raise ValueError("post-fork coinbase commitment slot exceeds %d bytes"
+                                 % essentials.COINBASE_MINING_SLOT_MAX)
+            if len((self.received_operation or "").encode("utf-8")) > essentials.COINBASE_FREEFIELD_MAX:
+                raise ValueError("post-fork coinbase operation exceeds %d bytes"
+                                 % essentials.COINBASE_FREEFIELD_MAX)
+            if len((self.received_openfield or "").encode("utf-8")) > essentials.COINBASE_FREEFIELD_MAX:
+                raise ValueError("post-fork coinbase openfield exceeds %d bytes"
+                                 % essentials.COINBASE_FREEFIELD_MAX)
+
         # Signature verification (expensive operation last). Fork-gated on the single hf2 fork_height:
         # at/after it an ordinary single-sig secp256k1 tx is verified by ecrecover over the content txid
         # (Ethereum-shape, public key dropped); pre-fork txs and post-fork RSA/ED25519/multisig keep the

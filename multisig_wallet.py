@@ -94,11 +94,16 @@ class MultisigAccount:
     def sign_transaction(self, signing_owners: Sequence, timestamp, recipient, amount,
                          operation: str = "", openfield: str = "") -> tuple:
         """Build + co-sign a spend FROM this multisig address. ``signing_owners`` must include at least M
-        owners. Self-verifies through the real SignerFactory before returning the 8-field tx tuple."""
+        owners. The consensus verifier requires the CANONICAL form of EXACTLY M components (over-signing is
+        malleable — see SignerMultisig.verify_bis_signature), so if more than M owners are supplied we keep
+        the M lowest-indexed components and drop the rest. Self-verifies through the real SignerFactory
+        before returning the 8-field tx tuple."""
         amount_s = "%.8f" % float(amount)
         buffer = bismuth_serialize.signature_buffer(str(timestamp), self.address, str(recipient),
                                                     amount_s, str(operation), str(openfield))
         partials = [self.partial_sign(buffer, o) for o in signing_owners]
+        if len(partials) > self.m:                       # trim to the canonical exactly-M form
+            partials = sorted(partials, key=lambda p: p[0])[:self.m]
         sig_field = self.assemble_signature(partials)
         pub_field = self.public_key_field()
         SignerFactory.verify_bis_signature(sig_field, pub_field, buffer, self.address)  # belt-and-suspenders

@@ -17,9 +17,11 @@ from pubkey_registry import PubkeyRegistry
 from polysign.signerfactory import SignerFactory
 
 
-def _row(h, addr, pub):
-    # 12-field converted row: block_height, ts, address, recipient, amount, sig, public_key, ...
-    return [h, "%.2f" % (1e9 + h), addr, "recip", "1.00000000", "sig", pub, "bh", "0", "0", "", ""]
+def _row(h, addr, pub, reward="0"):
+    # 12-field converted row: block_height, ts, address, recipient, amount, sig, public_key, hash, fee,
+    # reward, operation, openfield. reward!=0 marks the coinbase (which must NOT be registered post-fork —
+    # its public_key slot holds the mining-header state-root commitment, not a key).
+    return [h, "%.2f" % (1e9 + h), addr, "recip", "1.00000000", "sig", pub, "bh", "0", reward, "", ""]
 
 
 def test_register_first_appearance_and_skips(tmp_path):
@@ -30,12 +32,14 @@ def test_register_first_appearance_and_skips(tmp_path):
             _row(10, "rsaA", "KEY_A2"),          # same addr again -> ignored (first-appearance)
             _row(10, "rsaB", ""),                # by-reference (empty) -> nothing to register
             _row(-1, "mirror", "KEYX"),          # negative-height mirror -> skipped
-            _row(0, "coinbase", "KEYC"),         # height 0 -> skipped
+            _row(0, "coinbaseH0", "KEYC"),       # height 0 -> skipped
+            _row(11, "minerX", "vmsrROOT", reward="1.50000000"),  # post-fork coinbase -> skipped (reward!=0)
         ]
         assert r.register_from_block(rows, fork_height=5) == 1
         assert r.get("rsaA") == b"KEY_A1"        # first key kept, verbatim
         assert r.get("rsaB") is None
         assert r.get("mirror") is None
+        assert r.get("minerX") is None           # coinbase mining-header never registered as a pubkey
         assert r.first_seen("rsaA") == 10
         # pre-fork (fork_height None) registers nothing
         assert PubkeyRegistry(str(tmp_path / "pk2")).register_from_block(rows, None) == 0
@@ -55,19 +59,22 @@ def test_rollback_by_height(tmp_path):
 
 
 def test_rebuild_from_cursor_matches_apply_and_is_deterministic(tmp_path):
-    # in-memory ledger: two addresses, each appearing twice; first-appearance must win deterministically
+    # in-memory ledger (realistic: includes the `reward` column). Two addresses each appear twice
+    # (first-appearance must win deterministically); a post-fork coinbase row (reward!=0) must be EXCLUDED.
     conn = sqlite3.connect(":memory:")
-    conn.execute("CREATE TABLE transactions (block_height INT, address TEXT, public_key TEXT)")
-    conn.executemany("INSERT INTO transactions VALUES (?,?,?)", [
-        (10, "a", "KA1"), (11, "a", "KA2"), (11, "b", "KB1"), (12, "b", "KB2"), (3, "old", "PRE")])
+    conn.execute("CREATE TABLE transactions (block_height INT, address TEXT, public_key TEXT, reward TEXT)")
+    conn.executemany("INSERT INTO transactions VALUES (?,?,?,?)", [
+        (10, "a", "KA1", "0"), (11, "a", "KA2", "0"), (11, "b", "KB1", "0"), (12, "b", "KB2", "0"),
+        (3, "old", "PRE", "0"), (13, "miner", "vmsrROOT", "1.50000000")])   # coinbase -> excluded
     conn.commit()
 
     r = PubkeyRegistry(str(tmp_path / "pk"))
     try:
         n = r.rebuild_from_cursor(conn.cursor(), fork_height=5)
-        assert n == 2                            # a, b (old at height 3 < fork skipped)
+        assert n == 2                            # a, b (old at height 3 < fork skipped; miner coinbase skipped)
         assert r.get("a") == b"KA1" and r.get("b") == b"KB1"   # first appearance per address
         assert r.get("old") is None
+        assert r.get("miner") is None            # coinbase mining-header commitment never registered
         # rebuild is idempotent / deterministic
         r.rebuild_from_cursor(conn.cursor(), 5)
         assert r.get("a") == b"KA1" and r.count() == 2

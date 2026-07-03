@@ -161,6 +161,30 @@ def setup_net_type(node):
         if node.fork_height is not None:
             node.logger.app_log.warning(
                 f"Status: hf2 activation height {node.fork_height} replayed from the lock-in sidecar")
+        # Authoritative operator/snapshot PIN (doc/17). A node bootstrapped from a hyperblock snapshot has
+        # NEITHER the lock-in sidecar NOR the pruned signalling coinbases, so the on-chain re-derivation can
+        # silently return None and leave the node validating a POST-fork chain under PRE-fork rules — a hard
+        # split. This pin (BISMUTH_HF2_FORK_HEIGHT env / node.hf2_fork_height config) lets the height be
+        # supplied explicitly for exactly that case. It is cross-checked against the sidecar: a DISAGREEMENT
+        # is a guaranteed chain split, so we HALT loudly rather than pick one. When only the pin is present it
+        # becomes the source of truth and is persisted to the sidecar so restarts replay it.
+        import os as _os_pin
+        _pin = _os_pin.environ.get("BISMUTH_HF2_FORK_HEIGHT") or getattr(node, "hf2_fork_height", None)
+        _pin = int(_pin) if _pin not in (None, "", "0", 0) else None
+        if _pin is not None:
+            if node.fork_height is not None and int(node.fork_height) != _pin:
+                node.logger.app_log.error(
+                    f"FATAL: hf2 fork-height pin {_pin} disagrees with the lock-in sidecar "
+                    f"{node.fork_height} — one of them is wrong and running either way splits the chain. "
+                    f"Resolve before starting.")
+                sys.exit(1)
+            if node.fork_height is None:
+                node.fork_height = _pin
+                _fork_persist.save_locked_height(node.ledger_path, "hf2", _pin)
+                node.logger.app_log.warning(
+                    f"Status: hf2 activation height {_pin} taken from the operator pin and persisted")
+    except SystemExit:
+        raise
     except Exception:
         node.fork_height = None
 

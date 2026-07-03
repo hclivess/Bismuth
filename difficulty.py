@@ -139,6 +139,19 @@ def difficulty(node, db_handler):
             float('%.10f' % difficulty), float('%.10f' % diff_dropped), float(time_to_generate), float(diff_block_previous),
             float(block_time), float(hashrate), float(diff_adjustment),
             block_height)  # need to keep float here for database inserts support
-    except: #new chain or regnet
-        difficulty = [24,24,0,0,0,0,0,0]
-        return difficulty
+    except Exception as e:
+        # The [24,...] sentinel (below MIN_DIFFICULTY) is ONLY valid for a genuinely empty/bootstrap
+        # chain (new chain / fresh regnet), where the window queries legitimately return no rows.
+        # On a MATURE chain a transient failure here (SQLite "database is locked"/"disk I/O error",
+        # a None fetch, a bug in the LWMA branch) must NOT silently collapse the acceptance threshold
+        # to 24 — digest feeds diff[0] straight into the PoW check, so that would validate trivially
+        # mined blocks. Fail closed instead so the digest attempt is retried rather than accepted.
+        tip = getattr(node, "last_block", 0) or 0
+        if tip < DIFFICULTY_WINDOW:
+            return [24, 24, 0, 0, 0, 0, 0, 0]
+        try:
+            node.logger.app_log.warning(
+                "difficulty(): retarget failed on a mature chain (tip {}), failing closed: {}".format(tip, e))
+        except Exception:
+            pass
+        raise

@@ -145,6 +145,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         timeout_operation = 120  # timeout
         timer_operation = time.time()  # start counting
 
+        # A peer controls message order and can send 'blocknf'/'blocknfhb' before any 'blockheight'
+        # exchange. consensus_blockheight is only assigned in the 'blockheight' handler, so reading it
+        # in those branches would raise UnboundLocalError and kill the handler thread. Initialize it here;
+        # None never equals consensus_max, so an out-of-order rollback request is safely ignored.
+        consensus_blockheight = None
+
         while not node.peers.is_banned(peer_ip) and node.peers.version_allowed(peer_ip, node.version_allow) and client_instance.connected:
             try:
                 extra = False  # Flag for plugin and regtest_* commands
@@ -1451,13 +1457,6 @@ if __name__ == "__main__":
     node.vm_enabled = config.vm                         # opt-in decentralized-apps VM (doc/17); POST-FORK only
     node.vm_state = None                               # the contract state store, built at startup if enabled
     node.vm_state_root = None                          # committed VM state root (doc/19), maintained post-fork
-    node.shield_enabled = config.shield                # opt-in shielded value (doc/22): builds/opens the note sidecar when True
-    node.shielded_state = None                         # the note/nullifier sidecar, built at startup if enabled
-    # doc/22: STAGED/DEFERRED — Monero-style shielded value is DECOUPLED FROM hf2. Its consensus validation
-    # gates on this height (plain config knob, default None on EVERY network — NOT a miner version-bits signal,
-    # NOT node.fork_height). None => shielded validation never runs, shield: txs are ordinary txs (no split).
-    # Set unconditionally (even when shield=False) so digest can read it via getattr. Set a height only to schedule/test.
-    node.shielded_fork_height = getattr(config, "shielded_fork_height", None)
     node.token_index = None                            # the LMDB token/alias side-index store; set by the
     #                                                    tokens_aliases plugin at startup (doc/27) when the
     #                                                    token_index flag is on, else None (legacy index.db).
@@ -1511,7 +1510,7 @@ if __name__ == "__main__":
             # sys.exit()
 
             node.apihandler = apihandler.ApiHandler(node.logger.app_log, config, node=node)
-            mp.MEMPOOL = mp.Mempool(node.logger.app_log, config, node.db_lock, node.is_testnet, trace_db_calls=node.trace_db_calls)
+            mp.MEMPOOL = mp.Mempool(node.logger.app_log, config, node.db_lock, node.is_testnet, trace_db_calls=node.trace_db_calls, node=node)
 
             check_integrity(node, node.hyper_path)
             #PLACEHOLDER FOR FRESH HYPERBLOCK BUILDER
@@ -1549,7 +1548,7 @@ if __name__ == "__main__":
 
             # doc/30 recovery: one-shot deep rollback. Drop a file `rollback_to` containing a height to
             # force a clean rollback of the chain + ALL derived indexes (difficulty/misc, balances, token
-            # & alias indexes, VM/shielded state) to that tip, then resync from peers — rebuilds derived
+            # & alias indexes, VM state) to that tip, then resync from peers — rebuilds derived
             # state corrupted by a past event (e.g. a difficulty drift the recursive controller locked in).
             # Self-limiting: the trigger file is removed immediately, so it fires exactly once. Runs here,
             # after token_index is live (for the index rollback) but before ram_init / node_block_init read
@@ -1717,57 +1716,57 @@ if __name__ == "__main__":
                     node.logger.app_log.warning("Status: pubkey registry could not start: {}".format(e))
                     node.pk_registry = None
 
-            # optional decentralized-apps VM contract-state store (doc/17). Off unless vm=True. The store
-            # persists on disk and the digester maintains it as it processes blocks (POST-FORK only) and
-            # rebuilds it on a reorg, so no startup rescan is needed — just open it.
-            if getattr(node, "vm_enabled", False):
-                try:
-                    import os as _os
-                    import vm_state as _vm_state_mod
-                    vm_path = _os.path.join(_os.path.dirname(node.ledger_path) or ".", "vmstate")
-                    node.vm_state = _vm_state_mod.VMState(vm_path)
-                    node.vm_state_root = node.vm_state.merkle_root()   # doc/45 Stage 2b: committed root = Merkle root
-                    node.logger.app_log.warning("Status: VM enabled (executes vm: txs post-fork)")
-                except Exception as e:
-                    node.logger.app_log.warning("Status: VM could not start: {}".format(e))
-                    node.vm_state = None
-
-            # optional shielded-value sidecar (doc/22). Off unless shield=True. A note/nullifier projection
-            # of the chain's shield: txs, maintained by the digester WHEN shielded_fork_height is set (STAGED/
-            # DEFERRED — decoupled from hf2) and rolled back on a reorg, namespaced per ledger (no regnet->mainnet
-            # bleed). Just open it; no startup rescan needed. The sidecar opening is independent of activation,
-            # so a dev node can hold an inert store (shielded_fork_height=None) for wallet/read use.
-            if getattr(node, "shield_enabled", False):
-                try:
-                    import shieldedv1 as _shield_mod
-                    node.shielded_state = _shield_mod.open_state_for(node.ledger_path)
-                    node.logger.app_log.warning(
-                        "Status: shielded sidecar opened (STAGED/DEFERRED, gated on shielded_fork_height={}): {}".format(
-                            node.shielded_fork_height, node.shielded_state.stats()))
-                except Exception as e:
-                    node.logger.app_log.warning("Status: shielded value could not start: {}".format(e))
-                    node.shielded_state = None
+            # decentralized-apps VM contract-state store (doc/17). MANDATORY CONSENSUS post-hf2: the VM's
+            # execution, custody payouts, and committed state-root all gate on the SHARED hf2 node.fork_height
+            # (not a per-node knob), so EVERY node must run the VM once hf2 activates. If the store were opened
+            # only under the opt-in `vm` flag, a default (vm=off) node would skip execution AND the "mandatory"
+            # coinbase state-root check while vm=on nodes enforce it — a hard consensus split at activation.
+            # fork_height is not known here (it is derived during sync), so the store is opened UNCONDITIONALLY
+            # and is simply INERT pre-fork (every VM branch in digest is fork-height-gated). config.vm is kept
+            # only as a diagnostic/RPC hint; it no longer gates consensus participation.
+            try:
+                import os as _os
+                import vm_state as _vm_state_mod
+                vm_path = _os.path.join(_os.path.dirname(node.ledger_path) or ".", "vmstate")
+                node.vm_state = _vm_state_mod.VMState(vm_path)
+                node.vm_state_root = node.vm_state.merkle_root()   # doc/45 Stage 2b: committed root = Merkle root
+                node.logger.app_log.warning(
+                    "Status: VM state store opened (mandatory consensus post-hf2, inert pre-fork)")
+            except Exception as e:
+                # Leaving vm_state None is safe pre-fork (all VM branches are fork-height-gated), but post-fork
+                # the mandatory state-root check REFUSES to run without the store (see digest.py) and halts the
+                # node rather than silently diverging onto lenient rules. Surface the failure loudly.
+                node.logger.app_log.error("Status: VM state store could not open: {}".format(e))
+                node.vm_state = None
 
             # (The LMDB token/alias side-index is now owned by the tokens_aliases PLUGIN — opened in
             # node.plugin_manager.start(node) above and exposed as node.token_index. doc/26 stage 2 + doc/27.)
 
-            # optional LMDB block-body store mirror (doc/17 phase 7). Off unless block_store=True.
-            # Additive shadow: the digester writes blocks here AFTER the normal commit; reads/consensus
-            # are untouched, so the block hash and mining are unaffected.
-            if node.block_store_enabled:
-                try:
-                    import os as _os
-                    import block_store
-                    bs_path = _os.path.join(_os.path.dirname(node.ledger_path) or ".", "blockstore")
-                    node.block_store = block_store.BlockStore(bs_path)
-                    import storage_backend as _sb
-                    node.block_writer = _sb.LmdbWriteBackend(node.block_store, node)   # stage-4 write seam (doc/26); node -> live fork_height gate (doc/40)
-                    node.logger.app_log.warning(
-                        f"Status: block store enabled at {bs_path} (tip {node.block_store.tip()})")
-                except Exception as e:
-                    node.logger.app_log.warning(f"Status: block store could not start: {e}")
-                    node.block_store = None
-                    node.block_writer = None
+            # LMDB block-body store (doc/17 phase 7, doc/26). MANDATORY CONSENSUS post-hf2: it is the source
+            # of the post-fork DYNAMIC-FEE weight window (fee_dynamics), and the base_fee is consensus (it
+            # sets the per-tx required fee and the coinbase reward), so every node must derive it from the
+            # SAME complete window. If the store were opt-in, a default node would fall back to the static fee
+            # while a store-on node used the dynamic fee — a chain split. There is no backfill-from-ledger, so
+            # the window is built FORWARD as blocks are digested; opening the store UNCONDITIONALLY now (well
+            # before hf2 lock-in) lets every node accumulate a complete recent window before activation with no
+            # operator action. Inert pre-fork (the digest fee branch is fork-height-gated). The digest read is
+            # fail-closed (strict): a missing window height HALTS the node rather than diverging.
+            try:
+                import os as _os
+                import block_store
+                bs_path = _os.path.join(_os.path.dirname(node.ledger_path) or ".", "blockstore")
+                node.block_store = block_store.BlockStore(bs_path)
+                import storage_backend as _sb
+                node.block_writer = _sb.LmdbWriteBackend(node.block_store, node)   # stage-4 write seam (doc/26); node -> live fork_height gate (doc/40)
+                node.logger.app_log.warning(
+                    f"Status: block store opened at {bs_path} (tip {node.block_store.tip()}; "
+                    f"mandatory consensus post-hf2, inert pre-fork)")
+            except Exception as e:
+                # Pre-fork this is inert (fee is static); post-fork the digest fee read fails closed and halts
+                # rather than diverging. Surface loudly.
+                node.logger.app_log.error(f"Status: block store could not open: {e}")
+                node.block_store = None
+                node.block_writer = None
 
         except Exception as e:
             node.logger.app_log.info(e)

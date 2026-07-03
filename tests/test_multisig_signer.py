@@ -65,9 +65,32 @@ def test_every_quorum_verifies():
     for pair in itertools.combinations(os_, 2):           # all C(3,2) quorums
         tx = acct.sign_transaction(list(pair), ts, "Bis1recipientxxxxxxxxxxxxxxxxx", 1.25)
         SignerFactory.verify_bis_signature(tx[4], tx[5], buf, tx[1])
-    # 3-of-3 (all owners) also satisfies a 2-of-3
+    # supplying MORE owners than M is trimmed to the canonical exactly-M form (lowest-indexed components)
+    # and still verifies — over-signing is malleable, so the verifier requires exactly M (anti-double-spend).
     tx = acct.sign_transaction(os_, ts, "Bis1recipientxxxxxxxxxxxxxxxxx", 1.25)
+    assert len(MS.parse_sigs(b64decode(tx[4]))) == 2                     # trimmed to M
     SignerFactory.verify_bis_signature(tx[4], tx[5], buf, tx[1])
+
+
+def test_over_signed_blob_rejected_anti_malleability():
+    """Consensus audit: an OVER-signed (k>M) but otherwise-valid blob must be REJECTED. Otherwise ANYONE
+    could strip a redundant component from a confirmed multisig tx to produce a different-but-valid
+    signature blob over the SAME content-txid — a keyless malleability that defeats signature-keyed replay
+    protection and double-spends the sender. The canonical form is EXACTLY M components."""
+    os_ = _owners(3)
+    acct = MultisigAccount.from_owners(os_, 2)                           # 2-of-3
+    ts, buf = _buf(acct.address)
+    # hand-assemble a fully-valid 3-of-3 blob (all real owner sigs), bypassing the wallet's canonical trim
+    partials = sorted(acct.partial_sign(buf, o) for o in os_)
+    over = b64encode(MS.serialize_sigs(partials)).decode()
+    assert len(MS.parse_sigs(b64decode(over))) == 3                      # genuinely over-signed
+    with pytest.raises(ValueError, match="exactly 2 signatures"):
+        MS.verify_bis_signature(over, acct.public_key_field(), buf, acct.address)
+    # and dropping any one component (the keyless attack) yields a DIFFERENT blob that is ALSO rejected
+    # (it is the canonical exactly-M form of a DIFFERENT quorum, valid; but the point is the over-signed
+    # source it was derived from is not accepted, so there is no confirmed over-signed tx to strip from).
+    trimmed = b64encode(MS.serialize_sigs(partials[:2])).decode()
+    MS.verify_bis_signature(trimmed, acct.public_key_field(), buf, acct.address)  # canonical M -> OK
 
 
 def test_threshold_not_met_rejected():
@@ -252,8 +275,7 @@ def _mine_until(client, predicate, rounds=30):
 
 def _wait_fork_active(client):
     # native multisig / post-fork signing gate on the hf2 fork_height — read the general /api/fork probe
-    # (like the VM/AMM/DEX tests), NOT /api/shield/stats: shielded value is now decoupled from hf2 (doc/22),
-    # and these tests perform no shielded ops.
+    # (like the VM/AMM/DEX tests).
     for _ in range(30):
         d = _get("/api/fork")
         fh = d.get("fork_height")
