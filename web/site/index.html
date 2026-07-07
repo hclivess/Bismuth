@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang='en' data-bs-theme='dark'>
+<html lang='en'>
 <head>
   <meta charset='utf-8'>
   <meta name='viewport' content='width=device-width, initial-scale=1'>
@@ -7,7 +7,8 @@
   <meta name='description' content='Bismuth — a fair-launched, from-scratch Python blockchain (no ICO, no premine) live since 1 May 2017. Block explorer, ledger bootstrap, a 10-year retrospective, and a press archive.'>
   <link rel='canonical' href='https://bismuth.cz/'>
   <meta name='robots' content='index, follow, max-image-preview:large'>
-  <meta name='theme-color' content='#0d1117'>
+  <meta name='theme-color' content='#0b0f14'>
+  <meta name='color-scheme' content='dark'>
   <meta name='author' content='Bismuth Foundation'>
   <meta property='og:type' content='website'>
   <meta property='og:site_name' content='Bismuth'>
@@ -22,147 +23,235 @@
   <meta name='twitter:description' content='Bismuth — a fair-launched, from-scratch Python blockchain (no ICO, no premine) live since 1 May 2017. Block explorer, ledger bootstrap, a 10-year retrospective, and a press archive.'>
   <meta name='twitter:image' content='https://bismuth.cz/assets/og.png'>
   <link rel='icon' href='/favicon.svg'>
-  <link href='/assets/bootstrap.min.css' rel='stylesheet'>
   <style>
-    body { background:#0d1117; }
-    .hero { background:linear-gradient(180deg,#16263a 0%, transparent 100%); }
-    a { overflow-wrap:anywhere; }
-    article { font-size:1.04rem; line-height:1.7; }
-    article h2 { font-size:1.4rem; margin-top:2rem; margin-bottom:.6rem; padding-bottom:.3rem; border-bottom:1px solid #21262d; }
-    article h3 { font-size:1.15rem; margin-top:1.4rem; }
-    article p { margin-bottom:1rem; } article a { color:#6cb4ff; }
-    article ul, article ol { margin-bottom:1rem; } article li { margin-bottom:.4rem; }
-    article blockquote { border-left:3px solid #30475e; padding-left:1rem; color:#adbac7; }
-    article code { color:#7ee787; } article em { color:#c9d1d9; } article hr { border-color:#21262d; }
-    .dl .btn { margin:.15rem .15rem 0 0; }
-    pre { background:#010409; border:1px solid #21262d; border-radius:.5rem; padding:1rem; color:#c9d1d9; }
-    code.tok { color:#7ee787; }
-    
+    :root{
+      --bg:#0b0f14; --panel:#111823; --line:#1c2530; --txt:#e6edf3; --muted:#8b9bab; --faint:#5c6b7a;
+      --accent:#5fa1ee; --accent2:#b364c2; --deep:#243b6b;
+      --sans:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+    code{font-family:var(--mono);font-size:.92em;color:#9fd0ff}
+    a{color:var(--accent);text-decoration:none;overflow-wrap:anywhere}
+    a:hover{text-decoration:underline}
+    .wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+    .glow{position:fixed;inset:0;z-index:-1;overflow:hidden;background:
+      radial-gradient(60% 50% at 50% -10%,rgba(95,161,238,.13),transparent 70%),
+      radial-gradient(40% 40% at 90% 10%,rgba(179,100,194,.08),transparent 70%)}
+    .orb{position:absolute;border-radius:50%;filter:blur(90px);opacity:.5;will-change:transform;mix-blend-mode:screen;pointer-events:none}
+    .orb.a{width:46vw;height:46vw;max-width:620px;max-height:620px;top:-12%;left:-8%;
+      background:radial-gradient(circle,rgba(95,161,238,.55),transparent 68%);animation:drift1 26s ease-in-out infinite}
+    .orb.b{width:40vw;height:40vw;max-width:540px;max-height:540px;top:8%;right:-10%;
+      background:radial-gradient(circle,rgba(179,100,194,.42),transparent 68%);animation:drift2 32s ease-in-out infinite}
+    .orb.c{width:34vw;height:34vw;max-width:460px;max-height:460px;bottom:-14%;left:28%;
+      background:radial-gradient(circle,rgba(36,59,107,.65),transparent 70%);animation:drift3 38s ease-in-out infinite}
+    @keyframes drift1{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(6vw,7vh) scale(1.12)}66%{transform:translate(-4vw,3vh) scale(.94)}}
+    @keyframes drift2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-7vw,6vh) scale(1.16)}}
+    @keyframes drift3{0%,100%{transform:translate(0,0) scale(1)}40%{transform:translate(5vw,-5vh) scale(1.1)}75%{transform:translate(-3vw,-2vh) scale(.96)}}
+    @media(prefers-reduced-motion:reduce){.orb{animation:none!important}}
+    header.nav{display:flex;align-items:center;justify-content:space-between;padding:20px 0;gap:16px;flex-wrap:wrap}
+    .brand{display:flex;align-items:center;gap:12px;font-weight:800;letter-spacing:.5px;font-size:20px;color:var(--txt)}
+    .brand:hover{text-decoration:none}
+    .brand img{width:30px;height:30px}
+    nav a{color:var(--muted);margin-left:22px;font-size:15px;font-weight:600}
+    nav a:hover{color:var(--txt);text-decoration:none}
+    nav a.on{color:var(--txt)}
+    .btn{display:inline-block;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#08111f;
+      font-weight:800;padding:14px 26px;border-radius:12px;font-size:16px;border:0;cursor:pointer;
+      box-shadow:0 6px 24px rgba(95,161,238,.30);transition:transform .12s ease, box-shadow .12s ease}
+    .btn:hover{text-decoration:none;transform:translateY(-1px);box-shadow:0 10px 30px rgba(95,161,238,.42)}
+    .btn.ghost{background:transparent;color:var(--txt);border:1px solid var(--line);box-shadow:none;font-weight:700}
+    .btn.ghost:hover{border-color:var(--accent)}
+    .btn.sm{padding:9px 16px;font-size:14px;font-weight:700;border-radius:10px;box-shadow:none}
+    .btn.sm.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
+    .btn.sm.ghost:hover{border-color:var(--accent);color:var(--txt)}
+    .btnrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+    .hero{text-align:center;padding:52px 0 40px}
+    .hero img.mark{width:96px;height:96px;filter:drop-shadow(0 8px 30px rgba(95,161,238,.35));margin-bottom:8px}
+    .hero h1{font-size:clamp(32px,6vw,56px);line-height:1.08;margin:16px 0 10px;letter-spacing:-.5px}
+    .hero h1 .g{background:linear-gradient(120deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .hero p.lead{font-size:clamp(17px,2.4vw,21px);color:var(--muted);max-width:720px;margin:0 auto 26px}
+    .cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:8px}
+    .badges{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:34px 0 0}
+    .badge{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:7px 15px;font-size:13.5px;color:var(--muted)}
+    .badge b{color:var(--txt);font-weight:700}
+    .phead{padding:40px 0 6px}
+    .phead .back{color:var(--muted);font-size:14px}
+    .phead h1{font-size:clamp(26px,4.6vw,42px);line-height:1.12;margin:10px 0 8px;letter-spacing:-.3px}
+    .phead .lead{color:var(--muted);font-size:clamp(16px,2.2vw,19px);max-width:780px;margin:0 0 16px}
+    .phead .meta{color:var(--faint);font-size:14px;margin:0 0 14px}
+    section{padding:44px 0;border-top:1px solid var(--line)}
+    section.plain{border-top:0}
+    h2{font-size:clamp(22px,3.4vw,30px);margin:0 0 6px}
+    .sub{color:var(--muted);margin:0 0 26px;max-width:820px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px}
+    .grid.two{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;transition:border-color .15s ease, transform .15s ease}
+    a.card:hover{text-decoration:none;border-color:var(--accent);transform:translateY(-2px)}
+    .card h3{margin:0 0 8px;font-size:18px;color:var(--txt)}
+    .card p{margin:0;color:var(--muted);font-size:15px}
+    .card .ico{font-size:22px;margin-bottom:10px}
+    .card .tag{display:inline-block;background:rgba(95,161,238,.12);border:1px solid rgba(95,161,238,.28);
+      color:#bcd8ff;font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px;margin-left:6px;vertical-align:middle}
+    .card ul{list-style:none;margin:0;padding:0;font-size:14.5px}
+    .card ul li{margin:0 0 7px;color:var(--muted)}
+    .card ul li a{color:var(--accent)}
+    .card ul li .note{color:var(--faint);font-size:13px}
+    .dl{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+    pre{background:#070b10;border:1px solid var(--line);border-radius:12px;padding:16px 18px;overflow:auto;
+      color:#c9d6e5;font-size:13.5px;line-height:1.55;margin:0 0 12px}
+    pre code{color:#c9d6e5}
+    .warn{background:rgba(179,100,194,.07);border:1px solid rgba(179,100,194,.28);border-radius:14px;padding:16px 18px;color:var(--muted);font-size:14.5px}
+    .warn b{color:var(--txt)}
+    /* long-form article typography (10-years + coverage md) */
+    article{max-width:820px;font-size:16.5px;line-height:1.75;color:#c7d2de}
+    article h2{font-size:clamp(20px,3vw,26px);margin:2rem 0 .6rem;padding-bottom:.35rem;border-bottom:1px solid var(--line);color:var(--txt)}
+    article h3{font-size:1.18rem;margin:1.5rem 0 .4rem;color:var(--txt)}
+    article p{margin:0 0 1rem}
+    article a{color:var(--accent)}
+    article ul,article ol{margin:0 0 1rem;padding-left:1.35rem}
+    article li{margin:.35rem 0}
+    article blockquote{border-left:3px solid var(--accent);padding:.2rem 0 .2rem 1rem;color:var(--muted);margin:0 0 1rem}
+    article code{color:#9fd0ff}
+    article em{color:#c9d1d9}
+    article hr{border:0;border-top:1px solid var(--line);margin:1.6rem 0}
+    article img{max-width:100%;height:auto;border-radius:10px}
+    /* catalog tables */
+    .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;margin:0 0 20px}
+    table.cat{border-collapse:collapse;width:100%;font-size:14px;min-width:760px}
+    table.cat th,table.cat td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+    table.cat tbody tr:last-child td{border-bottom:0}
+    table.cat thead th{background:#0e1621;color:var(--txt);font-weight:700;white-space:nowrap}
+    table.cat tbody tr:hover{background:rgba(95,161,238,.05)}
+    table.cat td.t{font-weight:600;color:var(--txt)}
+    table.cat .pill{display:inline-block;background:var(--panel);border:1px solid var(--line);border-radius:999px;
+      padding:1px 9px;font-size:12px;color:var(--muted)}
+    table.cat .muted{color:var(--faint)}
+    footer{border-top:1px solid var(--line);padding:30px 0 50px;color:var(--faint);font-size:14px;text-align:center;margin-top:8px}
+    footer a{color:var(--muted);margin:0 9px}
+    .center{text-align:center}
+    @media(max-width:640px){nav{display:none}}
+
   </style>
   <script type='application/ld+json'>{"@context": "https://schema.org", "@type": "WebSite", "name": "Bismuth", "url": "https://bismuth.cz/", "description": "Bismuth \u2014 a fair-launched, from-scratch Python blockchain (no ICO, no premine) live since 1 May 2017. Block explorer, ledger bootstrap, a 10-year retrospective, and a press archive.", "publisher": {"@type": "Organization", "name": "Bismuth Foundation", "url": "https://bismuth.cz/"}}</script>
 </head>
 <body>
-  <nav class='navbar border-bottom border-secondary-subtle'>
-    <div class='container'>
-      <a class='navbar-brand fw-semibold text-decoration-none d-inline-flex align-items-center gap-2' href='/'><img src='/favicon.svg' alt='' height='24' width='16'> Bismuth</a>
-      <div class='d-flex flex-wrap align-items-center'>
-        <a class='navbar-text text-decoration-none me-3 fw-semibold text-info' href='/'>Home</a>
-        <a class='navbar-text text-decoration-none me-3' href='/#wallets'>Wallets</a>
-        <a class='navbar-text text-decoration-none me-3' href='/10-years-of-bismuth.html'>The Story</a>
-        <a class='navbar-text text-decoration-none me-3' href='/Bismuth_Interview_Catalog.html'>Press</a>
-        <a class='navbar-text text-decoration-none me-3' href='https://explorer.bismuth.cz/'>Explorer</a>
-        <a class='navbar-text text-decoration-none me-3' href='/#run'>Run a node</a>
-        <a class='navbar-text text-decoration-none me-3' href='https://bismuthcoin.org/'>Community</a>
-        <a class='navbar-text text-decoration-none me-3' href='https://github.com/hclivess/Bismuth'>GitHub</a>
+  <div class='glow'><span class='orb a'></span><span class='orb b'></span><span class='orb c'></span></div>
+  <div class='wrap'>
+    <header class='nav'>
+      <a class='brand' href='/'><img src='/favicon.svg' alt=''> Bismuth</a>
+      <nav><a href='/#wallets'>Wallets</a> <a href='/10-years-of-bismuth'>The Story</a> <a href='/Bismuth_Interview_Catalog'>Press</a> <a href='https://explorer.bismuth.cz/'>Explorer</a> <a href='/#run'>Run a node</a> <a href='https://bismuthcoin.org/'>Community</a> <a href='https://github.com/hclivess/Bismuth'>GitHub</a></nav>
+    </header>
+
+    <div class='hero'>
+      <img class='mark' src='/favicon.svg' alt='Bismuth logo'>
+      <h1>The fair-launched<br><span class='g'>Python blockchain</span></h1>
+      <p class='lead'>Bismuth is a from-scratch blockchain — <b>no ICO, no premine</b> — running on mainnet
+        since <b>1&nbsp;May&nbsp;2017</b>. A decade-long, academically grounded testbed for ideas the rest of
+        the industry named years later.</p>
+      <div class='cta'>
+        <a class='btn' href='https://explorer.bismuth.cz/'>🔍&nbsp; Block Explorer</a>
+        <a class='btn ghost' href='#wallets'>💼&nbsp; Get a wallet</a>
+        <a class='btn ghost' href='/10-years-of-bismuth'>📜&nbsp; The 10-year story</a>
+      </div>
+      <div class='badges'>
+        <span class='badge'>🎯 <b>Fair launch</b>, no premine</span>
+        <span class='badge'>🐍 <b>Python</b>, from scratch</span>
+        <span class='badge'>📅 Live since <b>2017</b></span>
+        <span class='badge'>🎓 <b>Peer-reviewed</b> consensus</span>
       </div>
     </div>
-  </nav>
 
-  <header class='hero py-5'>
-    <div class='container py-4'>
-      <h1 class='display-5 fw-bold'>Bismuth</h1>
-      <p class='lead text-secondary col-lg-8'>A fair-launched, from-scratch <strong>Python blockchain</strong> —
-        no ICO, no premine — running on mainnet since 1&nbsp;May&nbsp;2017. A decade-long, academically grounded
-        testbed for ideas the rest of the industry named years later.</p>
-      <div class='d-flex flex-wrap gap-2 mt-2'>
-        <a href='https://explorer.bismuth.cz/' class='btn btn-primary btn-lg'>🔍&nbsp; Block Explorer</a>
-        <a href='#wallets' class='btn btn-outline-light btn-lg'>💼&nbsp; Get a wallet</a>
-        <a href='/10-years-of-bismuth.html' class='btn btn-outline-light btn-lg'>📜&nbsp; The 10-year story</a>
-        <a href='#run' class='btn btn-outline-light btn-lg'>⬇&nbsp; Run a node</a>
-      </div>
-    </div>
-  </header>
-  <main class='container pb-5'>
-
-    <section class='mb-5'>
-      <h2 class='h4 mb-3'>What is Bismuth?</h2>
-      <div class='row g-3'><div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Fair launch</h3><p class='text-secondary small mb-0'>No ICO, no premine — mainnet since 1 May 2017.</p></div></div></div><div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Python, from scratch</h3><p class='text-secondary small mb-0'>Widely cited as the first blockchain written in Python — not a fork.</p></div></div></div><div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Account model</h3><p class='text-secondary small mb-0'>Signature-derived transaction IDs; arbitrary <code class='tok'>operation</code> + <code class='tok'>openfield</code> data.</p></div></div></div><div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Heavy3 PoW</h3><p class='text-secondary small mb-0'>CPU/GPU-friendly proof-of-work with a peer-reviewed difficulty controller.</p></div></div></div><div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Plugin ecosystem</h3><p class='text-secondary small mb-0'>Tokens, aliases, NFTs, DEX, naming, state channels — as building blocks.</p></div></div></div><div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Peer-reviewed</h3><p class='text-secondary small mb-0'>Consensus analysed in <em>Modeling, Identification and Control</em> (2017–2018).</p></div></div></div></div>
+    <section id='what'>
+      <h2>What is Bismuth?</h2>
+      <p class='sub'>An account-based chain widely cited as the first blockchain written in Python — not a
+        fork, built from the ground up with an unusually broad plugin ecosystem.</p>
+      <div class='grid'><div class='card'><div class='ico'>🎯</div><h3>Fair launch</h3><p>No ICO, no premine — mainnet since 1 May 2017. Everyone started from the same block zero.</p></div><div class='card'><div class='ico'>🐍</div><h3>Python, from scratch</h3><p>Widely cited as the first blockchain written in Python — an original codebase, not a fork.</p></div><div class='card'><div class='ico'>🧾</div><h3>Account model</h3><p>Signature-derived transaction IDs, with arbitrary <code>operation</code> + <code>openfield</code> data on every tx.</p></div><div class='card'><div class='ico'>⛏️</div><h3>Heavy3 PoW</h3><p>CPU/GPU-friendly proof-of-work with a peer-reviewed difficulty controller.</p></div><div class='card'><div class='ico'>🧩</div><h3>Plugin ecosystem</h3><p>Tokens, aliases, NFTs, DEX, naming and state channels — as composable building blocks.</p></div><div class='card'><div class='ico'>🎓</div><h3>Peer-reviewed</h3><p>Consensus analysed in <em>Modeling, Identification and Control</em> (2017–2018).</p></div></div>
     </section>
 
-    <section class='mb-5' id='wallets'>
-      <h2 class='h4 mb-3'>💼 Get a wallet</h2>
-      <p class='text-secondary'>Hosted right here on bismuth.cz — no third-party redirects.
-        Verify your download against <a href='/wallets/SHA256SUMS.txt'>SHA256SUMS.txt</a>.</p>
-      <div class='row g-3'><div class='col-lg-6'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Tornado Wallet <span class='badge text-bg-secondary align-middle'>v0.1.48</span></h3><p class='text-secondary small mb-2'>The recommended desktop wallet — full GUI, HD accounts, tokens &amp; aliases. Runs on Windows, macOS and Linux.</p><div class='dl d-flex flex-wrap gap-2'><a href='/wallets/TornadoBismuthWallet-0.1.48-setup.exe' class='btn btn-sm btn-outline-info'>🪟 Windows</a><a href='/wallets/Tornado.Bismuth.Wallet.dmg' class='btn btn-sm btn-outline-info'>🍎 macOS</a><a href='/wallets/TornadoBismuthWallet-x86_64.AppImage' class='btn btn-sm btn-outline-info'>🐧 Linux</a></div><p class='text-secondary small mb-2'>Source &amp; release notes: <a href='https://github.com/bismuthfoundation/TornadoWallet'>github.com/bismuthfoundation/TornadoWallet</a></p></div></div></div><div class='col-lg-6'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Tk Wallet <span class='badge text-bg-secondary align-middle'>0.9.4</span></h3><p class='text-secondary small mb-2'>Classic lightweight Tkinter wallet — small, simple, battle-tested.</p><div class='dl d-flex flex-wrap gap-2'><a href='/wallets/Bismuth_wallet.exe' class='btn btn-sm btn-outline-info'>🪟 Windows</a></div><p class='text-secondary small mb-2'>Source: <a href='https://github.com/bismuthfoundation/tk-wallet'>github.com/bismuthfoundation/tk-wallet</a></p></div></div></div><div class='col-lg-6'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Paper Wallet <span class='badge text-bg-secondary align-middle'>offline</span></h3><p class='text-secondary small mb-2'>Generate an offline cold-storage key pair in your browser — air-gapped, nothing sent anywhere.</p><div class='dl d-flex flex-wrap gap-2'><a href='https://github.com/AngainorDev/BIS-Paper' class='btn btn-sm btn-outline-info'>Get it on GitHub</a></div></div></div></div><div class='col-lg-6'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Web wallets <span class='badge text-bg-secondary align-middle'>self-host</span></h3><p class='text-secondary small mb-2'>Run your own node and connect a wallet to it, or use a public wallet server.</p><div class='dl d-flex flex-wrap gap-2'><a href='https://bismuth.im/wservers' class='btn btn-sm btn-outline-info'>Active wallet servers</a></div></div></div></div></div>
+    <section id='wallets'>
+      <h2>💼 Get a wallet</h2>
+      <p class='sub'>Hosted right here on bismuth.cz — no third-party redirects. Verify your download against
+        <a href='/wallets/SHA256SUMS.txt'>SHA256SUMS.txt</a>.</p>
+      <div class='grid two'><div class='card'><h3>Tornado Wallet <span class='tag'>v0.1.48</span></h3><p>The recommended desktop wallet — full GUI, HD accounts, tokens &amp; aliases. Runs on Windows, macOS and Linux.</p><div class='dl'><a href='/wallets/TornadoBismuthWallet-0.1.48-setup.exe' class='btn sm ghost'>🪟 Windows</a><a href='/wallets/Tornado.Bismuth.Wallet.dmg' class='btn sm ghost'>🍎 macOS</a><a href='/wallets/TornadoBismuthWallet-x86_64.AppImage' class='btn sm ghost'>🐧 Linux</a></div><p style='margin-top:12px;font-size:13.5px'>Source &amp; release notes: <a href='https://github.com/bismuthfoundation/TornadoWallet'>TornadoWallet</a></p></div><div class='card'><h3>Tk Wallet <span class='tag'>0.9.4</span></h3><p>Classic lightweight Tkinter wallet — small, simple, battle-tested.</p><div class='dl'><a href='/wallets/Bismuth_wallet.exe' class='btn sm ghost'>🪟 Windows</a></div><p style='margin-top:12px;font-size:13.5px'>Source: <a href='https://github.com/bismuthfoundation/tk-wallet'>tk-wallet</a></p></div><div class='card'><h3>Paper Wallet <span class='tag'>offline</span></h3><p>Generate an offline cold-storage key pair in your browser — air-gapped, nothing sent anywhere.</p><div class='dl'><a href='https://github.com/AngainorDev/BIS-Paper' class='btn sm ghost'>Get it on GitHub</a></div></div><div class='card'><h3>Web wallets <span class='tag'>self-host</span></h3><p>Run your own node and connect a wallet to it, or use a public wallet server.</p><div class='dl'><a href='https://bismuth.im/wservers' class='btn sm ghost'>Active wallet servers</a></div></div></div>
     </section>
 
-    <section class='mb-5'>
-      <h2 class='h4 mb-3'>📜 The story</h2>
-      <div class='card bg-body-tertiary border-info-subtle'><div class='card-body'>
-        <h3 class='h5 card-title'>10 Years of Bismuth</h3>
-        <p class='text-secondary small mb-2'>A cited retrospective on the project's architectural firsts (2017–2026):
-          semantic data/meaning layering, an early plugin ecosystem and NFTs, on-chain sensor data before
-          &ldquo;DePIN&rdquo; had a name, and a peer-reviewed proof-of-work difficulty controller.</p>
-        <div class='d-flex flex-wrap align-items-center gap-2'>
-          <a href='/10-years-of-bismuth.html' class='btn btn-sm btn-info'>Read on site</a>
-          <div class='dl d-flex flex-wrap gap-2'><a href='/10-years-of-bismuth.pdf' class='btn btn-sm btn-outline-info'>PDF</a><a href='/10-years-of-bismuth.md' class='btn btn-sm btn-outline-info'>Markdown</a><a href='/10-years-of-bismuth.bbcode.txt' class='btn btn-sm btn-outline-info'>BitcoinTalk</a></div>
+    <section id='story'>
+      <h2>📜 The story</h2>
+      <div class='card'>
+        <h3>10 Years of Bismuth</h3>
+        <p>A cited retrospective on the project's architectural firsts (2017–2026): semantic data/meaning
+          layering, an early plugin ecosystem and NFTs, on-chain sensor data before &ldquo;DePIN&rdquo; had a
+          name, and a peer-reviewed proof-of-work difficulty controller.</p>
+        <div class='btnrow'>
+          <a class='btn sm' href='/10-years-of-bismuth'>Read on site →</a>
+          <div class='dl'><a href='/10-years-of-bismuth.pdf' class='btn sm ghost'>PDF</a><a href='/10-years-of-bismuth.md' class='btn sm ghost'>Markdown</a><a href='/10-years-of-bismuth.bbcode.txt' class='btn sm ghost'>BitcoinTalk</a></div>
         </div>
-      </div></div>
+      </div>
     </section>
 
-    <section class='mb-5'>
-      <h2 class='h4 mb-3'>🎙️ Press &amp; coverage</h2>
-      <p class='text-secondary'>A working bibliography of interviews, profiles, reviews and academic papers
-        covering Bismuth (2017–2024) — with cleaned, link-rot-proof local copies of each piece.</p>
-      <div class='row g-3 mb-3'><div class='col-md-6'><a class='card h-100 bg-body-tertiary border-secondary-subtle text-decoration-none' href='/coverage/developer-interview-hclivess.html'><div class='card-body'><h3 class='h6 card-title text-info-emphasis'>Bismuth Developer Interview HCLivess (The First Python Crypto Currency)</h3><p class='text-secondary small mb-0'>Steemit · &quot;&quot;</p></div></a></div><div class='col-md-6'><a class='card h-100 bg-body-tertiary border-secondary-subtle text-decoration-none' href='/coverage/teamtalks-32-bismuth.html'><div class='card-body'><h3 class='h6 card-title text-info-emphasis'>TEAMTALKS #32 — Bismuth</h3><p class='text-secondary small mb-0'>Medium · Aug 8, 2019</p></div></a></div><div class='col-md-6'><a class='card h-100 bg-body-tertiary border-secondary-subtle text-decoration-none' href='/coverage/sleeping-legend.html'><div class='card-body'><h3 class='h6 card-title text-info-emphasis'>Bismuth(BIS) - A Sleeping Legend that Should be Remembered</h3><p class='text-secondary small mb-0'>publish0x · 5 Mar 2024</p></div></a></div><div class='col-md-6'><a class='card h-100 bg-body-tertiary border-secondary-subtle text-decoration-none' href='/coverage/first-python-blockchain-blackbeard.html'><div class='card-body'><h3 class='h6 card-title text-info-emphasis'>Bismuth — the first Python Blockchain</h3><p class='text-secondary small mb-0'>Medium · Jan 16, 2019</p></div></a></div></div>
-      <a href='/Bismuth_Interview_Catalog.html' class='btn btn-info'>Browse the full catalog →</a>
+    <section id='press'>
+      <h2>🎙️ Press &amp; coverage</h2>
+      <p class='sub'>A working bibliography of interviews, profiles, reviews and academic papers covering
+        Bismuth (2017–2024) — with cleaned, link-rot-proof local copies of each piece.</p>
+      <div class='grid two'><a class='card' href='/coverage/developer-interview-hclivess'><h3>Bismuth Developer Interview HCLivess (The First Python Crypto Currency)</h3><p>Steemit · &quot;&quot;</p></a><a class='card' href='/coverage/teamtalks-32-bismuth'><h3>TEAMTALKS #32 — Bismuth</h3><p>Medium · Aug 8, 2019</p></a><a class='card' href='/coverage/sleeping-legend'><h3>Bismuth(BIS) - A Sleeping Legend that Should be Remembered</h3><p>publish0x · 5 Mar 2024</p></a><a class='card' href='/coverage/first-python-blockchain-blackbeard'><h3>Bismuth — the first Python Blockchain</h3><p>Medium · Jan 16, 2019</p></a></div>
+      <div class='btnrow'><a class='btn sm' href='/Bismuth_Interview_Catalog'>Browse the full catalog →</a></div>
     </section>
 
-    <section class='mb-5' id='run'>
-      <h2 class='h4 mb-3'>⛏️ Run a node</h2>
-      <p class='text-secondary mb-3'>One command. The installer pulls every dependency (including the
-        ed25519 / ecdsa signer libs mainnet needs), registers a <code>systemd</code> service that starts on
-        boot, and the node <strong>auto-bootstraps a recent ledger snapshot on first run</strong> — so it
-        starts near the chain tip, not from genesis. No manual downloads, no pip juggling.</p>
-      <div class='row g-4'>
-        <div class='col-lg-7'>
-          <div class='card bg-body-tertiary border-secondary-subtle h-100'><div class='card-body'>
-            <h3 class='h6 card-title'>Install &amp; run (Linux)</h3>
-            <pre class='mb-2'><code>git clone https://github.com/hclivess/Bismuth
+    <section id='run'>
+      <h2>⛏️ Run a node</h2>
+      <p class='sub'>One command. The installer pulls every dependency (including the ed25519 / ecdsa signer
+        libs mainnet needs), registers a <code>systemd</code> service that starts on boot, and the node
+        <b>auto-bootstraps a recent ledger snapshot on first run</b> — so it starts near the chain tip, not
+        from genesis. No manual downloads, no pip juggling.</p>
+      <div class='grid two'>
+        <div class='card'>
+          <h3>Install &amp; run (Linux)</h3>
+          <pre><code>git clone https://github.com/hclivess/Bismuth
 cd Bismuth
 sudo ./install_node.sh</code></pre>
-            <p class='text-secondary small mb-0'>That's it. Deps, the <code>bismuth-node</code> service, and
-              the ledger bootstrap are handled for you — check it with
-              <code>systemctl status bismuth-node</code>.</p>
-          </div></div>
+          <p>That's it — deps, the <code>bismuth-node</code> service and the ledger bootstrap are handled for
+            you. Check it with <code>systemctl status bismuth-node</code>.</p>
         </div>
-        <div class='col-lg-5'>
-          <div class='card bg-body-tertiary border-secondary-subtle h-100'><div class='card-body'>
-            <h3 class='h6 card-title'>Options</h3>
-            <ul class='list-unstyled small mb-0 text-secondary'>
-              <li class='mb-2'><code>--tor</code> — also install Tor for private onion routing
-                (<code>tor=managed</code>)</li>
-              <li class='mb-2'><code>--regnet</code> — a local regtest node for development</li>
-              <li class='mb-2'><code>--no-start</code> / <code>--restart</code> — control the service</li>
-              <li class='mb-0'>Idempotent &amp; re-runnable; won't disturb a running node unless you ask.</li>
-            </ul>
-          </div></div>
+        <div class='card'>
+          <h3>Options</h3>
+          <ul>
+            <li><code>--tor</code> <span class='note'>— also install Tor for private onion routing</span></li>
+            <li><code>--regnet</code> <span class='note'>— a local regtest node for development</span></li>
+            <li><code>--no-start</code> / <code>--restart</code> <span class='note'>— control the service</span></li>
+            <li>Idempotent &amp; re-runnable; won't disturb a running node unless you ask.</li>
+          </ul>
         </div>
       </div>
-      <p class='text-secondary small mt-3 mb-0'>Advanced: the fresh-sync bootstrap pulls
+      <p class='sub' style='margin-top:16px'>Advanced: the fresh-sync bootstrap pulls
         <a href='/ledger.tar.gz'>ledger.tar.gz</a> automatically; to seed from your own snapshot set
         <code>bootstrap_file</code> / <code>bootstrap_url</code> in <code>config.toml</code>. All settings:
         <a href='https://github.com/hclivess/Bismuth/blob/main/doc/11-configuration.md'>doc/11</a>.</p>
     </section>
 
-    <section class='mb-5'>
-      <h2 class='h4 mb-3'>🌐 Ecosystem &amp; services</h2>
-      <p class='text-secondary'>The wider Bismuth ecosystem — explorers, pools, infrastructure and community.</p>
-      <div class='row g-3'><div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Explorers</h3><ul class='list-unstyled small mb-0'><li class='mb-1'><a href='https://explorer.bismuth.cz/' target='_blank' rel='noopener'>explorer.bismuth.cz</a> <span class='text-secondary small'>— this site — full stats &amp; geomap</span></li><li class='mb-1'><a href='https://bismuth.im/' target='_blank' rel='noopener'>bismuth.im</a> <span class='text-secondary small'>— community explorer &amp; API</span></li><li class='mb-1'><a href='https://mybismuth.com/' target='_blank' rel='noopener'>mybismuth.com</a> <span class='text-secondary small'>— alternative explorer</span></li></ul></div></div></div><div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Mining</h3><ul class='list-unstyled small mb-0'><li class='mb-1'><a href='http://eggpool.net/' target='_blank' rel='noopener'>Eggpool</a> <span class='text-secondary small'>— mining pool</span></li><li class='mb-1'><a href='https://github.com/bismuthfoundation/kbkminer' target='_blank' rel='noopener'>kbkminer</a> <span class='text-secondary small'>— open-source miner</span></li><li class='mb-1'><a href='https://bismuth.im/diff_chart' target='_blank' rel='noopener'>Difficulty chart</a></li></ul></div></div></div><div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Infrastructure</h3><ul class='list-unstyled small mb-0'><li class='mb-1'><a href='https://github.com/bismuthfoundation/hypernode/tree/beta99' target='_blank' rel='noopener'>Hypernode</a> <span class='text-secondary small'>— second-tier network</span></li><li class='mb-1'><a href='https://bismuth.im/wservers' target='_blank' rel='noopener'>Wallet servers</a> <span class='text-secondary small'>— public node endpoints</span></li><li class='mb-1'><a href='https://bismuth.im/apihelp' target='_blank' rel='noopener'>API help</a> <span class='text-secondary small'>— explorer API docs</span></li></ul></div></div></div><div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Trading</h3><ul class='list-unstyled small mb-0'><li class='mb-1'><a href='https://www.dextools.io/app/ether/pair-explorer/0xf4f82f8d84c529987201609cecee8ab136a50c8c' target='_blank' rel='noopener'>wBIS on Ethereum</a> <span class='text-secondary small'>— DEXTools</span></li><li class='mb-1'><a href='https://www.dextools.io/app/bsc/pair-explorer/0x731b8244f818fd488d9dc516edd976a96459ae59' target='_blank' rel='noopener'>wBIS on BSC</a> <span class='text-secondary small'>— DEXTools</span></li></ul></div></div></div><div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Community</h3><ul class='list-unstyled small mb-0'><li class='mb-1'><a href='https://discord.com/invite/DsEuMQ3' target='_blank' rel='noopener'>Discord</a></li><li class='mb-1'><a href='https://t.me/cryptobismuth' target='_blank' rel='noopener'>Telegram</a></li><li class='mb-1'><a href='https://www.reddit.com/r/cryptobismuth/' target='_blank' rel='noopener'>Reddit</a></li><li class='mb-1'><a href='https://mstdn.social/@bis' target='_blank' rel='noopener'>Mastodon</a></li><li class='mb-1'><a href='https://bitcointalk.org/index.php?topic=1896497.0' target='_blank' rel='noopener'>Bitcointalk</a> <span class='text-secondary small'>— original 2017 thread</span></li><li class='mb-1'><a href='https://linktr.ee/bismuthcoin' target='_blank' rel='noopener'>Linktree</a></li></ul></div></div></div><div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Docs &amp;amp; project</h3><ul class='list-unstyled small mb-0'><li class='mb-1'><a href='https://bismuthcoin.org/' target='_blank' rel='noopener'>bismuthcoin.org</a> <span class='text-secondary small'>— main site &amp; docs</span></li><li class='mb-1'><a href='https://bismuthcoin.org/docs/papers/whitepaper/' target='_blank' rel='noopener'>Whitepaper</a></li><li class='mb-1'><a href='https://github.com/hclivess/Bismuth' target='_blank' rel='noopener'>Source (GitHub)</a></li></ul></div></div></div></div>
+    <section>
+      <h2>🌐 Ecosystem &amp; services</h2>
+      <p class='sub'>The wider Bismuth ecosystem — explorers, pools, infrastructure and community.</p>
+      <div class='grid'><div class='card'><h3>Explorers</h3><ul><li><a href='https://explorer.bismuth.cz/' target='_blank' rel='noopener'>explorer.bismuth.cz</a> <span class='note'>— full stats &amp; geomap</span></li><li><a href='https://bismuth.im/' target='_blank' rel='noopener'>bismuth.im</a> <span class='note'>— community explorer &amp; API</span></li><li><a href='https://mybismuth.com/' target='_blank' rel='noopener'>mybismuth.com</a> <span class='note'>— alternative explorer</span></li></ul></div><div class='card'><h3>Mining</h3><ul><li><a href='http://eggpool.net/' target='_blank' rel='noopener'>Eggpool</a> <span class='note'>— mining pool</span></li><li><a href='https://github.com/bismuthfoundation/kbkminer' target='_blank' rel='noopener'>kbkminer</a> <span class='note'>— open-source miner</span></li><li><a href='https://bismuth.im/diff_chart' target='_blank' rel='noopener'>Difficulty chart</a></li></ul></div><div class='card'><h3>Infrastructure</h3><ul><li><a href='https://github.com/bismuthfoundation/hypernode/tree/beta99' target='_blank' rel='noopener'>Hypernode</a> <span class='note'>— second-tier network</span></li><li><a href='https://bismuth.im/wservers' target='_blank' rel='noopener'>Wallet servers</a> <span class='note'>— public node endpoints</span></li><li><a href='https://bismuth.im/apihelp' target='_blank' rel='noopener'>API help</a> <span class='note'>— explorer API docs</span></li></ul></div><div class='card'><h3>Trading</h3><ul><li><a href='https://www.dextools.io/app/ether/pair-explorer/0xf4f82f8d84c529987201609cecee8ab136a50c8c' target='_blank' rel='noopener'>wBIS on Ethereum</a> <span class='note'>— DEXTools</span></li><li><a href='https://www.dextools.io/app/bsc/pair-explorer/0x731b8244f818fd488d9dc516edd976a96459ae59' target='_blank' rel='noopener'>wBIS on BSC</a> <span class='note'>— DEXTools</span></li></ul></div><div class='card'><h3>Community</h3><ul><li><a href='https://discord.com/invite/DsEuMQ3' target='_blank' rel='noopener'>Discord</a></li><li><a href='https://t.me/cryptobismuth' target='_blank' rel='noopener'>Telegram</a></li><li><a href='https://www.reddit.com/r/cryptobismuth/' target='_blank' rel='noopener'>Reddit</a></li><li><a href='https://mstdn.social/@bis' target='_blank' rel='noopener'>Mastodon</a></li><li><a href='https://bitcointalk.org/index.php?topic=1896497.0' target='_blank' rel='noopener'>Bitcointalk</a> <span class='note'>— original 2017 thread</span></li><li><a href='https://linktr.ee/bismuthcoin' target='_blank' rel='noopener'>Linktree</a></li></ul></div><div class='card'><h3>Docs &amp;amp; project</h3><ul><li><a href='https://bismuthcoin.org/' target='_blank' rel='noopener'>bismuthcoin.org</a> <span class='note'>— main site &amp; docs</span></li><li><a href='https://bismuthcoin.org/docs/papers/whitepaper/' target='_blank' rel='noopener'>Whitepaper</a></li><li><a href='https://github.com/hclivess/Bismuth' target='_blank' rel='noopener'>Source (GitHub)</a></li></ul></div></div>
     </section>
 
     <section>
-      <h2 class='h4 mb-3'>🛠️ Build</h2>
-      <div class='d-flex flex-wrap gap-2'>
-        <a href='https://github.com/hclivess/Bismuth' class='btn btn-outline-light'>GitHub</a>
-        <a href='https://bismuthcoin.org/' class='btn btn-outline-light'>Community &amp; docs</a>
-        <a href='https://explorer.bismuth.cz/' class='btn btn-outline-light'>Block Explorer</a>
-        <a href='/Bismuth_Interview_Catalog.html' class='btn btn-outline-light'>Press archive</a>
+      <h2>🛠️ Build</h2>
+      <div class='btnrow'>
+        <a class='btn sm ghost' href='https://github.com/hclivess/Bismuth'>GitHub</a>
+        <a class='btn sm ghost' href='https://bismuthcoin.org/'>Community &amp; docs</a>
+        <a class='btn sm ghost' href='https://explorer.bismuth.cz/'>Block Explorer</a>
+        <a class='btn sm ghost' href='/Bismuth_Interview_Catalog'>Press archive</a>
       </div>
     </section>
-  </main>
-  <footer class='container text-center text-secondary small py-4 border-top border-secondary-subtle'>
-    Bismuth — fair-launched since 1 May 2017 · <a class='link-secondary' href='https://explorer.bismuth.cz/'>Explorer</a> · <a class='link-secondary' href='https://bismuthcoin.org/'>Community</a> · <a class='link-secondary' href='https://github.com/hclivess/Bismuth'>GitHub</a> · <a class='link-secondary' href='/Bismuth_Interview_Catalog.html'>Press</a>
+  </div>
+  <footer>
+    <div class='wrap'>
+      <div style='margin-bottom:10px'><a href='https://explorer.bismuth.cz/'>Explorer</a> · <a href='#wallets'>Wallets</a> · <a href='/10-years-of-bismuth'>The Story</a> · <a href='/Bismuth_Interview_Catalog'>Press</a> · <a href='https://bismuthcoin.org/'>Community</a> · <a href='https://github.com/hclivess/Bismuth'>GitHub</a></div>
+      <span>Bismuth — fair-launched Python blockchain, live since 1 May 2017.</span>
+    </div>
   </footer>
 </body>
 </html>

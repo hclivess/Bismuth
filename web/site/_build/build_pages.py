@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Page content for bismuth.cz, built on the build_site template helpers."""
+"""Page content for bismuth.cz, built on the build_site template helpers (framework-free NADO-style theme)."""
 import sys, os, html as _h, json, glob
 sys.path.insert(0, "/tmp")
 import build_site as S
@@ -34,13 +34,15 @@ WWW = "/var/www/bismuth.cz"
 
 
 def archive_link(title):
+    """Returns ('page', '/coverage/slug') for a local cleaned article, ('pdf', '/backups/x.pdf') for a
+    PDF, or ('', '') when nothing is archived. Coverage pages are extensionless (served via try_files)."""
     a = ARCHIVE.get(title, "")
     if not a:
-        return ""
+        return "", ""
     if a.startswith("pdf:"):
         path = a[4:]
-        return path if os.path.exists(WWW + path) else ""
-    return ("/coverage/%s.html" % a) if a in HAVE else ""
+        return ("pdf", path) if os.path.exists(WWW + path) else ("", "")
+    return ("page", "/coverage/%s" % a) if a in HAVE else ("", "")
 
 
 # ============================================================ INDEX (reorganized) ====
@@ -53,17 +55,16 @@ def build_index():
         "publisher": {"@type": "Organization", "name": "Bismuth Foundation", "url": S.BASE + "/"},
     })
     facts = [
-        ("Fair launch", "No ICO, no premine — mainnet since 1 May 2017."),
-        ("Python, from scratch", "Widely cited as the first blockchain written in Python — not a fork."),
-        ("Account model", "Signature-derived transaction IDs; arbitrary <code class='tok'>operation</code> + <code class='tok'>openfield</code> data."),
-        ("Heavy3 PoW", "CPU/GPU-friendly proof-of-work with a peer-reviewed difficulty controller."),
-        ("Plugin ecosystem", "Tokens, aliases, NFTs, DEX, naming, state channels — as building blocks."),
-        ("Peer-reviewed", "Consensus analysed in <em>Modeling, Identification and Control</em> (2017–2018)."),
+        ("🎯", "Fair launch", "No ICO, no premine — mainnet since 1 May 2017. Everyone started from the same block zero."),
+        ("🐍", "Python, from scratch", "Widely cited as the first blockchain written in Python — an original codebase, not a fork."),
+        ("🧾", "Account model", "Signature-derived transaction IDs, with arbitrary <code>operation</code> + <code>openfield</code> data on every tx."),
+        ("⛏️", "Heavy3 PoW", "CPU/GPU-friendly proof-of-work with a peer-reviewed difficulty controller."),
+        ("🧩", "Plugin ecosystem", "Tokens, aliases, NFTs, DEX, naming and state channels — as composable building blocks."),
+        ("🎓", "Peer-reviewed", "Consensus analysed in <em>Modeling, Identification and Control</em> (2017–2018)."),
     ]
     fact_cards = "".join(
-        "<div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'>"
-        "<div class='card-body'><h3 class='h6 card-title'>%s</h3><p class='text-secondary small mb-0'>%s</p>"
-        "</div></div></div>" % (e(t), d) for t, d in facts)
+        "<div class='card'><div class='ico'>%s</div><h3>%s</h3><p>%s</p></div>" % (ic, e(t), d)
+        for ic, t, d in facts)
 
     featured = ["developer-interview-hclivess", "teamtalks-32-bismuth", "sleeping-legend",
                 "first-python-blockchain-blackbeard"]
@@ -72,21 +73,15 @@ def build_index():
     for slug in featured:
         if slug in arts:
             m = arts[slug][0]
-            fcards.append("<div class='col-md-6'><a class='card h-100 bg-body-tertiary border-secondary-subtle "
-                          "text-decoration-none' href='/coverage/%s.html'><div class='card-body'>"
-                          "<h3 class='h6 card-title text-info-emphasis'>%s</h3>"
-                          "<p class='text-secondary small mb-0'>%s%s</p></div></a></div>"
-                          % (slug, e(m.get("title", slug)), e(m.get("source", "")),
-                             " · " + e(m.get("date", "")) if m.get("date") else ""))
-    featured_html = ("<div class='row g-3 mb-3'>%s</div>" % "".join(fcards)) if fcards else ""
+            sub = e(m.get("source", "")) + (" · " + e(m.get("date", "")) if m.get("date") else "")
+            fcards.append("<a class='card' href='/coverage/%s'><h3>%s</h3><p>%s</p></a>"
+                          % (slug, e(m.get("title", slug)), sub))
+    featured_html = ("<div class='grid two'>%s</div>" % "".join(fcards)) if fcards else ""
 
     # ---- Wallets (hosted locally on bismuth.cz; mirrored from the official release builds) ----
     def wcard(name, blurb, version, dls, note=""):
-        n = ("<p class='text-secondary small mb-2'>%s</p>" % note) if note else ""
-        return ("<div class='col-lg-6'><div class='card h-100 bg-body-tertiary border-secondary-subtle'>"
-                "<div class='card-body'><h3 class='h6 card-title'>%s "
-                "<span class='badge text-bg-secondary align-middle'>%s</span></h3>"
-                "<p class='text-secondary small mb-2'>%s</p>%s%s</div></div></div>"
+        n = ("<p style='margin-top:12px;font-size:13.5px'>%s</p>" % note) if note else ""
+        return ("<div class='card'><h3>%s <span class='tag'>%s</span></h3><p>%s</p>%s%s</div>"
                 % (e(name), e(version), blurb, S.dlbuttons(dls), n))
     wallets = "".join([
         wcard("Tornado Wallet", "The recommended desktop wallet — full GUI, HD accounts, tokens &amp; aliases. "
@@ -94,10 +89,10 @@ def build_index():
               [("/wallets/TornadoBismuthWallet-0.1.48-setup.exe", "🪟 Windows", True),
                ("/wallets/Tornado.Bismuth.Wallet.dmg", "🍎 macOS", True),
                ("/wallets/TornadoBismuthWallet-x86_64.AppImage", "🐧 Linux", True)],
-              "Source &amp; release notes: <a href='https://github.com/bismuthfoundation/TornadoWallet'>github.com/bismuthfoundation/TornadoWallet</a>"),
+              "Source &amp; release notes: <a href='https://github.com/bismuthfoundation/TornadoWallet'>TornadoWallet</a>"),
         wcard("Tk Wallet", "Classic lightweight Tkinter wallet — small, simple, battle-tested.", "0.9.4",
               [("/wallets/Bismuth_wallet.exe", "🪟 Windows", False)],
-              "Source: <a href='https://github.com/bismuthfoundation/tk-wallet'>github.com/bismuthfoundation/tk-wallet</a>"),
+              "Source: <a href='https://github.com/bismuthfoundation/tk-wallet'>tk-wallet</a>"),
         wcard("Paper Wallet", "Generate an offline cold-storage key pair in your browser — air-gapped, nothing "
               "sent anywhere.", "offline",
               [("https://github.com/AngainorDev/BIS-Paper", "Get it on GitHub", False)]),
@@ -105,26 +100,24 @@ def build_index():
               "self-host",
               [("https://bismuth.im/wservers", "Active wallet servers", False)]),
     ])
-    wallets_section = f"""
-    <section class='mb-5' id='wallets'>
-      <h2 class='h4 mb-3'>💼 Get a wallet</h2>
-      <p class='text-secondary'>Hosted right here on bismuth.cz — no third-party redirects.
-        Verify your download against <a href='/wallets/SHA256SUMS.txt'>SHA256SUMS.txt</a>.</p>
-      <div class='row g-3'>{wallets}</div>
-    </section>"""
+    wallets_section = f"""    <section id='wallets'>
+      <h2>💼 Get a wallet</h2>
+      <p class='sub'>Hosted right here on bismuth.cz — no third-party redirects. Verify your download against
+        <a href='/wallets/SHA256SUMS.txt'>SHA256SUMS.txt</a>.</p>
+      <div class='grid two'>{wallets}</div>
+    </section>
+"""
 
-    # ---- Ecosystem & services (scavenged from the old bismuth.cz + bismuth.im) ----
+    # ---- Ecosystem & services ----
     def linkrow(title, items):
-        lis = "".join("<li class='mb-1'><a href='%s'%s>%s</a>%s</li>"
+        lis = "".join("<li><a href='%s'%s>%s</a>%s</li>"
                       % (e(u), "" if u.startswith("/") else " target='_blank' rel='noopener'", e(lbl),
-                         (" <span class='text-secondary small'>— %s</span>" % d) if d else "")
+                         (" <span class='note'>— %s</span>" % d) if d else "")
                       for lbl, u, d in items)
-        return ("<div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'>"
-                "<div class='card-body'><h3 class='h6 card-title'>%s</h3>"
-                "<ul class='list-unstyled small mb-0'>%s</ul></div></div></div>" % (e(title), lis))
+        return "<div class='card'><h3>%s</h3><ul>%s</ul></div>" % (e(title), lis)
     eco = "".join([
         linkrow("Explorers", [
-            ("explorer.bismuth.cz", "https://explorer.bismuth.cz/", "this site — full stats &amp; geomap"),
+            ("explorer.bismuth.cz", "https://explorer.bismuth.cz/", "full stats &amp; geomap"),
             ("bismuth.im", "https://bismuth.im/", "community explorer &amp; API"),
             ("mybismuth.com", "https://mybismuth.com/", "alternative explorer"),
         ]),
@@ -156,106 +149,104 @@ def build_index():
             ("Source (GitHub)", "https://github.com/hclivess/Bismuth", ""),
         ]),
     ])
-    ecosystem_section = f"""
-    <section class='mb-5'>
-      <h2 class='h4 mb-3'>🌐 Ecosystem &amp; services</h2>
-      <p class='text-secondary'>The wider Bismuth ecosystem — explorers, pools, infrastructure and community.</p>
-      <div class='row g-3'>{eco}</div>
-    </section>"""
+    ecosystem_section = f"""    <section>
+      <h2>🌐 Ecosystem &amp; services</h2>
+      <p class='sub'>The wider Bismuth ecosystem — explorers, pools, infrastructure and community.</p>
+      <div class='grid'>{eco}</div>
+    </section>
+"""
 
     body = f"""{S.nav('home')}
-  <header class='hero py-5'>
-    <div class='container py-4'>
-      <h1 class='display-5 fw-bold'>Bismuth</h1>
-      <p class='lead text-secondary col-lg-8'>A fair-launched, from-scratch <strong>Python blockchain</strong> —
-        no ICO, no premine — running on mainnet since 1&nbsp;May&nbsp;2017. A decade-long, academically grounded
-        testbed for ideas the rest of the industry named years later.</p>
-      <div class='d-flex flex-wrap gap-2 mt-2'>
-        <a href='https://explorer.bismuth.cz/' class='btn btn-primary btn-lg'>🔍&nbsp; Block Explorer</a>
-        <a href='#wallets' class='btn btn-outline-light btn-lg'>💼&nbsp; Get a wallet</a>
-        <a href='/10-years-of-bismuth.html' class='btn btn-outline-light btn-lg'>📜&nbsp; The 10-year story</a>
-        <a href='#run' class='btn btn-outline-light btn-lg'>⬇&nbsp; Run a node</a>
+    <div class='hero'>
+      <img class='mark' src='/favicon.svg' alt='Bismuth logo'>
+      <h1>The fair-launched<br><span class='g'>Python blockchain</span></h1>
+      <p class='lead'>Bismuth is a from-scratch blockchain — <b>no ICO, no premine</b> — running on mainnet
+        since <b>1&nbsp;May&nbsp;2017</b>. A decade-long, academically grounded testbed for ideas the rest of
+        the industry named years later.</p>
+      <div class='cta'>
+        <a class='btn' href='https://explorer.bismuth.cz/'>🔍&nbsp; Block Explorer</a>
+        <a class='btn ghost' href='#wallets'>💼&nbsp; Get a wallet</a>
+        <a class='btn ghost' href='{S.URL_STORY}'>📜&nbsp; The 10-year story</a>
+      </div>
+      <div class='badges'>
+        <span class='badge'>🎯 <b>Fair launch</b>, no premine</span>
+        <span class='badge'>🐍 <b>Python</b>, from scratch</span>
+        <span class='badge'>📅 Live since <b>2017</b></span>
+        <span class='badge'>🎓 <b>Peer-reviewed</b> consensus</span>
       </div>
     </div>
-  </header>
-  <main class='container pb-5'>
 
-    <section class='mb-5'>
-      <h2 class='h4 mb-3'>What is Bismuth?</h2>
-      <div class='row g-3'>{fact_cards}</div>
+    <section id='what'>
+      <h2>What is Bismuth?</h2>
+      <p class='sub'>An account-based chain widely cited as the first blockchain written in Python — not a
+        fork, built from the ground up with an unusually broad plugin ecosystem.</p>
+      <div class='grid'>{fact_cards}</div>
     </section>
-{wallets_section}
 
-    <section class='mb-5'>
-      <h2 class='h4 mb-3'>📜 The story</h2>
-      <div class='card bg-body-tertiary border-info-subtle'><div class='card-body'>
-        <h3 class='h5 card-title'>10 Years of Bismuth</h3>
-        <p class='text-secondary small mb-2'>A cited retrospective on the project's architectural firsts (2017–2026):
-          semantic data/meaning layering, an early plugin ecosystem and NFTs, on-chain sensor data before
-          &ldquo;DePIN&rdquo; had a name, and a peer-reviewed proof-of-work difficulty controller.</p>
-        <div class='d-flex flex-wrap align-items-center gap-2'>
-          <a href='/10-years-of-bismuth.html' class='btn btn-sm btn-info'>Read on site</a>
+{wallets_section}
+    <section id='story'>
+      <h2>📜 The story</h2>
+      <div class='card'>
+        <h3>10 Years of Bismuth</h3>
+        <p>A cited retrospective on the project's architectural firsts (2017–2026): semantic data/meaning
+          layering, an early plugin ecosystem and NFTs, on-chain sensor data before &ldquo;DePIN&rdquo; had a
+          name, and a peer-reviewed proof-of-work difficulty controller.</p>
+        <div class='btnrow'>
+          <a class='btn sm' href='{S.URL_STORY}'>Read on site →</a>
           {S.dlbuttons([('/10-years-of-bismuth.pdf','PDF',False),('/10-years-of-bismuth.md','Markdown',False),('/10-years-of-bismuth.bbcode.txt','BitcoinTalk',False)])}
         </div>
-      </div></div>
+      </div>
     </section>
 
-    <section class='mb-5'>
-      <h2 class='h4 mb-3'>🎙️ Press &amp; coverage</h2>
-      <p class='text-secondary'>A working bibliography of interviews, profiles, reviews and academic papers
-        covering Bismuth (2017–2024) — with cleaned, link-rot-proof local copies of each piece.</p>
+    <section id='press'>
+      <h2>🎙️ Press &amp; coverage</h2>
+      <p class='sub'>A working bibliography of interviews, profiles, reviews and academic papers covering
+        Bismuth (2017–2024) — with cleaned, link-rot-proof local copies of each piece.</p>
       {featured_html}
-      <a href='/Bismuth_Interview_Catalog.html' class='btn btn-info'>Browse the full catalog →</a>
+      <div class='btnrow'><a class='btn sm' href='{S.URL_PRESS}'>Browse the full catalog →</a></div>
     </section>
 
-    <section class='mb-5' id='run'>
-      <h2 class='h4 mb-3'>⛏️ Run a node</h2>
-      <p class='text-secondary mb-3'>One command. The installer pulls every dependency (including the
-        ed25519 / ecdsa signer libs mainnet needs), registers a <code>systemd</code> service that starts on
-        boot, and the node <strong>auto-bootstraps a recent ledger snapshot on first run</strong> — so it
-        starts near the chain tip, not from genesis. No manual downloads, no pip juggling.</p>
-      <div class='row g-4'>
-        <div class='col-lg-7'>
-          <div class='card bg-body-tertiary border-secondary-subtle h-100'><div class='card-body'>
-            <h3 class='h6 card-title'>Install &amp; run (Linux)</h3>
-            <pre class='mb-2'><code>git clone https://github.com/hclivess/Bismuth
+    <section id='run'>
+      <h2>⛏️ Run a node</h2>
+      <p class='sub'>One command. The installer pulls every dependency (including the ed25519 / ecdsa signer
+        libs mainnet needs), registers a <code>systemd</code> service that starts on boot, and the node
+        <b>auto-bootstraps a recent ledger snapshot on first run</b> — so it starts near the chain tip, not
+        from genesis. No manual downloads, no pip juggling.</p>
+      <div class='grid two'>
+        <div class='card'>
+          <h3>Install &amp; run (Linux)</h3>
+          <pre><code>git clone https://github.com/hclivess/Bismuth
 cd Bismuth
 sudo ./install_node.sh</code></pre>
-            <p class='text-secondary small mb-0'>That's it. Deps, the <code>bismuth-node</code> service, and
-              the ledger bootstrap are handled for you — check it with
-              <code>systemctl status bismuth-node</code>.</p>
-          </div></div>
+          <p>That's it — deps, the <code>bismuth-node</code> service and the ledger bootstrap are handled for
+            you. Check it with <code>systemctl status bismuth-node</code>.</p>
         </div>
-        <div class='col-lg-5'>
-          <div class='card bg-body-tertiary border-secondary-subtle h-100'><div class='card-body'>
-            <h3 class='h6 card-title'>Options</h3>
-            <ul class='list-unstyled small mb-0 text-secondary'>
-              <li class='mb-2'><code>--tor</code> — also install Tor for private onion routing
-                (<code>tor=managed</code>)</li>
-              <li class='mb-2'><code>--regnet</code> — a local regtest node for development</li>
-              <li class='mb-2'><code>--no-start</code> / <code>--restart</code> — control the service</li>
-              <li class='mb-0'>Idempotent &amp; re-runnable; won't disturb a running node unless you ask.</li>
-            </ul>
-          </div></div>
+        <div class='card'>
+          <h3>Options</h3>
+          <ul>
+            <li><code>--tor</code> <span class='note'>— also install Tor for private onion routing</span></li>
+            <li><code>--regnet</code> <span class='note'>— a local regtest node for development</span></li>
+            <li><code>--no-start</code> / <code>--restart</code> <span class='note'>— control the service</span></li>
+            <li>Idempotent &amp; re-runnable; won't disturb a running node unless you ask.</li>
+          </ul>
         </div>
       </div>
-      <p class='text-secondary small mt-3 mb-0'>Advanced: the fresh-sync bootstrap pulls
+      <p class='sub' style='margin-top:16px'>Advanced: the fresh-sync bootstrap pulls
         <a href='/ledger.tar.gz'>ledger.tar.gz</a> automatically; to seed from your own snapshot set
         <code>bootstrap_file</code> / <code>bootstrap_url</code> in <code>config.toml</code>. All settings:
         <a href='https://github.com/hclivess/Bismuth/blob/main/doc/11-configuration.md'>doc/11</a>.</p>
     </section>
-{ecosystem_section}
 
+{ecosystem_section}
     <section>
-      <h2 class='h4 mb-3'>🛠️ Build</h2>
-      <div class='d-flex flex-wrap gap-2'>
-        <a href='https://github.com/hclivess/Bismuth' class='btn btn-outline-light'>GitHub</a>
-        <a href='https://bismuthcoin.org/' class='btn btn-outline-light'>Community &amp; docs</a>
-        <a href='https://explorer.bismuth.cz/' class='btn btn-outline-light'>Block Explorer</a>
-        <a href='/Bismuth_Interview_Catalog.html' class='btn btn-outline-light'>Press archive</a>
+      <h2>🛠️ Build</h2>
+      <div class='btnrow'>
+        <a class='btn sm ghost' href='https://github.com/hclivess/Bismuth'>GitHub</a>
+        <a class='btn sm ghost' href='https://bismuthcoin.org/'>Community &amp; docs</a>
+        <a class='btn sm ghost' href='https://explorer.bismuth.cz/'>Block Explorer</a>
+        <a class='btn sm ghost' href='{S.URL_PRESS}'>Press archive</a>
       </div>
     </section>
-  </main>
 {S.footer()}"""
     S.write("index.html", S.head("Bismuth — fair-launched Python blockchain (since 2017)", desc, S.BASE + "/",
                                  "website", jsonld) + body, "1.0")
@@ -276,55 +267,57 @@ def build_10years():
                                    extras=["cuddled-lists", "tables", "smarty-pants", "break-on-newline"])
     desc = ("A cited 10-year retrospective on Bismuth's architectural firsts (2017–2026): modular data/meaning "
             "layering, plugins & NFTs, on-chain sensor data before DePIN, and a peer-reviewed PoW difficulty controller.")
-    canon = S.BASE + "/10-years-of-bismuth.html"
+    canon = S.BASE + S.URL_STORY
     jsonld = json.dumps({"@context": "https://schema.org", "@type": "Article", "headline": title,
                          "description": desc, "author": {"@type": "Organization", "name": "Bismuth Foundation"},
                          "publisher": {"@type": "Organization", "name": "Bismuth Foundation"},
                          "mainEntityOfPage": canon, "datePublished": "2026-06-01"})
-    hero = (f"  <header class='hero py-5'><div class='container py-3'><h1 class='fw-bold'>{e(title)}</h1>"
-            f"<p class='lead text-secondary col-lg-9'>{e(subtitle)}</p>"
-            f"<p class='text-secondary small mb-3'>{e(byline)}</p>"
-            + S.dlbuttons([("/10-years-of-bismuth.pdf", "⬇ PDF", True), ("/10-years-of-bismuth.md", "Markdown", False),
-                           ("/10-years-of-bismuth.bbcode.txt", "BitcoinTalk", False)]) + "</div></header>\n")
-    body = (S.nav("story") + hero + "  <main class='container pb-5'><article class='col-lg-9'>\n"
-            + body_html + "\n  </article></main>\n" + S.footer())
+    dl = S.dlbuttons([("/10-years-of-bismuth.pdf", "⬇ PDF", True), ("/10-years-of-bismuth.md", "Markdown", False),
+                      ("/10-years-of-bismuth.bbcode.txt", "BitcoinTalk", False)])
+    phead = (f"    <div class='phead'><h1>{e(title)}</h1>"
+             f"<p class='lead'>{e(subtitle)}</p><p class='meta'>{e(byline)}</p>{dl}</div>\n")
+    body = (S.nav("story") + phead + "    <section class='plain'><article>\n"
+            + body_html + "\n    </article></section>\n" + S.footer())
     S.write("10-years-of-bismuth.html", S.head(title + " — Bismuth", desc, canon, "article", jsonld) + body, "0.9")
 
 
 # ============================================================ PRESS CATALOG ====
 def build_catalog():
-    canon = S.BASE + "/Bismuth_Interview_Catalog.html"
+    canon = S.BASE + S.URL_PRESS
     desc = ("A working bibliography of published interviews, profiles, reviews and academic papers covering "
             "the Bismuth blockchain (BIS), 2017–2024 — with cleaned local archive copies of each source.")
     jsonld = json.dumps({"@context": "https://schema.org", "@type": "CollectionPage", "name": C.TITLE,
                          "description": desc, "url": canon,
                          "isPartOf": {"@type": "WebSite", "name": "Bismuth", "url": S.BASE + "/"}})
-    hero = ("  <header class='hero py-5'><div class='container py-3'><h1 class='fw-bold'>Interview &amp; Coverage Catalog</h1>"
-            f"<p class='lead text-secondary col-lg-9'>{e(C.SUBTITLE)}</p>"
-            f"<p class='text-secondary small mb-3'>{e(C.BYLINE)}</p>"
-            + S.dlbuttons([("/Bismuth_Interview_Catalog.pdf", "⬇ PDF", True),
-                           ("/Bismuth_Interview_Catalog.md", "Markdown", False),
-                           ("/Bismuth_Interview_Catalog.bbcode.txt", "BitcoinTalk", False)]) + "</div></header>\n")
-    parts = [S.nav("press"), hero, "  <main class='container pb-5'>\n"]
+    dl = S.dlbuttons([("/Bismuth_Interview_Catalog.pdf", "⬇ PDF", True),
+                      ("/Bismuth_Interview_Catalog.md", "Markdown", False),
+                      ("/Bismuth_Interview_Catalog.bbcode.txt", "BitcoinTalk", False)])
+    phead = ("    <div class='phead'><p class='back'><a href='/'>← Home</a></p>"
+             "<h1>Interview &amp; Coverage Catalog</h1>"
+             f"<p class='lead'>{e(C.SUBTITLE)}</p><p class='meta'>{e(C.BYLINE)}</p>{dl}</div>\n")
+    parts = [S.nav("press"), phead, "    <section class='plain'>\n"]
     for p in C.INTRO:
-        parts.append("    <p class='text-secondary small col-lg-10'>%s</p>\n" % e(p))
+        parts.append("      <p class='sub'>%s</p>\n" % e(p))
     for stitle, note, entries in C.SECTIONS:
-        parts.append("    <h2 class='h4 mt-4 mb-2 border-bottom border-secondary-subtle pb-2'>%s</h2>\n" % e(stitle))
+        parts.append("      <h2 style='margin-top:2rem'>%s</h2>\n" % e(stitle))
         if note:
-            parts.append("    <p class='text-secondary small'>%s</p>\n" % e(note))
-        parts.append("    <div class='table-responsive'><table class='table table-dark table-striped table-hover table-sm align-middle'>\n"
-                     "      <thead><tr><th>Title</th><th>By / Where</th><th>Date</th><th>Type</th><th>What it is</th><th>Archive</th></tr></thead><tbody>\n")
+            parts.append("      <p class='sub'>%s</p>\n" % e(note))
+        parts.append("      <div class='tablewrap'><table class='cat'>\n"
+                     "        <thead><tr><th>Title</th><th>By / Where</th><th>Date</th><th>Type</th><th>What it is</th><th>Archive</th></tr></thead><tbody>\n")
         for t, where, url, date, typ, what in entries:
             w = "<a href='%s' target='_blank' rel='noopener'>%s</a>" % (e(url), e(where)) if url else e(where)
-            al = archive_link(t)
-            arch = ("<a href='%s'%s>%s</a>" % (e(al), "" if al.endswith(".html") else " target='_blank'",
-                    "read" if al.endswith(".html") else "PDF")) if al else "<span class='text-secondary'>—</span>"
-            parts.append("      <tr><td class='fw-semibold'>%s</td><td>%s</td><td class='text-nowrap'>%s</td>"
-                         "<td><span class='badge text-bg-secondary'>%s</span></td>"
-                         "<td class='text-secondary small'>%s</td><td>%s</td></tr>\n"
+            kind, al = archive_link(t)
+            if kind == "page":
+                arch = "<a href='%s'>read</a>" % e(al)
+            elif kind == "pdf":
+                arch = "<a href='%s' target='_blank'>PDF</a>" % e(al)
+            else:
+                arch = "<span class='muted'>—</span>"
+            parts.append("        <tr><td class='t'>%s</td><td>%s</td><td class='muted' style='white-space:nowrap'>%s</td>"
+                         "<td><span class='pill'>%s</span></td><td>%s</td><td>%s</td></tr>\n"
                          % (e(t), w, e(date), e(typ), e(what), arch))
-        parts.append("      </tbody></table></div>\n")
-    parts.append("    <p class='text-secondary small mt-4'>%s</p>\n  </main>\n" % e(C.FOOTER))
+        parts.append("        </tbody></table></div>\n")
+    parts.append("      <p class='sub' style='margin-top:1.5rem'>%s</p>\n    </section>\n" % e(C.FOOTER))
     parts.append(S.footer())
     S.write("Bismuth_Interview_Catalog.html", S.head("Bismuth — Interview & Coverage Catalog", desc, canon,
                                                      "website", jsonld) + "".join(parts), "0.8")
@@ -337,7 +330,7 @@ def build_articles():
         title = m.get("title", slug)
         src = m.get("source", ""); date = m.get("date", ""); author = m.get("author", "")
         url = m.get("original_url", "")
-        canon = "%s/coverage/%s.html" % (S.BASE, slug)
+        canon = "%s/coverage/%s" % (S.BASE, slug)
         desc = ("%s — Bismuth coverage%s%s. Archived on bismuth.cz." %
                 (title, (" by " + author) if author else "", (" (" + src + ")") if src else ""))[:300]
         jsonld = json.dumps({"@context": "https://schema.org", "@type": "Article", "headline": title,
@@ -346,16 +339,13 @@ def build_articles():
                              "publisher": {"@type": "Organization", "name": "Bismuth Foundation"},
                              "mainEntityOfPage": canon})
         meta_line = " · ".join(x for x in [e(author), e(src), e(date)] if x)
-        orig = ("<a class='btn btn-sm btn-outline-secondary' href='%s' target='_blank' rel='noopener'>Original ↗</a>" % e(url)) if url else ""
-        hero = ("  <header class='hero py-4'><div class='container py-2'>"
-                "<p class='small mb-1'><a href='/Bismuth_Interview_Catalog.html' class='link-secondary text-decoration-none'>← Press &amp; coverage</a></p>"
-                f"<h1 class='fw-bold h2'>{e(title)}</h1>"
-                f"<p class='text-secondary small mb-2'>{meta_line}</p>"
-                "<div class='d-flex flex-wrap gap-2'>"
-                f"<a class='btn btn-sm btn-outline-info' href='/coverage/{slug}.md'>Markdown</a>{orig}"
-                "</div></div></header>\n")
-        body = (S.nav("press") + hero + "  <main class='container pb-5'><article class='col-lg-9'>\n"
-                + body_html + "\n  </article></main>\n" + S.footer())
+        orig = ("<a class='btn sm ghost' href='%s' target='_blank' rel='noopener'>Original ↗</a>" % e(url)) if url else ""
+        phead = ("    <div class='phead'><p class='back'><a href='%s'>← Press &amp; coverage</a></p>"
+                 "<h1>%s</h1><p class='meta'>%s</p>"
+                 "<div class='btnrow'><a class='btn sm ghost' href='/coverage/%s.md'>Markdown</a>%s</div></div>\n"
+                 % (S.URL_PRESS, e(title), meta_line, slug, orig))
+        body = (S.nav("press") + phead + "    <section class='plain'><article>\n"
+                + body_html + "\n    </article></section>\n" + S.footer())
         S.write("coverage/%s.html" % slug, S.head(title + " — Bismuth coverage", desc, canon, "article", jsonld) + body, "0.6")
         # also publish the cleaned markdown next to it
         import shutil
@@ -367,11 +357,14 @@ def build_sitemap():
     today = os.environ.get("BUILD_DATE", "2026-06-23")
     urls = []
     for rel, pri in S.PAGES:
-        loc = S.BASE + "/" + ("" if rel == "index.html" else rel)
+        # extensionless canonical URLs: index -> /, everything else drops the .html suffix
+        if rel == "index.html":
+            loc = S.BASE + "/"
+        else:
+            loc = S.BASE + "/" + (rel[:-5] if rel.endswith(".html") else rel)
         urls.append("  <url><loc>%s</loc><lastmod>%s</lastmod><priority>%s</priority></url>" % (e(loc), today, pri))
     sm = ("<?xml version='1.0' encoding='UTF-8'?>\n"
-          "<urlset xmlns='http://www.sitemap.org/schemas/sitemap/0.9'>\n" + "\n".join(urls) + "\n</urlset>\n")
-    sm = sm.replace("www.sitemap.org", "www.sitemaps.org")
+          "<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'>\n" + "\n".join(urls) + "\n</urlset>\n")
     open(S.OUT + "/sitemap.xml", "w").write(sm)
     open(S.OUT + "/robots.txt", "w").write("User-agent: *\nAllow: /\nSitemap: %s/sitemap.xml\n" % S.BASE)
 
