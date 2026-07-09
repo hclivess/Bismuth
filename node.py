@@ -1717,13 +1717,15 @@ if __name__ == "__main__":
                     node.pk_registry = None
 
             # decentralized-apps VM contract-state store (doc/17). MANDATORY CONSENSUS post-hf2: the VM's
-            # execution, custody payouts, and committed state-root all gate on the SHARED hf2 node.fork_height
-            # (not a per-node knob), so EVERY node must run the VM once hf2 activates. If the store were opened
-            # only under the opt-in `vm` flag, a default (vm=off) node would skip execution AND the "mandatory"
-            # coinbase state-root check while vm=on nodes enforce it — a hard consensus split at activation.
-            # fork_height is not known here (it is derived during sync), so the store is opened UNCONDITIONALLY
-            # and is simply INERT pre-fork (every VM branch in digest is fork-height-gated). config.vm is kept
-            # only as a diagnostic/RPC hint; it no longer gates consensus participation.
+            # execution, custody payouts, and committed state-root all gate on the SHARED fork.vm_active
+            # predicate (VM_ACTIVATION_HEIGHT — a network-wide consensus height, not a per-node knob), so
+            # EVERY node must run the VM once it activates. If the store were opened only under the opt-in
+            # `vm` flag, a default (vm=off) node would skip execution AND the "mandatory" coinbase state-root
+            # check while vm=on nodes enforce it — a hard consensus split at activation. The activation height
+            # is not resolved here, so the store is opened UNCONDITIONALLY and is simply INERT until then
+            # (every VM branch in digest is vm_active-gated; the VM is currently DISABLED — VM_ACTIVATION_HEIGHT
+            # is None — pending reengineering). config.vm is kept only as a diagnostic/RPC hint; it no longer
+            # gates consensus participation.
             try:
                 import os as _os
                 import vm_state as _vm_state_mod
@@ -1731,7 +1733,7 @@ if __name__ == "__main__":
                 node.vm_state = _vm_state_mod.VMState(vm_path)
                 node.vm_state_root = node.vm_state.merkle_root()   # doc/45 Stage 2b: committed root = Merkle root
                 node.logger.app_log.warning(
-                    "Status: VM state store opened (mandatory consensus post-hf2, inert pre-fork)")
+                    "Status: VM state store opened (inert — VM disabled, gated on fork.VM_ACTIVATION_HEIGHT)")
             except Exception as e:
                 # Leaving vm_state None is safe pre-fork (all VM branches are fork-height-gated), but post-fork
                 # the mandatory state-root check REFUSES to run without the store (see digest.py) and halts the

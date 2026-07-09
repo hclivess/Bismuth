@@ -85,14 +85,18 @@ def _rebuild_derived_state(node, db_handler, keep_height):
                 raise
             node.logger.app_log.warning(f"pubkey registry rollback rebuild failed: {e}")
     # the VM contract state is a re-executable projection of the chain's vm: txs — rebuild it from the
-    # rolled-back ledger and recompute the committed state root (deterministic, post-fork only).
-    if getattr(node, "vm_state", None) is not None and getattr(node, "fork_height", None) is not None:
+    # rolled-back ledger and recompute the committed state root (deterministic, VM-active heights only).
+    # Replay starts at fork.VM_ACTIVATION_HEIGHT (NOT fork_height): vm: txs below activation were stored
+    # inert and never executed in digestion, so replaying them here would diverge. Skipped entirely while
+    # the VM is disabled (VM_ACTIVATION_HEIGHT is None).
+    import fork as _fork
+    if getattr(node, "vm_state", None) is not None and _fork.VM_ACTIVATION_HEIGHT is not None:
         try:
             import vm_engine
-            vm_engine.rebuild(node.vm_state, db_handler.h, node.fork_height, keep_height)
+            vm_engine.rebuild(node.vm_state, db_handler.h, _fork.VM_ACTIVATION_HEIGHT, keep_height)
             node.vm_state_root = node.vm_state.merkle_root()   # doc/45 Stage 2b: committed root = Merkle root
         except Exception as e:
-            # The VM is mandatory consensus post-hf2, so a failed reorg rebuild must HALT — exactly like the
+            # The VM is mandatory consensus once activated, so a failed reorg rebuild must HALT — exactly like the
             # sibling projections above (balance/txid/pk when consensus-on). Continuing with a stale
             # node.vm_state_root would make the mandatory coinbase state-root check REJECT the canonical branch
             # (a consensus wedge) and leave contract custody ahead of its VM_SINK ledger backing. Invalidate

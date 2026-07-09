@@ -37,11 +37,10 @@ def _coinbase_prefix(node):
     sig = ""
     if getattr(node, "fork_signal", False):
         sig += fork.FORK2_SIGNAL                      # "hf2": whole-bundle readiness (incl. blake2b PoW)
-    fh = getattr(node, "fork_height", None)
     sr = getattr(node, "vm_state_root", None)
-    if fh is not None and (node.last_block + 1) >= fh and sr:
+    if fork.vm_active(node, node.last_block + 1) and sr:
         import vm_engine
-        sig += vm_engine.embed_state_root(sr, "")     # "vmsr"+root: enforced post-fork (doc/19)
+        sig += vm_engine.embed_state_root(sr, "")     # "vmsr"+root: enforced once the VM activates (doc/19)
     return sig
 
 

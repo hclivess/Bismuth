@@ -127,7 +127,8 @@ def generate_one_block(blockhash, mempool_txs, node, db_handler):
                     # doc/41: PoW grinds a BARE nonce (prefix = ADDRESS only). The signal + "vmsr"<root>
                     # commitment rides in the public_key slot, NOT the PoW pre-image / openfield.
                     commitment = _signal
-                    if _sr:
+                    import fork as _fork_mod
+                    if _fork_mod.vm_active(node, getattr(node, "hdd_block", 0) + 1) and _sr:
                         import vm_engine
                         commitment += vm_engine.embed_state_root(_sr, "")
                     seed = ""

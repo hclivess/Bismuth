@@ -756,17 +756,18 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         # disagrees with ours, a VM has diverged -> REJECT the block BEFORE committing it (caught, not
         # silent). node.vm_state_root is still the pre-state here (this block's vm: txs run after to_db).
         _ev = getattr(node, "vm_state", None)
-        _efh = getattr(node, "fork_height", None)
-        if _efh is not None and block_instance.block_height_new >= _efh:
-            # The VM is mandatory consensus post-hf2 (gated on the shared fork_height). If the store failed to
-            # open at startup, FAIL CLOSED: halt here rather than skip the check and silently fork onto lenient
-            # rules (the split this raise prevents was the whole reason vm_state is opened unconditionally in
+        import fork as _fork
+        if _fork.vm_active(node, block_instance.block_height_new):
+            # The VM is mandatory consensus once ACTIVATED (fork.vm_active, gated on VM_ACTIVATION_HEIGHT —
+            # DECOUPLED from hf2; disabled while VM_ACTIVATION_HEIGHT is None). If the store failed to open at
+            # startup, FAIL CLOSED: halt here rather than skip the check and silently fork onto lenient rules
+            # (the split this raise prevents was the whole reason vm_state is opened unconditionally in
             # node.py). digest_block catches this, rolls back, and the block is not committed.
             if _ev is None:
                 raise ValueError(
-                    f"post-fork block at {block_instance.block_height_new} requires the VM state store, but it "
-                    f"is not open — the VM is mandatory consensus since hf2 activation at {_efh}. Fix the VM "
-                    f"store (see 'VM state store could not open' at startup) and restart.")
+                    f"block at {block_instance.block_height_new} requires the VM state store, but it is not "
+                    f"open — the VM is mandatory consensus since its activation at {_fork.VM_ACTIVATION_HEIGHT}. "
+                    f"Fix the VM store (see 'VM state store could not open' at startup) and restart.")
             import vm_engine
             _claimed = None
             for _t in processor.block_transactions:
@@ -780,11 +781,11 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
                     continue
             _local = getattr(node, "vm_state_root", None)
             if _claimed is None:
-                # MANDATORY post-fork: a coinbase with no committed root would otherwise bypass the check,
-                # letting a miner hide a divergent VM. Reject it (upgraded miners always embed the root).
+                # MANDATORY once VM-active: a coinbase with no committed root would otherwise bypass the
+                # check, letting a miner hide a divergent VM. Reject it (upgraded miners always embed the root).
                 raise ValueError(
-                    f"post-fork coinbase at {block_instance.block_height_new} commits no VM state root "
-                    f"(required since hf2 activation at {_efh})")
+                    f"coinbase at {block_instance.block_height_new} commits no VM state root "
+                    f"(required since VM activation at {_fork.VM_ACTIVATION_HEIGHT})")
             if _claimed != _local:
                 raise ValueError(
                     f"VM state-root mismatch at {block_instance.block_height_new}: coinbase "
@@ -853,12 +854,12 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         # (hf2 fork-height detection runs at the TOP of this loop, BEFORE the block is validated —
         # the rules a block is judged under must derive from the chain below it.)
 
-        # Decentralized-apps VM (doc/17): execute this block's vm: transactions, POST-FORK ONLY, behind the
-        # vm flag. Inert until the fork activates — it adds NO behaviour to the current chain. Failures are
+        # Decentralized-apps VM (doc/17): execute this block's vm: transactions, ONLY once the VM is ACTIVATED
+        # (fork.vm_active — gated on VM_ACTIVATION_HEIGHT, DECOUPLED from hf2; disabled while it is None). Inert
+        # until activation — it adds NO behaviour to the chain, `vm:` txs are stored as inert data. Failures are
         # isolated (a bad contract is a no-op), never breaking block digestion.
         _vms = getattr(node, "vm_state", None)
-        _vfh = getattr(node, "fork_height", None)
-        if _vms is not None and _vfh is not None and block_instance.block_height_new >= _vfh:
+        if _vms is not None and _fork.vm_active(node, block_instance.block_height_new):
             try:
                 import vm_engine
                 # value custody (doc/19): execute the block's vm: txs; each TRANSFER queues a payout that

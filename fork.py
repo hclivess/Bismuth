@@ -37,6 +37,36 @@ def has_fork_signal(openfield):
 # signal; that was folded into hf2 on 2026-06-12 — stale "pow2" sidecar keys are simply ignored.)
 
 
+# --- Decentralized-apps VM (doc/17 RISC-V) activation gate ----------------------------------------
+# The VM is DECOUPLED from hf2. hf2 ships WITHOUT it: contract execution, custody payouts, and the
+# mandatory coinbase state-root check are all gated on VM_ACTIVATION_HEIGHT below (via vm_active()),
+# NOT on fork_height. This is a deliberate SECOND activation height — sanctioned to unbundle the VM
+# from the single hf2 fork while it is reengineered (per-block gas budget, gas-proportional fees,
+# incremental Merkle root; see doc/17 load review).
+#
+#   None  -> VM DISABLED (current state). Every VM branch is inert; `vm:` txs are stored as inert data
+#            (they never execute), no state root is required in the coinbase, and reorgs skip the VM
+#            rebuild. The vm_state store may still be opened at startup but stays empty.
+#   int   -> VM ACTIVATES at that ABSOLUTE block height. It MUST be >= the hf2 fork_height, because the
+#            VM's committed state root rides in the hf2 coinbase header slot (doc/41) and the binary/
+#            content-txid serialization it relies on is an hf2 feature. Set it, replay-validate, ship.
+VM_ACTIVATION_HEIGHT = None
+
+
+def vm_active(node, block_height):
+    """Consensus predicate: is the decentralized-apps VM active at ``block_height``?
+
+    False whenever the VM is disabled (VM_ACTIVATION_HEIGHT is None — the hf2 default) OR the height is
+    below the activation height. This is the SINGLE gate every VM consensus branch consults (execution,
+    custody payouts, the mandatory coinbase state-root check, and the reorg/rollback rebuild) so the VM
+    turns on network-wide at exactly one height and nowhere else. ``node`` is accepted for symmetry with
+    the other fork gates (and future per-network overrides) though the height alone is authoritative.
+    """
+    if VM_ACTIVATION_HEIGHT is None:
+        return False
+    return block_height is not None and int(block_height) >= int(VM_ACTIVATION_HEIGHT)
+
+
 def next_fork_boundary(height, boundary=FORK2_BOUNDARY):
     """The next multiple of ``boundary`` STRICTLY above ``height``."""
     return ((int(height) // boundary) + 1) * boundary
