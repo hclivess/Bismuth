@@ -39,6 +39,16 @@ OUTBOUND_RECOVERY_FLOOR = 4
 NORMAL_LOOP_SECONDS = 30
 RECOVERY_LOOP_SECONDS = 5
 
+# Peer discovery / announcement.
+#   PEERS_ANNOUNCE_MAX  - upper bound on how many peers we gossip in one `hello`/`peersget` exchange.
+#     The old code shipped the ENTIRE raw peers.txt to any connector — unbounded bandwidth and it
+#     leaks the node's full known-peer set. A bounded random sample still propagates the network well
+#     (peers gossip continuously) without either problem.
+#   INBOUND_CANDIDATES_MAX - cap on the set of not-yet-validated inbound peer IPs awaiting a probe, so
+#     a flood of inbound connections can't grow it without bound.
+PEERS_ANNOUNCE_MAX = 50
+INBOUND_CANDIDATES_MAX = 500
+
 
 class Peers(PeersStorageMixin, PeersPoolMixin, PeersConsensusMixin, PeersAccessMixin, PeersReputationMixin):
     """The peers manager. A thread safe peers manager"""
@@ -48,7 +58,7 @@ class Peers(PeersStorageMixin, PeersPoolMixin, PeersConsensusMixin, PeersAccessM
                  'tried','peer_dict','peerfile','suggested_peerfile','banlist','whitelist','ban_threshold',
                  'ip_to_mainnet', 'peers', 'accept_peers', 'peerlist_updated', '_warning_counts',
                  '_connection_pool_set', '_c_class_cache', '_peer_dict_cache', '_cache_timestamp',
-                 '_reputation')
+                 '_reputation', '_inbound_candidates')
 
     def __init__(self, app_log, config=None, logstats=True, node=None):
         self.app_log = app_log
@@ -90,6 +100,7 @@ class Peers(PeersStorageMixin, PeersPoolMixin, PeersConsensusMixin, PeersAccessM
         self._peer_dict_cache = None
         self._cache_timestamp = 0
         self._reputation = {}            # peer_ip -> reputation score (peers_reputation)
+        self._inbound_candidates = set()  # inbound peer IPs awaiting async probe-validation (discovery)
 
         # We store them apart from the initial config, could diverge somehow later on.
         self.banlist = config.banlist
@@ -169,6 +180,57 @@ class Peers(PeersStorageMixin, PeersPoolMixin, PeersConsensusMixin, PeersAccessM
         """Returns a status as a dict"""
         status = {"version": self.config.VERSION, "stats": self.stats}
         return status
+
+    def _own_public_address(self):
+        """Our own dialable address as (ip, port) IF a real public IP is configured, else None. Announcing
+        127.0.0.1/localhost/empty is useless (peers can't dial it) and actively harmful (it self-dials), so
+        we announce ourselves ONLY when node_ip is set to a routable address. This is the TODO workaround in
+        node.py handle(): a node that only ever receives inbound connections is otherwise never gossiped and
+        the network never learns to dial it back."""
+        ip = str(getattr(self.config, "node_ip", "") or "")
+        if ip in ("", "127.0.0.1", "localhost", "0.0.0.0"):
+            return None
+        return ip, str(self.config.port)
+
+    def peers_to_announce(self):
+        """The peer map to gossip in a `hello`/`peersget` reply, as a JSON string {ip:port}.
+
+        Replaces sending the raw, unbounded peers.txt: we send at most PEERS_ANNOUNCE_MAX peers (a random
+        sample when we know more, so different connectors learn different peers and the whole set still
+        propagates), and we INCLUDE our own public ip:port when configured so connectors learn to dial us
+        back. Bounded => no full-peerlist leak and no unbounded payload."""
+        import json
+        with self.peers_lock:
+            items = list(self.peer_dict.items())
+        random.shuffle(items)
+        sample = dict(items[:PEERS_ANNOUNCE_MAX])
+        own = self._own_public_address()
+        if own is not None:
+            sample[own[0]] = own[1]         # always advertise ourselves, even if sampled out
+        return json.dumps(sample)
+
+    def record_inbound_peer(self, peer_ip):
+        """Remember an IP that connected to us so we can try to dial it BACK later (peer discovery).
+
+        We only see the inbound peer's source IP, not its listening port, so we stash the bare IP here —
+        instantly, no probe (the connection handler must not block) — and the maintenance loop later probes
+        it on the default port via promote_inbound_candidates(). Guarded: skip ourselves, banned, and peers
+        we already know; bounded by INBOUND_CANDIDATES_MAX so an inbound flood can't grow it without limit."""
+        if not peer_ip or peer_ip in ("127.0.0.1", "localhost", getattr(self.config, "node_ip", None)):
+            return
+        with self.peers_lock:
+            if (peer_ip in self.peer_dict or peer_ip in self.banlist
+                    or len(self._inbound_candidates) >= INBOUND_CANDIDATES_MAX):
+                return
+            self._inbound_candidates.add(peer_ip)
+
+    def _drain_inbound_candidates(self):
+        """Atomically take and clear the pending inbound IPs, as a {ip: default_port} dict to probe."""
+        with self.peers_lock:
+            drained = list(self._inbound_candidates)
+            self._inbound_candidates.clear()
+        port = 2829 if self.is_testnet else str(self.config.port)
+        return {ip: port for ip in drained}
 
     def client_loop(self, node, this_target):
         """Manager loop called every 30 sec (or every RECOVERY_LOOP_SECONDS while isolated). Maintenance."""
@@ -255,6 +317,18 @@ class Peers(PeersStorageMixin, PeersPoolMixin, PeersConsensusMixin, PeersAccessM
             _known = self.peers_get(self.peerfile)                 # disk read OUTSIDE the lock
             with self.peers_lock:
                 self.peer_dict.update(_known)
+
+            # Peer discovery from INBOUND connections: probe the IPs that dialed us (on the default port,
+            # our best guess for their listener) with a full version handshake; the reachable Bismuth nodes
+            # get persisted to suggested_peers and folded into peer_dict, so we learn dialable peers we'd
+            # otherwise never know. Probing is concurrent + non-blocking, so this can't stall the loop.
+            inbound = self._drain_inbound_candidates()
+            if inbound:
+                self.app_log.info(f"Discovery: probing {len(inbound)} inbound peer candidate(s)")
+                self.peers_test(self.suggested_peerfile, inbound, strict=True)
+                _sug = self.peers_get(self.suggested_peerfile)
+                with self.peers_lock:
+                    self.peer_dict.update(_sug)
 
             # Testing peers
             self.peers_test(self.suggested_peerfile, self.peer_dict, strict=False)

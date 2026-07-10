@@ -133,14 +133,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             self.request.close()
             node.logger.app_log.info(f"IP {peer_ip} banned, disconnected")
 
-        # TODO: I'd like to call
-        """
-        node.peers.peersync({peer_ip: node.port})
-        so we can save the peers that connected to us. 
-        But not ok in current architecture: would delay the command, and we're not even sure it would be saved.
-        TODO: Workaround: make sure our external ip and port is present in the peers we announce, or new nodes are likely never to be announced. 
-        Warning: needs public ip/port, not local ones!
-        """
+        # Peer discovery: remember the IP that connected to us so the maintenance loop can try to dial it
+        # BACK later (it probes on the default port, since the inbound source port is not the peer's
+        # listener). This is instant + non-blocking (just stashes the IP), so it does not delay the command
+        # — the old objection to calling peersync() inline. Paired with peers_to_announce() including our
+        # own public ip:port below, this is the fix for "new nodes are likely never to be announced".
+        node.peers.record_inbound_peer(peer_ip)
 
         timeout_operation = 120  # timeout
         timer_operation = time.time()  # start counting
@@ -229,7 +227,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         return
 
                     send(self.request, "peers")
-                    peers_send = node.peers.peer_list_disk_format()
+                    peers_send = node.peers.peers_to_announce()   # bounded sample + our own public address
                     send(self.request, peers_send)
 
                     while node.db_lock.locked():
@@ -1023,7 +1021,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == "peersget":
                     if node.peers.is_allowed(peer_ip, data):
-                        send(self.request, node.peers.peer_list_disk_format())
+                        send(self.request, node.peers.peers_to_announce())   # bounded sample + own address
 
                     else:
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for peersget command")
