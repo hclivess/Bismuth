@@ -121,20 +121,27 @@ class PeersStorageMixin:
         concurrently; the file is rewritten ONCE, atomically, only if at least one new peer validated."""
         self.peerlist_updated = False
         try:
-            try:
-                with open(file, "r") as peer_file:
-                    peers_pairs = json.load(peer_file)
-            except (json.JSONDecodeError, ValueError) as corrupt:
-                # A corrupt/truncated peerfile must NOT silently zero the node's known-peer set forever.
-                # Back it up (for diagnosis) and start from empty so the next successful probe re-persists
-                # a clean file — self-healing instead of the old "swallow and return {}" that left the bad
-                # file on disk until something happened to overwrite it.
-                self.app_log.warning(f"{file} is corrupt ({corrupt}); backing up to {file}.corrupt and rebuilding")
-                try:
-                    shutil.copy(file, f"{file}.corrupt")
-                except OSError:
-                    pass
+            if not os.path.exists(file):
+                # Fresh node: the peer file may not exist yet when this runs (e.g. the inbound-discovery
+                # promote pass fires before anything has created suggested_peers). Treat as empty and let a
+                # successful probe create it — do NOT fall through to the outer catch-all, which would
+                # silently drop every peer being tested.
                 peers_pairs = {}
+            else:
+                try:
+                    with open(file, "r") as peer_file:
+                        peers_pairs = json.load(peer_file)
+                except (json.JSONDecodeError, ValueError) as corrupt:
+                    # A corrupt/truncated peerfile must NOT silently zero the node's known-peer set forever.
+                    # Back it up (for diagnosis) and start from empty so the next successful probe re-persists
+                    # a clean file — self-healing instead of the old "swallow and return {}" that left the bad
+                    # file on disk until something happened to overwrite it.
+                    self.app_log.warning(f"{file} is corrupt ({corrupt}); backing up to {file}.corrupt and rebuilding")
+                    try:
+                        shutil.copy(file, f"{file}.corrupt")
+                    except OSError:
+                        pass
+                    peers_pairs = {}
 
             # peerdict is the live self.peer_dict (client_loop passes it in); snapshot under lock so the
             # comprehension can't hit "dictionary changed size during iteration" against a peer thread.
