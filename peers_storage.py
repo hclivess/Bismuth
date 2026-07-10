@@ -136,7 +136,11 @@ class PeersStorageMixin:
                     pass
                 peers_pairs = {}
 
-            peers_to_test = [(ip, port) for ip, port in peerdict.items() if ip not in peers_pairs]
+            # peerdict is the live self.peer_dict (client_loop passes it in); snapshot under lock so the
+            # comprehension can't hit "dictionary changed size during iteration" against a peer thread.
+            with self.peers_lock:
+                peerdict_snapshot = list(peerdict.items())
+            peers_to_test = [(ip, port) for ip, port in peerdict_snapshot if ip not in peers_pairs]
             if not peers_to_test:
                 self.app_log.info(f"{file} peerlist update skipped, no new peers")
                 return
@@ -207,12 +211,14 @@ class PeersStorageMixin:
                 # Only probe peers we don't already know. Probe CONCURRENTLY, then add the connectible
                 # ones to peer_dict in one shot from this thread (single writer -> no torn state).
                 new_peers = [(ip, port) for ip, port in data_dict.items() if ip not in self.peer_dict]
+                connectible = self._probe_many(new_peers, strict=False)   # probes OUTSIDE peers_lock
                 total_added = 0
-                for ip, port in self._probe_many(new_peers, strict=False):
-                    if ip not in self.peer_dict:
-                        self.peer_dict[ip] = port
-                        total_added += 1
-                        self.app_log.info(f"Inbound: Peer {ip}:{port} saved to local peers")
+                with self.peers_lock:                                     # only the dict mutation is locked
+                    for ip, port in connectible:
+                        if ip not in self.peer_dict:
+                            self.peer_dict[ip] = port
+                            total_added += 1
+                            self.app_log.info(f"Inbound: Peer {ip}:{port} saved to local peers")
             except Exception as e:
                 self.app_log.warning(f"peersync failed: {type(e).__name__}: {e}")
                 raise

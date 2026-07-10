@@ -10,18 +10,24 @@ class PeersPoolMixin:
         :param client: a string "ip:port"
         :return:
         """
-        self.connection_pool.append(client)
-        self._connection_pool_set.add(client)  # Optimization: maintain set
-        self.del_try(client)
+        # Locked so the list and its companion set are updated ATOMICALLY together — a worker thread
+        # appending must not let can_connect_to/outbound_count observe a list/set that disagree (the
+        # list-vs-set divergence that broke the reverted isolation-recovery attempt). RLock -> del_try's
+        # own lock re-entry is fine.
+        with self.peers_lock:
+            self.connection_pool.append(client)
+            self._connection_pool_set.add(client)  # Optimization: maintain set
+            self.del_try(client)
 
     def remove_client(self, client):
-        if client in self._connection_pool_set:  # Optimization: O(1) lookup
-            try:
-                self.app_log.info(f"Will remove {client} from active pool")
-                self.connection_pool.remove(client)
-                self._connection_pool_set.discard(client)  # Optimization: maintain set
-            except:
-                raise
+        with self.peers_lock:
+            if client in self._connection_pool_set:  # Optimization: O(1) lookup
+                try:
+                    self.app_log.info(f"Will remove {client} from active pool")
+                    self.connection_pool.remove(client)
+                    self._connection_pool_set.discard(client)  # Optimization: maintain set
+                except:
+                    raise
 
     def can_connect_to(self, host, port):
         """
@@ -30,6 +36,13 @@ class PeersPoolMixin:
         :param port:
         :return:
         """
+        # Whole body under the lock: it reads banlist/tried and, crucially, ITERATES _connection_pool_set
+        # (the C-class tally below), which a concurrent append_client/remove_client would otherwise make
+        # raise "Set changed size during iteration". All ops here are in-memory, so the lock never stalls.
+        with self.peers_lock:
+            return self._can_connect_to_locked(host, port)
+
+    def _can_connect_to_locked(self, host, port):
         # Optimization: Early exits for common cases
         if host in self.banlist:
             return False
@@ -82,17 +95,18 @@ class PeersPoolMixin:
         :return:
         """
         host_port = f"{host}:{port}"
-        tries, _ = self.tried.get(host_port, (0, 0))
+        with self.peers_lock:
+            tries, _ = self.tried.get(host_port, (0, 0))
 
-        # Back-off between retries to the same peer. The old schedule (30s, 5min, 15min, 30min) made a
-        # catching-up node stall for many minutes: with only a handful of live peers, it churned through
-        # them and then could not re-attempt for 5-30 min. This gentler, capped schedule (30s, 1m, 2m,
-        # then 5m) still spaces retries politely but recovers from connection churn in about a minute.
-        delay_map = {0: 30, 1: 60, 2: 120}
-        delay = delay_map.get(tries, 5*60)
+            # Back-off between retries to the same peer. The old schedule (30s, 5min, 15min, 30min) made a
+            # catching-up node stall for many minutes: with only a handful of live peers, it churned through
+            # them and then could not re-attempt for 5-30 min. This gentler, capped schedule (30s, 1m, 2m,
+            # then 5m) still spaces retries politely but recovers from connection churn in about a minute.
+            delay_map = {0: 30, 1: 60, 2: 120}
+            delay = delay_map.get(tries, 5*60)
 
-        tries = min(tries + 1, 3)
-        self.tried[host_port] = (tries, time() + delay)
+            tries = min(tries + 1, 3)
+            self.tried[host_port] = (tries, time() + delay)
         self.app_log.info(f"Set timeout {delay} try {tries} for {host_port}")
 
     def del_try(self, host, port=None):
@@ -103,7 +117,8 @@ class PeersPoolMixin:
         :return:
         """
         host_port = f"{host}:{port}" if port else host
-        self.tried.pop(host_port, None)  # pop-with-default never raises
+        with self.peers_lock:
+            self.tried.pop(host_port, None)  # pop-with-default never raises
 
     def reset_tried(self, aggressive=False):
         """
@@ -133,9 +148,10 @@ class PeersPoolMixin:
         never fired -- faster dialing with no redial-all benefit, which only hammered the few reachable
         peers. Both now go through ``Peers.is_isolated`` (the list count) so they cannot disagree.
         """
-        if aggressive:
-            self.tried = {}
-            return
-        soon = time() + 60
-        self.tried = {client: data for client, data in self.tried.items()
-                      if data[1] <= soon}
+        with self.peers_lock:
+            if aggressive:
+                self.tried = {}
+                return
+            soon = time() + 60
+            self.tried = {client: data for client, data in self.tried.items()
+                          if data[1] <= soon}

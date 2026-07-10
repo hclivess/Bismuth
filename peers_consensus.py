@@ -10,14 +10,16 @@ class PeersConsensusMixin:
     def consensus_most_common(self):
         """Consensus vote"""
         try:
-            return most_common_dict(self.peer_opinion_dict)
+            with self.peers_lock:                      # most_common_dict iterates the live opinion dict
+                return most_common_dict(self.peer_opinion_dict)
         except:
             return 0
 
     @property
     def consensus_max(self):
         try:
-            return max(self.peer_opinion_dict.values())
+            with self.peers_lock:
+                return max(self.peer_opinion_dict.values())
         except:
             return 0
 
@@ -36,11 +38,14 @@ class PeersConsensusMixin:
 
         try:
             self.app_log.info(f"Updating {peer_ip} in consensus")
-            self.peer_opinion_dict[peer_ip] = consensus_blockheight
-
-            self.consensus = most_common_dict(self.peer_opinion_dict)
-            self.consensus_percentage = percentage_in(self.peer_opinion_dict[peer_ip],
-                                                     self.peer_opinion_dict.values())
+            # Lock the write + the two tallies that iterate the dict, so a concurrent consensus_add/
+            # consensus_remove from another peer thread can't resize it mid-iteration. penalize/warning
+            # below re-enter the same RLock harmlessly.
+            with self.peers_lock:
+                self.peer_opinion_dict[peer_ip] = consensus_blockheight
+                self.consensus = most_common_dict(self.peer_opinion_dict)
+                self.consensus_percentage = percentage_in(self.peer_opinion_dict[peer_ip],
+                                                         self.peer_opinion_dict.values())
 
             if (int(consensus_blockheight) > int(self.consensus) + 30 and
                 self.consensus_percentage > 50 and
@@ -56,9 +61,10 @@ class PeersConsensusMixin:
             raise
 
     def consensus_remove(self, peer_ip):
-        if peer_ip in self.peer_opinion_dict:
-            try:
-                self.app_log.info(f"Will remove {peer_ip} from consensus pool {self.peer_opinion_dict}")
-                self.peer_opinion_dict.pop(peer_ip)
-            except:
-                raise
+        with self.peers_lock:
+            if peer_ip in self.peer_opinion_dict:
+                try:
+                    self.app_log.info(f"Will remove {peer_ip} from consensus pool")
+                    self.peer_opinion_dict.pop(peer_ip)
+                except:
+                    raise

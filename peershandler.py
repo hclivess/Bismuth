@@ -43,7 +43,7 @@ RECOVERY_LOOP_SECONDS = 5
 class Peers(PeersStorageMixin, PeersPoolMixin, PeersConsensusMixin, PeersAccessMixin, PeersReputationMixin):
     """The peers manager. A thread safe peers manager"""
 
-    __slots__ = ('app_log','config','logstats','node','peersync_lock','startup_time','reset_time','warning_list','stats',
+    __slots__ = ('app_log','config','logstats','node','peersync_lock','peers_lock','startup_time','reset_time','warning_list','stats',
                  'connection_pool','peer_opinion_dict','consensus_percentage','consensus',
                  'tried','peer_dict','peerfile','suggested_peerfile','banlist','whitelist','ban_threshold',
                  'ip_to_mainnet', 'peers', 'accept_peers', 'peerlist_updated', '_warning_counts',
@@ -55,6 +55,19 @@ class Peers(PeersStorageMixin, PeersPoolMixin, PeersConsensusMixin, PeersAccessM
         self.config = config
         self.logstats = logstats
         self.peersync_lock = threading.Lock()
+        # ONE reentrant lock guarding every shared mutable peer collection (peer_dict, connection_pool /
+        # _connection_pool_set, tried, peer_opinion_dict, banlist, _warning_counts/warning_list,
+        # ip_to_mainnet, _reputation). These are read+written concurrently by the ConnectionManager
+        # thread, every inbound handle() thread, and every outbound worker thread; before this the class
+        # claimed "thread safe" but had only peersync_lock, and set/dict iterations (can_connect_to over
+        # _connection_pool_set, consensus/reputation tallies over peer_opinion_dict/_reputation) could
+        # raise "changed size during iteration" mid-consensus. RLock because the mutators nest within one
+        # thread (consensus_add -> penalize -> warning -> banlist; append_client -> del_try). INVARIANT:
+        # never hold this across network or file I/O — probes stay in _probe_many (unlocked) and disk is
+        # read BEFORE locking; the lock only ever wraps in-memory dict/list ops, so it can't stall.
+        # Ordering vs peersync_lock: peersync takes peersync_lock THEN peers_lock (for the final
+        # peer_dict mutation) — never the reverse — so the two cannot deadlock.
+        self.peers_lock = threading.RLock()
         self.startup_time = time()
         self.reset_time = self.startup_time
         self.warning_list = []
@@ -176,8 +189,12 @@ class Peers(PeersStorageMixin, PeersPoolMixin, PeersConsensusMixin, PeersAccessM
                     f"{RECOVERY_LOOP_SECONDS}s until reconnected)")
                 self.reset_tried(aggressive=True)
 
-            # Optimization: Cache peer_dict for iteration
-            current_peers = dict(self.dict_shuffle(self.peer_dict))
+            # Snapshot peer_dict UNDER LOCK before iterating: dict_shuffle does list(items()), which
+            # raises "dictionary changed size during iteration" if a worker/peersync thread mutates
+            # peer_dict concurrently. We iterate the private copy, so spawning dial threads below can't
+            # race the snapshot.
+            with self.peers_lock:
+                current_peers = self.dict_shuffle(dict(self.peer_dict))
             # When isolated, dial recently-responsive peers first so we reconnect to a live one ASAP
             # instead of burning the (capped) parallel dial slots on peers that may be down.
             if isolated:
@@ -206,13 +223,16 @@ class Peers(PeersStorageMixin, PeersPoolMixin, PeersConsensusMixin, PeersAccessM
 
             if len(self.peer_dict) < 6 and time_since_start > 30:
                 self.app_log.warning("Not enough peers in consensus, joining in peers suggested by other nodes")
-                self.peer_dict.update(self.peers_get(self.suggested_peerfile))
+                _suggested = self.peers_get(self.suggested_peerfile)   # disk read OUTSIDE the lock
+                with self.peers_lock:
+                    self.peer_dict.update(_suggested)
 
             if pool_size < self.config.nodes_ban_reset and time_since_start > 15:
                 self.app_log.warning(f"Only {pool_size} connections active, resetting banlist")
-                self.banlist[:] = self.config.banlist
-                self.warning_list.clear()
-                self._warning_counts.clear()
+                with self.peers_lock:
+                    self.banlist[:] = self.config.banlist
+                    self.warning_list.clear()
+                    self._warning_counts.clear()
 
             if pool_size < 10:
                 self.app_log.warning(f"Only {pool_size} connections active, resetting the connection history")
@@ -224,14 +244,17 @@ class Peers(PeersStorageMixin, PeersPoolMixin, PeersConsensusMixin, PeersAccessM
                 (time() - self.reset_time) > 600):
                 self.app_log.warning(f"Less active connections ({pool_size}) than banlist ({ban_size}), "
                                    f"resetting banlist and tried list")
-                self.banlist[:] = self.config.banlist
-                self.warning_list.clear()
-                self._warning_counts.clear()
+                with self.peers_lock:
+                    self.banlist[:] = self.config.banlist
+                    self.warning_list.clear()
+                    self._warning_counts.clear()
                 self.reset_tried()
                 self.reset_time = time()
 
             self.app_log.warning("Status: Testing peers")
-            self.peer_dict.update(self.peers_get(self.peerfile))
+            _known = self.peers_get(self.peerfile)                 # disk read OUTSIDE the lock
+            with self.peers_lock:
+                self.peer_dict.update(_known)
 
             # Testing peers
             self.peers_test(self.suggested_peerfile, self.peer_dict, strict=False)
@@ -242,18 +265,27 @@ class Peers(PeersStorageMixin, PeersPoolMixin, PeersConsensusMixin, PeersAccessM
 
     def status_log(self):
         """Prints the peers part of the node status"""
-        if self.banlist:
-            self.app_log.warning(f"Status: Banlist: {self.banlist}")
-            self.app_log.warning(f"Status: Banlist Count : {len(self.banlist)}")
+        # Snapshot every shared collection UNDER LOCK, then log the copies. repr() of a live dict/list in
+        # an f-string iterates it and would raise "changed size during iteration" if a peer thread mutates
+        # mid-format; and we must not hold peers_lock across the (slow) log I/O.
+        with self.peers_lock:
+            banlist = list(self.banlist)
+            tried = dict(self.tried)
+            connection_pool = list(self.connection_pool)
+            peer_opinion = dict(self.peer_opinion_dict)
+            known_count = len(self.peer_dict)
+        if banlist:
+            self.app_log.warning(f"Status: Banlist: {banlist}")
+            self.app_log.warning(f"Status: Banlist Count : {len(banlist)}")
         if self.whitelist:
             self.app_log.warning(f"Status: Whitelist: {self.whitelist}")
 
-        self.app_log.warning(f"Status: Known Peers: {len(self.peer_dict)}")
-        self.app_log.info(f"Status: Tried: {self.tried}")
-        self.app_log.info(f"Status: Tried Count: {len(self.tried)}")
-        self.app_log.info(f"Status: List of Outbound connections: {self.connection_pool}")
-        self.app_log.warning(f"Status: Number of Outbound connections: {len(self.connection_pool)}")
+        self.app_log.warning(f"Status: Known Peers: {known_count}")
+        self.app_log.info(f"Status: Tried: {tried}")
+        self.app_log.info(f"Status: Tried Count: {len(tried)}")
+        self.app_log.info(f"Status: List of Outbound connections: {connection_pool}")
+        self.app_log.warning(f"Status: Number of Outbound connections: {len(connection_pool)}")
         if self.consensus:
             self.app_log.warning(f"Status: Consensus height: {self.consensus} = {self.consensus_percentage}%")
-            self.app_log.warning(f"Status: Last block opinion: {self.peer_opinion_dict}")
-            self.app_log.warning(f"Status: Total number of nodes: {len(self.peer_opinion_dict)}")
+            self.app_log.warning(f"Status: Last block opinion: {peer_opinion}")
+            self.app_log.warning(f"Status: Total number of nodes: {len(peer_opinion)}")

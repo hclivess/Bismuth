@@ -56,20 +56,25 @@ class PeersReputationMixin:
         REP_BAN_BELOW. Returns True iff the peer was banned by this call."""
         if self.is_whitelisted(ip):
             return False
-        score = clamp_score(self.reputation(ip), -abs(points))
-        self._reputation[ip] = score
+        # read-modify-write of _reputation (and the banlist append) under one lock: two peer threads
+        # penalizing the same ip concurrently must not lose an update or double-append to the banlist.
+        with self.peers_lock:
+            score = clamp_score(self.reputation(ip), -abs(points))
+            self._reputation[ip] = score
+            banned = score <= REP_BAN_BELOW and ip not in self.banlist
+            if banned:
+                self.banlist.append(ip)
         self.app_log.warning(f"Reputation: {ip} -{abs(points)} ({reason}) -> {score}")
-        if score <= REP_BAN_BELOW and ip not in self.banlist:
-            self.banlist.append(ip)
+        if banned:
             self.app_log.warning(f"Reputation: {ip} banned (score {score} <= {REP_BAN_BELOW})")
-            return True
-        return False
+        return banned
 
     def reward(self, ip, points=REWARD_VALID_BLOCK):
         """Raise a peer's reputation for good behaviour (bounded, whitelist-immune)."""
         if self.is_whitelisted(ip):
             return
-        self._reputation[ip] = clamp_score(self.reputation(ip), abs(points))
+        with self.peers_lock:
+            self._reputation[ip] = clamp_score(self.reputation(ip), abs(points))
 
     def reputation_weight(self, ip):
         """Positive consensus-vote weight from the score: a proven peer counts more, a suspect one less,
@@ -79,11 +84,15 @@ class PeersReputationMixin:
     @property
     def consensus_reputation_weighted(self):
         """The agreed tip weighted by reputation — resists a flood of low-rep peers lying about it."""
-        return weighted_tip(self.peer_opinion_dict, self.reputation_weight)
+        # Under the lock the whole tally (which iterates peer_opinion_dict and reads _reputation via
+        # reputation_weight) sees a stable snapshot — no "changed size during iteration".
+        with self.peers_lock:
+            return weighted_tip(self.peer_opinion_dict, self.reputation_weight)
 
     @property
     def reputable_count(self):
         """How many peers have a PROVEN (positive) reputation — peers that have actually delivered
         valid PoW blocks. Gates deep auto-recovery rollbacks: a fresh sybil flood (no proven blocks)
         cannot reach the bar, so it cannot force a deep reorg."""
-        return sum(1 for s in self._reputation.values() if s > 0)
+        with self.peers_lock:
+            return sum(1 for s in self._reputation.values() if s > 0)

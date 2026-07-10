@@ -879,14 +879,26 @@ def _make_handler(node):
                 s = str(x)
                 head, sep, tail = s.rpartition(":")
                 return head if (sep and tail.isdigit() and head.count(":") == 0) else s  # strip IPv4 :port only
+            # Snapshot the live peer collections under the peers lock before iterating — a worker/consensus
+            # thread resizing them mid-comprehension would otherwise raise "changed size during iteration".
+            _lock = getattr(p, "peers_lock", None)
+            if _lock is not None:
+                with _lock:
+                    _pool_snap = list(getattr(p, "connection_pool", []) or [])
+                    _known_snap = list(getattr(p, "peer_dict", {}) or {})
+                    _ban_snap = list(getattr(p, "banlist", []) or [])
+            else:
+                _pool_snap = list(getattr(p, "connection_pool", []) or [])
+                _known_snap = list(getattr(p, "peer_dict", {}) or {})
+                _ban_snap = list(getattr(p, "banlist", []) or [])
             connected = {_host(c) for c in connected_raw}
-            connected |= {_host(c) for c in (getattr(p, "connection_pool", []) or [])}
+            connected |= {_host(c) for c in _pool_snap}
             # FULL peer set, not just live connections: the KNOWN set (peer_dict from peers.txt /
             # suggested_peers.txt — every node we've learned about / talked to) and the banlist, mirroring
             # rest_stats._peer_status / the geomap. Without this the list only showed the handful of live
             # connections while the map showed everyone; now both paint the whole network the node is aware of.
-            known = {_host(ip) for ip in (getattr(p, "peer_dict", {}) or {})}
-            banned = {_host(ip) for ip in (getattr(p, "banlist", []) or [])}
+            known = {_host(ip) for ip in _known_snap}
+            banned = {_host(ip) for ip in _ban_snap}
             tip = int(getattr(node, "hdd_block", 0) or 0)
             out = []
             counts = {"connected": 0, "known": 0, "banned": 0}

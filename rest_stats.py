@@ -574,16 +574,32 @@ def _peer_status(node):
     def host(x):
         return str(x).split(":")[0]
 
+    # Snapshot every live peer collection under the peers lock, then iterate the copies — a worker/
+    # consensus thread resizing any of these mid-iteration would otherwise raise "changed size during
+    # iteration" and 500 the stats/geo endpoint.
+    _lock = getattr(p, "peers_lock", None)
+    def _snap():
+        return (list(getattr(p, "peer_opinion_dict", {}) or {}),
+                list(getattr(p, "_connection_pool_set", set()) or set()),
+                list(getattr(p, "connection_pool", []) or []),
+                list(getattr(p, "banlist", []) or []),
+                list(getattr(p, "peer_dict", {}) or {}))
+    if _lock is not None:
+        with _lock:
+            _opinion, _pool_set, _pool, _ban, _known = _snap()
+    else:
+        _opinion, _pool_set, _pool, _ban, _known = _snap()
+
     connected, banned, known = set(), set(), set()
-    for ip in (getattr(p, "peer_opinion_dict", {}) or {}):
+    for ip in _opinion:
         connected.add(host(ip))
-    for c in (getattr(p, "_connection_pool_set", set()) or set()):
+    for c in _pool_set:
         connected.add(host(c))
-    for c in (getattr(p, "connection_pool", []) or []):
+    for c in _pool:
         connected.add(host(c))
-    for ip in (getattr(p, "banlist", []) or []):
+    for ip in _ban:
         banned.add(host(ip))
-    for ip in (getattr(p, "peer_dict", {}) or {}):
+    for ip in _known:
         known.add(host(ip))
     status = {}
     for ip in (known | connected | banned):

@@ -110,8 +110,16 @@ class ApiHandler(BlockApiMixin, AddressApiMixin, TxApiMixin):
         try:
             # peers.consensus is a block HEIGHT (int/None), not iterable — enumerate the actual
             # peer opinion map so the endpoint returns real peer addresses instead of always raising.
+            # Snapshot the opinion map under the peers lock before enumerating — a peer thread resizing
+            # it mid-iteration would otherwise raise "dictionary changed size during iteration".
+            _lock = getattr(peers, "peers_lock", None)
+            if _lock is not None:
+                with _lock:
+                    _opinion_ips = list(peers.peer_opinion_dict)
+            else:
+                _opinion_ips = list(peers.peer_opinion_dict)
             info = [{'id': idx, 'addr': ip, 'inbound': True}
-                    for idx, ip in enumerate(peers.peer_opinion_dict)]
+                    for idx, ip in enumerate(_opinion_ips)]
             # TODO: peers will keep track of extra info, like port, last time, block_height aso.
             # TODO: add outbound connection
             connections.send(socket_handler, info)
