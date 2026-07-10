@@ -1,76 +1,154 @@
-"""Peer-file disk I/O and inbound peer-list sync for the ``Peers`` manager (mixin)."""
+"""Peer-file disk I/O and inbound peer-list sync for the ``Peers`` manager (mixin).
+
+Connectivity probing here is CONCURRENT: both peers_test (persist path) and peersync (gossip
+path) fan the per-peer blocking connect() out across a bounded thread pool, then mutate the
+shared peer state ONCE from the calling thread. Previously each did serial 5s blocking probes
+inside the single ConnectionManager thread, so a batch of dead peers stalled the whole
+maintenance/dial loop for minutes (n x 5s). Now the wall-clock is ceil(n/PROBE_CONCURRENCY)x5s,
+and — because the shared dict is written once after the pool drains rather than per-iteration —
+there is no longer a torn-read window on peer_dict / the on-disk pairs during a probe batch.
+"""
 import json
 import os
 import shutil
+import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import socks
 
 import connections
 
+# Bounded fan-out for connectivity probes. Probes are pure I/O-wait (a 5s blocking connect, plus a
+# short getversion handshake in strict mode), so a wide pool is cheap; the cap keeps a huge gossiped
+# peerlist from spawning hundreds of short-lived sockets at once.
+PROBE_CONCURRENCY = 24
+PROBE_TIMEOUT = 5          # seconds; blocking connect() bound per peer (was inline 5)
+
 
 class PeersStorageMixin:
     __slots__ = ()
 
+    # --- crash-safe JSON write --------------------------------------------------------------------
+    def _atomic_write_json(self, path, obj):
+        """Durably replace ``path`` with ``obj`` as JSON: write a UNIQUE tmp in the same dir, flush +
+        fsync it, then os.replace (atomic on the same filesystem). A crash can now only leave the old
+        file or the fully-written new one — never the truncated/zero-length file a bare open('w') (or a
+        move without fsync) could leave, which peers_get would then fail to parse and silently drop to
+        {}. The tmp name is unique (mkstemp) so concurrent writers can't clobber each other's tmp."""
+        d = os.path.dirname(os.path.abspath(path)) or "."
+        fd, tmp = tempfile.mkstemp(prefix=os.path.basename(path) + ".", suffix=".tmp", dir=d)
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(obj, f)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, path)
+            try:                                   # best-effort: fsync the dir so the rename survives a crash
+                dfd = os.open(d, os.O_RDONLY)
+                try:
+                    os.fsync(dfd)
+                finally:
+                    os.close(dfd)
+            except OSError:
+                pass
+        finally:
+            if os.path.exists(tmp):
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
+
+    # --- single-peer connectivity probe (runs in a pool thread) -----------------------------------
+    def _probe_peer(self, ip, port, strict):
+        """Return True if ``ip:port`` is connectible (and, in strict mode, speaks a compatible protocol
+        version). Runs in a worker thread; opens/closes its OWN socket so it shares no mutable state —
+        the caller aggregates the boolean results. Never raises: an unreachable peer is just False."""
+        try:
+            s = socks.socksocket()
+            try:
+                s.settimeout(PROBE_TIMEOUT)
+                _tm = getattr(self.node, "tor_manager", None)   # doc/38: single proxy source; None on clearnet
+                _proxy = _tm.get_proxy() if _tm is not None else None
+                if _proxy:
+                    s.setproxy(socks.PROXY_TYPE_SOCKS5, _proxy[0], _proxy[1])
+                s.connect((ip, int(port)))
+                if strict:
+                    connections.send(s, "getversion")
+                    versiongot = connections.receive(s, timeout=1)
+                    if versiongot == "*":
+                        raise ValueError("peer busy")
+                    if versiongot not in self.config.version_allow:
+                        raise ValueError(f"incompatible protocol version {versiongot} "
+                                         f"not in {self.config.version_allow}")
+                    self.app_log.info(f"Inbound: Distant peer {ip}:{port} responding: {versiongot}")
+                return True
+            finally:
+                try:
+                    s.close()
+                except Exception:
+                    pass
+        except Exception as e:
+            self.app_log.info(f"Inbound: Distant peer {ip}:{port} not connectible ({e})")
+            return False
+
+    def _probe_many(self, candidates, strict):
+        """Probe an iterable of (ip, port) CONCURRENTLY; return the list of connectible (ip, port).
+        Honours IS_STOPPING (stops submitting / short-circuits pending results on shutdown)."""
+        candidates = list(candidates)
+        if not candidates:
+            return []
+        connectible = []
+        workers = min(PROBE_CONCURRENCY, len(candidates))
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="peerprobe") as pool:
+            futures = {}
+            for ip, port in candidates:
+                if self.node.IS_STOPPING:
+                    break
+                futures[pool.submit(self._probe_peer, ip, port, strict)] = (ip, port)
+            for fut in as_completed(futures):
+                if self.node.IS_STOPPING:
+                    break
+                ip, port = futures[fut]
+                try:
+                    if fut.result():
+                        connectible.append((ip, port))
+                except Exception:
+                    pass
+        return connectible
+
     def peers_test(self, file, peerdict: dict, strict=True):
-        """Validates then adds a peer to the peer list on disk"""
-        # Optimization: Early exit and batch processing
+        """Validate then persist (to ``file``) every peer in ``peerdict`` not already saved. Probes run
+        concurrently; the file is rewritten ONCE, atomically, only if at least one new peer validated."""
         self.peerlist_updated = False
         try:
-            with open(file, "r") as peer_file:
-                peers_pairs = json.load(peer_file)
+            try:
+                with open(file, "r") as peer_file:
+                    peers_pairs = json.load(peer_file)
+            except (json.JSONDecodeError, ValueError) as corrupt:
+                # A corrupt/truncated peerfile must NOT silently zero the node's known-peer set forever.
+                # Back it up (for diagnosis) and start from empty so the next successful probe re-persists
+                # a clean file — self-healing instead of the old "swallow and return {}" that left the bad
+                # file on disk until something happened to overwrite it.
+                self.app_log.warning(f"{file} is corrupt ({corrupt}); backing up to {file}.corrupt and rebuilding")
+                try:
+                    shutil.copy(file, f"{file}.corrupt")
+                except OSError:
+                    pass
+                peers_pairs = {}
 
-            # Optimization: Pre-filter peers to test
-            peers_to_test = [(ip, port) for ip, port in peerdict.items()
-                            if ip not in peers_pairs]
-
+            peers_to_test = [(ip, port) for ip, port in peerdict.items() if ip not in peers_pairs]
             if not peers_to_test:
-                self.app_log.warning(f"{file} peerlist update skipped, no new peers")
+                self.app_log.info(f"{file} peerlist update skipped, no new peers")
                 return
 
-            # Batch test peers
-            for ip, port in peers_to_test:
-                if self.node.IS_STOPPING:
-                    return
-
-                try:
-                    self.app_log.info(f"Testing connectivity to: {ip}:{port}")
-                    s = socks.socksocket()
-                    try:
-                        s.settimeout(5)
-                        _tm = getattr(self.node, "tor_manager", None)   # doc/38: single proxy source; None on clearnet
-                        _proxy = _tm.get_proxy() if _tm is not None else None
-                        if _proxy:
-                            s.setproxy(socks.PROXY_TYPE_SOCKS5, _proxy[0], _proxy[1])
-                        if strict:
-                            s.connect((ip, int(port)))
-                            connections.send(s, "getversion")
-                            versiongot = connections.receive(s, timeout=1)
-                            if versiongot == "*":
-                                raise ValueError("peer busy")
-                            if versiongot not in self.config.version_allow:
-                                raise ValueError(f"cannot save {ip}, incompatible protocol version {versiongot} "
-                                               f"not in {self.config.version_allow}")
-                            self.app_log.info(f"Inbound: Distant peer {ip}:{port} responding: {versiongot}")
-                        else:
-                            s.connect((ip, int(port)))
-                    finally:
-                        try:
-                            s.close()
-                        except:
-                            pass
-                    peers_pairs[ip] = port
-                    self.app_log.info(f"Inbound: Peer {ip}:{port} saved to peers")
-                    self.peerlist_updated = True
-
-                except Exception as e:
-                    self.app_log.info(f"Inbound: Distant peer not connectible ({e})")
+            for ip, port in self._probe_many(peers_to_test, strict):
+                peers_pairs[ip] = port
+                self.peerlist_updated = True
+                self.app_log.info(f"Inbound: Peer {ip}:{port} saved to peers")
 
             if self.peerlist_updated:
                 self.app_log.warning(f"{file} peerlist updated ({len(peers_pairs)}) total")
-                # Optimization: Use atomic write
-                with open(f"{file}.tmp", "w") as peer_file:
-                    json.dump(peers_pairs, peer_file)
-                shutil.move(f"{file}.tmp", file)
+                self._atomic_write_json(file, peers_pairs)
 
         except Exception as e:
             self.app_log.info(f"Error reading {file}: '{e}'")
@@ -82,9 +160,8 @@ class PeersStorageMixin:
             if not peer_file:
                 peer_file = self.peerfile
             if not os.path.exists(peer_file):
-                with open(peer_file, "w") as fp:
-                    self.app_log.warning("Peer file created")
-                    fp.write("{}")
+                self.app_log.warning("Peer file created")
+                self._atomic_write_json(peer_file, {})
             else:
                 with open(peer_file, "r") as fp:
                     peer_dict = json.load(fp)
@@ -123,41 +200,19 @@ class PeersStorageMixin:
 
         with self.peersync_lock:
             try:
-                total_added = 0
                 subdata = self.dict_validate(subdata)
                 data_dict = json.loads(subdata)
-
                 self.app_log.info(f"Received {len(data_dict)} peers.")
 
-                # Optimization: Batch process new peers
-                new_peers = {ip: port for ip, port in data_dict.items()
-                           if ip not in self.peer_dict}
-
-                for ip, port in new_peers.items():
-                    self.app_log.info(f"Outbound: {ip}:{port} is a new peer, saving if connectible")
-                    try:
-                        s_purge = socks.socksocket()
-                        try:
-                            s_purge.settimeout(5)
-                            _tm = getattr(self.node, "tor_manager", None)   # doc/38: single proxy source; None on clearnet
-                            _proxy = _tm.get_proxy() if _tm is not None else None
-                            if _proxy:
-                                s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, _proxy[0], _proxy[1])
-                            s_purge.connect((ip, int(port)))
-                        finally:
-                            # Probe socket must be closed even when connect() raises (the common
-                            # unreachable-peer case), or we leak a file descriptor every peersync.
-                            try:
-                                s_purge.close()
-                            except Exception:
-                                pass
-
-                        if ip not in self.peer_dict:
-                            total_added += 1
-                            self.peer_dict[ip] = port
-                            self.app_log.info(f"Inbound: Peer {ip}:{port} saved to local peers")
-                    except:
-                        self.app_log.info("Not connectible")
+                # Only probe peers we don't already know. Probe CONCURRENTLY, then add the connectible
+                # ones to peer_dict in one shot from this thread (single writer -> no torn state).
+                new_peers = [(ip, port) for ip, port in data_dict.items() if ip not in self.peer_dict]
+                total_added = 0
+                for ip, port in self._probe_many(new_peers, strict=False):
+                    if ip not in self.peer_dict:
+                        self.peer_dict[ip] = port
+                        total_added += 1
+                        self.app_log.info(f"Inbound: Peer {ip}:{port} saved to local peers")
             except Exception as e:
                 self.app_log.warning(f"peersync failed: {type(e).__name__}: {e}")
                 raise
