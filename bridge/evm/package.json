@@ -8,8 +8,8 @@
     "build": "hardhat compile"
   },
   "dependencies": {
-    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-    "hardhat": "^2.28.6"
+    "@nomicfoundation/hardhat-toolbox": "^7.0.0",
+    "hardhat": "^3.11.1"
   },
   "overrides": {
     "ws": "^8.21.0",
