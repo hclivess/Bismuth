@@ -230,7 +230,14 @@ class BlockStore:
         peers and derive a DIFFERENT base_fee -> a chain split. The consensus caller fails closed on the gap
         rather than computing a divergent fee. When False (diagnostics/RPC) the old skip behaviour stands."""
         weights = []
-        lo = max(1, int(tip_height) - int(window) + 1)
+        # Floor the window at block 2, NEVER block 1. Genesis is written when the ledger is CREATED, not
+        # through digest, so it is the one height this forward-built store can never contain — and under
+        # ``strict`` a window reaching it would raise and halt the node, so a chain whose fork activates
+        # within ``window`` blocks of genesis could never produce its first post-fork block (regnet forks
+        # at 10 with WINDOW 20). The floor is pure height arithmetic — identical on every node, no
+        # dependence on local store state — so the consensus fee stays byte-identical network-wide. On any
+        # chain more than ``window`` blocks past genesis (i.e. mainnet) the floor never binds.
+        lo = max(2, int(tip_height) - int(window) + 1)
         unit = max(1, int(w_unit))
         with self.store.txn() as txn:
             for h in range(lo, int(tip_height) + 1):

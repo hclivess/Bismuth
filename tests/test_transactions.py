@@ -2,9 +2,20 @@
 # Transaction behavior on regnet. The regnet node + client come from conftest.py fixtures.
 # Run with: python3 -m pytest -v
 
+import json
+import os
+import urllib.request
 from time import sleep
 
 EXTERNAL = "8342c1610de5d7aa026ca7ae6d21bd99b1b3a4654701751891f08742"
+
+# The node's REST port (conftest starts it on 3031 unless the harness re-ports it).
+REST_PORT = int(os.environ.get("BISMUTH_REST_API_PORT", "3031"))
+
+
+def _rest(path):
+    with urllib.request.urlopen("http://127.0.0.1:%d/api/%s" % (REST_PORT, path), timeout=8) as r:
+        return json.load(r)
 
 
 def test_amount_and_recipient(client):
@@ -47,18 +58,26 @@ def test_fee(client):
     sleep(0.5)
     tx = client.latest_transactions(num=1)
     # post-fork the base fee is demand-responsive (fee_dynamics) — read it rather than assume the constant
-    with urllib.request.urlopen("http://127.0.0.1:3031/api/fee", timeout=8) as r:
-        base = float(json.load(r)["base_fee"])
+    base = float(_rest("fee")["base_fee"])
     assert abs(float(tx[0]["fee"]) - (base + 1e-5 * len(data))) < 1e-9
 
 
-def test_operation_length_truncated_to_30(client):
+def test_operation_length_capped_per_era(client):
+    """PRE-fork `operation` is truncated to 30 chars; POST-fork it is free-form and uncapped (hf2,
+    doc/41 — see the `_post_fork` gate in digest_tx.py / digest.py). Assert the rule for the era the
+    chain is actually in, so this stays honest on both sides of the fork."""
     client.mine(1)
-    client.send(client.address, 0.0, operation="1" * 31)  # over the 30-char limit
+    op = "1" * 31                                        # one over the legacy 30-char limit
+    client.send(client.address, 0.0, operation=op)
     client.mine(1)
     sleep(0.5)
     tx = client.latest_transactions(num=1)
-    assert len(tx[0]["operation"]) <= 30
+    fh = _rest("fork").get("fork_height")
+    post_fork = fh is not None and client.block_height() >= int(fh)
+    if post_fork:
+        assert tx[0]["operation"] == op, "post-fork operation must be stored uncapped"
+    else:
+        assert len(tx[0]["operation"]) <= 30
 
 
 def test_sender_and_recipient_balances(client):

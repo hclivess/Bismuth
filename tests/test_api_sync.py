@@ -7,11 +7,14 @@ caller can safely try it and fall back to socket sync.
 
 Run with: python3 -m pytest tests/test_api_sync.py -v
 """
+import os
 from time import sleep
 
 import api_sync
 
-HOST, PORT, DEAD_PORT = "127.0.0.1", 3031, 3939
+# conftest starts the node's REST on 3031 unless the harness re-ports it.
+HOST, DEAD_PORT = "127.0.0.1", 3939
+PORT = int(os.environ.get("BISMUTH_REST_API_PORT", "3031"))
 
 
 def test_sync_segment_returns_digester_ready_blocks(client):

@@ -60,13 +60,18 @@ def test_recent_block_weights_from_block_store():
     import block_store
     bs = block_store.BlockStore(os.path.join(tempfile.mkdtemp(), "bstest"))
     try:
-        bs.put_block(1, "h1", [_row(""), _row(""), _row("")])       # 3 tiny -> 3 + 0//1000   = 3
-        bs.put_block(2, "h2", [_row("x" * 4000), _row("")])         # 2 txs  -> 2 + 4000//1000 = 6
-        bs.put_block(3, "h3", [_row("y" * 100000)])                 # 1 RingCT-> 1 + 100000//1000 = 101
-        weights = bs.recent_block_weights(3, window=20, w_unit=fd.W_UNIT)
+        # NB heights start at 2: block 1 (genesis) is created at ledger init and never enters the store,
+        # so the window floors at 2 (block_store.recent_block_weights) and a height-1 entry is never read.
+        bs.put_block(2, "h2", [_row(""), _row(""), _row("")])       # 3 tiny -> 3 + 0//1000   = 3
+        bs.put_block(3, "h3", [_row("x" * 4000), _row("")])         # 2 txs  -> 2 + 4000//1000 = 6
+        bs.put_block(4, "h4", [_row("y" * 100000)])                 # 1 big  -> 1 + 100000//1000 = 101
+        weights = bs.recent_block_weights(4, window=20, w_unit=fd.W_UNIT)
         assert weights == [3, 6, 101], weights
         # window caps the lookback; a tip cut drops the rolled-off block (store is rolled back with chain)
-        assert bs.recent_block_weights(2, window=20, w_unit=fd.W_UNIT) == [3, 6]
+        assert bs.recent_block_weights(3, window=20, w_unit=fd.W_UNIT) == [3, 6]
+        # genesis is never part of the window, even when the lookback would reach it
+        bs.put_block(1, "h1", [_row("")])
+        assert bs.recent_block_weights(4, window=20, w_unit=fd.W_UNIT) == [3, 6, 101]
         assert fd.base_fee(BASE, weights) > BASE                    # avg(3,6,101)=36.7 > TARGET_WEIGHT 30
     finally:
         bs.close()
