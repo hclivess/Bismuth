@@ -18,13 +18,6 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 if os.path.dirname(__file__) not in sys.path:
     sys.path.insert(0, os.path.dirname(__file__))
-# Hand-authored RISC-V demo contracts (contracts/) are imported by name (e.g. `import
-# prediction_market`) by the VM demo tests to BUILD their bytecode. They are pure tooling that emits
-# RV32I via asmtools/bismuth_riscv; the node never imports them (it only executes the bytecode).
-_CONTRACTS = os.path.join(ROOT, "contracts")
-if _CONTRACTS not in sys.path:
-    sys.path.insert(0, _CONTRACTS)
-
 REGNET_PARAM = "regnet2"
 PORT = 3030
 

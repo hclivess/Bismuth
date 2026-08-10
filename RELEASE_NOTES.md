@@ -30,8 +30,6 @@ Continuation of the modernization, same rule (consensus only changes at a signal
   swap is a one-arg change), validated across a 3-node cluster. (doc/26, 36)
 - **Difficulty-divergence detector + guarded self-heal** ✅ — recurrence-prevention for the difficulty
   corruption class, with a permanent restart-loop guard. (doc/35)
-- **Decentralized dApp suite** 🕒 — on-chain-refereed multiplayer poker (mental-poker deal, tournaments,
-  spectator betting), AMM/router/DEX, all on the gated RISC-V VM. (doc/24, 28, 32–34)
 
 ---
 
@@ -75,15 +73,6 @@ Continuation of the modernization, same rule (consensus only changes at a signal
   across the boundary → lost-sidecar self-healing), and fork-height detection now runs BEFORE each
   block is judged, so a lost sidecar can never wedge a node on era-mismatched PoW.
 
-## Smart contracts (decentralized apps) 🕒
-
-- **A single RISC-V (RV32I) execution engine** (`bismuth_riscv` + `vm_engine` + `vm_state`): deploy/call
-  contracts, LMDB-backed code+storage+balances.
-- **Real value custody** — contracts hold and move actual BIS (deposit/withdraw via a custody sink),
-  rollback-deterministic by re-execution.
-- **Enforced state root** — the VM state root is committed in the coinbase and consensus-checked (mandatory
-  post-fork). Includes a complete HTLC example. All POST-FORK + flag-gated.
-
 ## Cryptography — a signature menu ✅ (consensus acceptance 🕒)
 
 - The pluggable `polysign` layer gains a **post-quantum family**: **ML-DSA-44 / 65 / 87** (FIPS 204 /
@@ -107,13 +96,13 @@ Continuation of the modernization, same rule (consensus only changes at a signal
 - **Storage (shadow/validated):** LMDB content-addressed block store, O(1) balance index, integer
   atomic-unit amounts, reward sidechain — each proven lossless / replay-byte-identical.
 - **Edges (live):** parallel compressed **REST API**, the **block explorer** (blocks / tx / address /
-  tokens / nodes / supply / contracts), Bitcoin-JSON-RPC and Ethereum/ERC compatibility shims (opt-in),
+  tokens / nodes / supply), Bitcoin-JSON-RPC and Ethereum/ERC compatibility shims (opt-in),
   and a zero-downtime **bootstrap snapshot**.
 
 ## Documentation ✅
 
 - A complete `doc/` suite (`00`–`21` + README), **audited against the code** this cycle — including new
-  deep-dives on the hard fork (`18`), the VM (`19`), post-quantum (`20`), and mining (`21`).
+  deep-dives on the hard fork (`18`), post-quantum (`20`), and mining (`21`).
 
 ---
 

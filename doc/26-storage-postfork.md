@@ -103,7 +103,7 @@ path: introduce the seam, move reads, move writes, then delete the SQLite trio. 
 
 ## 4. Migration stages (each shippable, gated, test-green)
 
-1. **Derived indexes → LMDB.** Move each rebuildable projection off SQLite, mirroring `vm_state`. **Shielded
+1. **Derived indexes → LMDB.** Move each rebuildable projection off SQLite. **Shielded
    notes/keyimages/flows is stage 1 (this change)** — it is post-fork-only, self-contained, and the active
    "no SQLite post-fork" offender; it becomes the reference pattern for balances + tokens.
 2. **Reads via the seam.** Route block/tx/balance reads through the interface; post-fork → LMDB.
@@ -116,7 +116,6 @@ path: introduce the seam, move reads, move writes, then delete the SQLite trio. 
 
 ## 5. Done / in progress
 - ✅ Block store (LMDB), pubkey-deduped, reorg-safe, verified against SQLite (`block_store.py`).
-- ✅ VM contract state on LMDB (`vm_state.py`), rebuildable, reorg-safe.
 - ✅ Dynamic-fee congestion signal reads the **block store**, not SQLite (`block_store.recent_block_weights`).
 - ✅ **Stage 1: shielded notes/keyimages/flows store on LMDB** (`shieldedv1.ShieldedState`) — replaced the
   SQLite sidecar with an LMDB env (sub-DBs `notes`/`notes_h`/`kimg`/`kimg_h`/`flows`/`meta`), SAME API so

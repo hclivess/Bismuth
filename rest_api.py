@@ -355,12 +355,6 @@ def _make_handler(node):
                     return self._write(200, self._peers())
                 if route == ["nodes"]:
                     return self._write(200, self._nodes())
-                if route == ["vm", "contracts"]:
-                    return self._write(200, self._vm_contracts())
-                if route[:2] == ["vm", "contract"] and len(route) == 3:
-                    return self._write(200, self._vm_contract(route[2]))
-                if route[:2] == ["vm", "market"] and len(route) == 3:
-                    return self._write(200, self._vm_market(route[2]))
                 if route == ["fee"]:
                     return self._write(200, self._fee())
                 if route == ["capabilities"]:
@@ -399,19 +393,6 @@ def _make_handler(node):
                     return self._write(200, self._supply(db))
                 if route[:1] == ["stats"] and len(route) == 2:
                     return self._write(200, self._stats(db, route[1], query))
-                # Poker accounts + leaderboard (doc/28 §7, Stage 4). READ-ONLY, consensus-neutral: a pure fold
-                # over the poker tables' append-only TAG_RESULT log read from CONTRACT STATE (never the
-                # ledger). /api/poker/leaderboard, /api/poker/account/<addr>, /api/poker/table/<addr>/results.
-                if route[:1] == ["poker"] and len(route) >= 2:
-                    return self._write(200, self._poker(route[1:], query))
-                # Modern plugins (doc/27) may own a route — the tokens_aliases plugin serves /api/tokens and
-                # /api/token/<name> from its own LMDB store, so post-fork no token/alias code is left in this
-                # router. When no plugin claims the route, fall through to the core (legacy index.db) handlers.
-                handled, result = node.plugin_manager.rest_handle("GET", route, query)
-                if handled:
-                    if result is None:
-                        raise _NotFound("unknown token")
-                    return self._write(200, result)
                 if route == ["tokens"]:
                     return self._write(200, self._tokens(db))
                 if route[:2] == ["token", "tx"] and len(route) == 3:
@@ -607,9 +588,6 @@ def _make_handler(node):
                         "/api/stats/market": "price / market cap / 24h volume (coingecko, TTL-cached; rest_api_market to disable)",
                         "/api/stats/difficulty": "difficulty time-series sampled from the misc table",
                         "/api/stats/geo": "geolocated peers for the explorer node map (cached; rest_api_geo to disable)",
-                        "/api/poker/leaderboard": "poker accounts ranked by ?metric=net|won|hands_won|hands_played|biggest_pot&top=N (off-chain fold over contract state; background-cached, incremental)",
-                        "/api/poker/account/{address}": "one player's poker stats keyed by full 28-byte address: hands played/won, net chips, biggest pot, tables seen",
-                        "/api/poker/table/{address}/results": "a poker table's append-only result log (?since=&limit=); read from contract state, never the ledger",
                         "/api/tokens": "all tokens on chain, ranked by transfer volume",
                         "/api/token/{name}": "a token's supply, holder count, and per-address balances",
                         "/api/token/tx/{address}": "token transfers (sent or received) for an address, newest "
@@ -934,73 +912,17 @@ def _make_handler(node):
         def _fee(self):
             """Current fee parameters. Post-fork the base fee is CONGESTION-responsive (fee_dynamics):
             it scales with recent block WEIGHT (tx count + openfield bytes // w_unit) over a window,
-            clamped — wallets should read `base_fee` here for the live minimum. vm: txs additionally pay
-            vm_surcharge; +len(openfield)/100000 per tx."""
+            clamped — wallets should read `base_fee` here for the live minimum. Plus
+            +len(openfield)/100000 per tx."""
             import fee_dynamics
             bf = getattr(node, "base_fee", None)
             return {"base_fee": str(bf) if bf is not None else str(essentials.BASE_FEE),
                     "static_base_fee": str(essentials.BASE_FEE),
                     "post_fork": bool(getattr(node, "fee_post_fork", False)),
-                    "vm_surcharge": str(fee_dynamics.VM_SURCHARGE),
                     "congestion": "weight", "target_weight": fee_dynamics.TARGET_WEIGHT,
                     "weight_unit_bytes": fee_dynamics.W_UNIT, "window": fee_dynamics.WINDOW,
                     "min_mult": str(fee_dynamics.MIN_MULT), "max_mult": str(fee_dynamics.MAX_MULT),
                     "target_txs": fee_dynamics.TARGET_TXS}
-
-        def _vm_contracts(self):
-            """Deployed decentralized-apps VM contracts. Empty unless vm=True and the fork has activated."""
-            vms = getattr(node, "vm_state", None)
-            if vms is None:
-                return {"enabled": False, "fork_height": getattr(node, "fork_height", None), "contracts": []}
-            addrs = vms.list_contracts()
-            return {"enabled": True, "fork_height": getattr(node, "fork_height", None),
-                    "state_root": getattr(node, "vm_state_root", None),
-                    "count": len(addrs), "contracts": addrs}
-
-        def _vm_contract(self, addr):
-            """A contract's bytecode + storage (decentralized-apps v2)."""
-            vms = getattr(node, "vm_state", None)
-            if vms is None:
-                raise _NotFound("vm not enabled")
-            code = vms.get_code(addr)
-            if code is None:
-                raise _NotFound("unknown contract")
-            import vm_engine
-            body = code or b""                  # raw RV32I code (the single engine; no tag)
-            storage = [{"key": str(k), "value": str(v)} for k, v in vms.storage_items(addr)]
-            return {"address": addr, "engine": vm_engine.ENGINE_NAME, "code": body.hex(), "code_size": len(body),
-                    "balance": str(vms.get_balance(addr)),   # BIS custody held by the contract (units)
-                    "slots": len(storage), "storage": storage}
-
-        def _vm_market(self, addr):
-            """Read-only DECODER for the binary prediction-market contract (contracts/prediction_market.py)
-            so a UI doesn't need to know the slot layout. Consensus-neutral: it only re-reads the same
-            committed VM state /api/vm/contract exposes, mapping the fixed slots to named fields:
-              slot 1 = resolved (0/1), 2 = outcome (1=YES,2=NO), 3 = yes_pot units, 4 = no_pot units.
-            'pot' is the contract's live custody balance. Implied odds are pool-share percentages. Returns
-            404 only if the VM is off or the contract is unknown; any contract is decodable (the caller is
-            responsible for pointing at an actual market — fields are simply 0 for a non-market contract)."""
-            vms = getattr(node, "vm_state", None)
-            if vms is None:
-                raise _NotFound("vm not enabled")
-            if vms.get_code(addr) is None:
-                raise _NotFound("unknown contract")
-            slots = dict(vms.load_storage(addr))          # {int_key: int_val}
-            S_RESOLVED, S_OUTCOME, S_YESPOT, S_NOPOT = 1, 2, 3, 4
-            yes_pot = int(slots.get(S_YESPOT, 0))
-            no_pot = int(slots.get(S_NOPOT, 0))
-            resolved = int(slots.get(S_RESOLVED, 0))
-            outcome = int(slots.get(S_OUTCOME, 0))
-            total = yes_pot + no_pot
-            yes_odds = round(100.0 * yes_pot / total, 2) if total else 0.0
-            no_odds = round(100.0 * no_pot / total, 2) if total else 0.0
-            return {"address": addr,
-                    "yes_pot": str(yes_pot), "no_pot": str(no_pot),
-                    "pot": str(vms.get_balance(addr)),         # live custody (units) = claimable pool
-                    "resolved": bool(resolved),
-                    "outcome": outcome,                        # 0 unresolved, 1 YES, 2 NO
-                    "outcome_label": {1: "YES", 2: "NO"}.get(outcome, ""),
-                    "yes_odds": yes_odds, "no_odds": no_odds}  # implied probability, % of the pool
 
         def _stats(self, db, which, query=None):
             """Explorer statistics (doc/15). Heavy aggregates (tx-per-month, new-addresses, rich-list) are
@@ -1036,43 +958,6 @@ def _make_handler(node):
                 return rest_stats.geo_nodes(node)
             raise _NotFound("unknown stats endpoint (summary|monthly|tx_per_month|new_addresses|"
                             "rich_list|top_miners|largest_txs|market|difficulty|geo)")
-
-        def _poker(self, route, query=None):
-            """Poker accounts + leaderboard (doc/28 §7, Stage 4). READ-ONLY + consensus-neutral. poker_stats.py
-            folds the poker tables' append-only TAG_RESULT log read from CONTRACT STATE (node.vm_state, NOT
-            the ledger) into a per-account view; a per-ledger JSON cache (namespaced by ledger filename) is
-            advanced incrementally by a single guarded background daemon — the request path never scans.
-              GET /api/poker/leaderboard?metric=net|won|hands_won|hands_played|biggest_pot&top=N
-              GET /api/poker/account/<address>            (full 28-byte hex [SEC-C1])
-              GET /api/poker/table/<addr>/results?since=&limit=
-            """
-            import poker_stats
-            q = query or {}
-
-            def _q(name, default=None):
-                v = q.get(name)
-                if isinstance(v, list):
-                    v = v[0] if v else None
-                return v if v is not None else default
-
-            def _int(name, default, hi=None):
-                try:
-                    n = int(_q(name, default))
-                except (TypeError, ValueError):
-                    n = int(default)
-                if hi is not None:
-                    n = min(n, hi)
-                return max(0, n)
-
-            if route == ["leaderboard"]:
-                metric = _q("metric", "net")
-                return poker_stats.request_leaderboard(node, metric=metric, top=_int("top", 50, 500))
-            if route[:1] == ["account"] and len(route) == 2:
-                return poker_stats.request_account(node, route[1])
-            if len(route) == 3 and route[0] == "table" and route[2] == "results":
-                return poker_stats.request_table_results(node, route[1],
-                                                         since=_int("since", 0), limit=_int("limit", 200, 1000))
-            raise _NotFound("unknown poker endpoint (leaderboard|account/<addr>|table/<addr>/results)")
 
         def _supply(self, db):
             """Circulating supply = mining emission (sum(reward)-sum(fee) over positive heights) + the

@@ -31,16 +31,12 @@ MAX_TX_PER_BLOCK = 1000  # cap on mempool txs embedded in one block
 
 
 def _coinbase_prefix(node):
-    """The FIXED part of the coinbase openfield: the readiness signal + (post-fork) the VM state root.
-    The mined nonce is appended to it. The node's detections SEARCH for their markers (hf2/vmsr), so
-    the concatenation order is not fragile."""
+    """The FIXED part of the coinbase openfield: the fork-readiness signal.
+    The mined nonce is appended to it. The node's detection SEARCHES for its marker (hf2), so the
+    concatenation order is not fragile."""
     sig = ""
     if getattr(node, "fork_signal", False):
         sig += fork.FORK2_SIGNAL                      # "hf2": whole-bundle readiness (incl. blake2b PoW)
-    sr = getattr(node, "vm_state_root", None)
-    if fork.vm_active(node, node.last_block + 1) and sr:
-        import vm_engine
-        sig += vm_engine.embed_state_root(sr, "")     # "vmsr"+root: enforced once the VM activates (doc/19)
     return sig
 
 

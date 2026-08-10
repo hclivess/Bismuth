@@ -319,8 +319,7 @@ class BlockProcessor:
                 # Regular transaction
                 reward = 0
                 fee = essentials.fee_calculate(db_openfield, db_operation, self.node.last_block,
-                                               base_fee=getattr(self.node, "base_fee", None),
-                                               vm_surcharge=getattr(self.node, "fee_post_fork", False))
+                                               base_fee=getattr(self.node, "base_fee", None))
                 fees_block.append(quantize_eight(fee))
 
                 # Validate balance
@@ -360,8 +359,7 @@ class BlockProcessor:
                 # Exclude mining tx from fees
                 if x != block[-1]:
                     fee = essentials.fee_calculate(x[7], x[6], self.node.last_block,
-                                                   base_fee=getattr(self.node, "base_fee", None),
-                                                   vm_surcharge=getattr(self.node, "fee_post_fork", False))
+                                                   base_fee=getattr(self.node, "base_fee", None))
                     block_fees_address = quantize_eight(block_fees_address + Decimal(fee))
 
         return block_debit_address, block_fees_address
@@ -752,45 +750,6 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         # Execute plugin hooks
         execute_block_hooks(node, block_instance, miner_tx, diff_save, peer_ip, processor.block_transactions)
 
-        # state-root ENFORCEMENT (doc/19): post-fork the coinbase COMMITS the pre-state VM root; if it
-        # disagrees with ours, a VM has diverged -> REJECT the block BEFORE committing it (caught, not
-        # silent). node.vm_state_root is still the pre-state here (this block's vm: txs run after to_db).
-        _ev = getattr(node, "vm_state", None)
-        import fork as _fork
-        if _fork.vm_active(node, block_instance.block_height_new):
-            # The VM is mandatory consensus once ACTIVATED (fork.vm_active, gated on VM_ACTIVATION_HEIGHT —
-            # DECOUPLED from hf2; disabled while VM_ACTIVATION_HEIGHT is None). If the store failed to open at
-            # startup, FAIL CLOSED: halt here rather than skip the check and silently fork onto lenient rules
-            # (the split this raise prevents was the whole reason vm_state is opened unconditionally in
-            # node.py). digest_block catches this, rolls back, and the block is not committed.
-            if _ev is None:
-                raise ValueError(
-                    f"block at {block_instance.block_height_new} requires the VM state store, but it is not "
-                    f"open — the VM is mandatory consensus since its activation at {_fork.VM_ACTIVATION_HEIGHT}. "
-                    f"Fix the VM store (see 'VM state store could not open' at startup) and restart.")
-            import vm_engine
-            _claimed = None
-            for _t in processor.block_transactions:
-                try:
-                    if _t[9] and float(_t[9]) != 0:                  # coinbase = the reward tx
-                        # doc/41: post-fork the state-root commitment rides in the public_key slot (_t[6]),
-                        # not the openfield (this whole branch is already gated to post-fork heights).
-                        _claimed = vm_engine.extract_state_root(_t[6])
-                        break
-                except (ValueError, TypeError):
-                    continue
-            _local = getattr(node, "vm_state_root", None)
-            if _claimed is None:
-                # MANDATORY once VM-active: a coinbase with no committed root would otherwise bypass the
-                # check, letting a miner hide a divergent VM. Reject it (upgraded miners always embed the root).
-                raise ValueError(
-                    f"coinbase at {block_instance.block_height_new} commits no VM state root "
-                    f"(required since VM activation at {_fork.VM_ACTIVATION_HEIGHT})")
-            if _claimed != _local:
-                raise ValueError(
-                    f"VM state-root mismatch at {block_instance.block_height_new}: coinbase "
-                    f"{_claimed[:16]} != local {str(_local)[:16]}")
-
         # post-fork-only SENDER types (native multisig doc/23 §2; ML-DSA / secp256r1 doc/20): base-layer
         # address types a pre-fork node does not understand. The per-tx signature itself is verified in
         # Transaction.validate (SignerFactory route); here we add the hf2 TIMING gate — before activation an
@@ -853,48 +812,6 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
 
         # (hf2 fork-height detection runs at the TOP of this loop, BEFORE the block is validated —
         # the rules a block is judged under must derive from the chain below it.)
-
-        # Decentralized-apps VM (doc/17): execute this block's vm: transactions, ONLY once the VM is ACTIVATED
-        # (fork.vm_active — gated on VM_ACTIVATION_HEIGHT, DECOUPLED from hf2; disabled while it is None). Inert
-        # until activation — it adds NO behaviour to the chain, `vm:` txs are stored as inert data. Failures are
-        # isolated (a bad contract is a no-op), never breaking block digestion.
-        _vms = getattr(node, "vm_state", None)
-        if _vms is not None and _fork.vm_active(node, block_instance.block_height_new):
-            try:
-                import vm_engine
-                # value custody (doc/19): execute the block's vm: txs; each TRANSFER queues a payout that
-                # we settle as a consensus-generated ledger row FROM the vm_custody sink to the recipient
-                # (the sink's balance mirrors the contracts' custody, kept in vm_state -> rolls back + is
-                # rebuilt deterministically).
-                payouts = vm_engine.apply_block_rows(_vms, processor.block_transactions)
-                for _to, _amt in payouts:
-                    db_handler.vm_payout(block_instance.block_height_new, miner_tx.q_block_timestamp,
-                                         block_instance.mirror_hash, _to, _amt)
-                # consensus-committable STATE ROOT (covers code + storage + custody). doc/45 Stage 2b: the
-                # committed root is the MERKLE root (vm_merkle), over the SAME entries as the flat root, so a
-                # light-client / zk verifier can prove a single locked entry against exactly what consensus
-                # commits. Post-fork only (this branch is already hf2-gated) — rides the one fork, no new signal.
-                node.vm_state_root = _vms.merkle_root()
-            except Exception as e:
-                # A VM apply failure post-fork is NOT safe to swallow: block N is already committed (to_db +
-                # apply_rewards above) but node.vm_state_root would be left at the pre-state, so block N+1's
-                # mandatory coinbase state-root check would mismatch and wedge the node forever
-                # (handle_processing_error's ledger>working heal does not fire here — the working store is
-                # legitimately ahead mid-batch). Individual contract faults are already isolated inside
-                # apply_block_rows (a bad contract is a no-op); reaching here is an infrastructure failure. Roll
-                # block N back so the ledger and vm_state unwind in lockstep (chain_ops.rollback rebuilds
-                # vm_state from the ledger at N-1), then re-raise so digestion aborts and the block is
-                # re-fetched. Fail-closed: a persistent failure keeps rejecting rather than silently diverging.
-                node.logger.app_log.error(
-                    f"vm execution failed at {block_instance.block_height_new}: {e} — rolling the block back")
-                try:
-                    import chain_ops
-                    chain_ops.rollback(node, db_handler, block_instance.block_height_new)
-                except Exception as _rb:
-                    node.logger.app_log.error(
-                        f"post-vm-failure rollback also failed at {block_instance.block_height_new}: {_rb} "
-                        f"— startup reconcile will heal on restart")
-                raise
 
         # Optional maintained balance index (doc/17): apply this block's net effect — the positive txs plus
         # any negative-height "mirror" rows (concluded dev/HN rewards AND VM custody payouts, both written
@@ -1052,7 +969,7 @@ def handle_processing_error(node, db_handler, sdef, peer_ip, error):
     #     flushes at batch end), so trimming there would discard just-validated blocks.
     #   * read FRESH tips (clear_caches) so the 1-second read cache can't trim canonical blocks.
     #   * route through chain_ops.rollback, NOT bare rollback_under, so the DERIVED consensus stores
-    #     (vm_state + state root, token/alias index, balance_index) roll back in
+    #     (token/alias index, balance_index) roll back in
     #     lockstep — a bare ledger delete would strand them above the tip (post-fork inflation / wedge).
     # All best-effort: a failure here must never mask the original rejection; the startup reconcile is the
     # backstop. The bounded replay guard (check_duplicate_signatures) is the complementary defense layer.

@@ -14,11 +14,19 @@ from time import sleep
 
 import bismuth_serialize
 import rest_client
-import vm_engine
 from polysign.signerfactory import SignerFactory
 from quantizer import quantize_two, quantize_eight
 
 HOST, PORT = "127.0.0.1", 3031
+
+
+def _is_real_pubkey(field):
+    """True if the public_key slot holds a real key (base64 PEM), not a post-fork mining header."""
+    from base64 import b64decode
+    try:
+        return b64decode(str(field)).decode("utf-8").lstrip().startswith("-----BEGIN")
+    except Exception:
+        return False
 
 
 def _verify_faithful_tx(tx):
@@ -59,9 +67,11 @@ def test_faithful_sync_bodies_match_headers_and_verify(client):
         # consensus-faithful: every real signed tx verifies (pubkey preserved + amount reconstructed)
         if b["block_height"] >= 2:
             for tx in b["transactions"]:
-                # skip the post-fork coinbase: its signature/public_key slots carry the mining header
-                # (nonce + "vmsr"<state root>, doc/41), not a real signature/key — it is PoW-authorized.
-                if tx[4] and tx[5] and vm_engine.extract_state_root(tx[5]) is None:
+                # skip the POST-FORK coinbase: its signature/public_key slots carry the mining header
+                # (nonce + fork signal, doc/41), not a real signature/key — it is PoW-authorized. A
+                # pre-fork coinbase is an ordinary signed tx and IS verified. Detect by the pubkey slot:
+                # a real one is base64 of a PEM public key.
+                if tx[4] and tx[5] and _is_real_pubkey(tx[5]):
                     _verify_faithful_tx(tx)
                     verified += 1
     assert verified > 0, "expected at least one signed tx to verify against the faithful serialization"

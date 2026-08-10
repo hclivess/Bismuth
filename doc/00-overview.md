@@ -3,7 +3,7 @@
 The single map of the Bismuth node modernization: what exists, what's active, what's deliberately
 inert, and what's planned. Detailed companions: file index [`13`](13-file-reference.md), DB deep-dive
 [`16`](16-database-rework-plan.md), roadmap [`17`](17-roadmap.md), the hard fork [`18`](18-hardfork-hf2.md),
-the VM [`19`](19-vm.md), post-quantum signatures [`20`](20-post-quantum.md), the solo miner / PoW
+post-quantum signatures [`20`](20-post-quantum.md), the solo miner / PoW
 [`21`](21-mining.md), the hf2 binary/integer serialization spec [`29`](29-hf2-serialization-v2.md).
 
 ## Principles (non-negotiable)
@@ -34,14 +34,12 @@ the VM [`19`](19-vm.md), post-quantum signatures [`20`](20-post-quantum.md), the
 | Bitcoin JSON-RPC | `rpc_bitcoin.py` — ~32 bitcoind methods (chain/mempool/mining/network reads + gated sendrawtransaction/submitblock); post-hf2 content-txids, block_store-backed; honest -32601 for UTXO/Script/PSBT/wallet | **implemented**, flag `rpc_bitcoin` (off); regnet-tested |
 | Ethereum/ERC adapter | `rpc_ethereum.py` — 42 `eth_*` methods incl. `eth_call`/`getCode`/`getStorageAt` over the RISC-V `vm_state`; bounded by *literal* EVM compat (not a MetaMask drop-in), ROADMAP/DIVERGENCE -32601 for the rest | **implemented**, flag `rpc_ethereum` (off); regnet-tested |
 | Block explorer | `explorer.bismuth.cz` (SPA over the REST API) | **live** — blocks/tx/address + **Tokens / Nodes / Supply / Contracts** views, SVG favicon, node-switcher |
-| Explorer/RPC endpoints | `/api/supply`, `/api/tokens`, `/api/token/{n}`, `/api/token/tx/{address}`, `/api/alias/{name}`, `/api/aliases/{address}`, `/api/nodes`, `/api/vm/*`, `/api/proxy?target=` + token-index | **live/done** (supply background-computed; token-first indexes) |
+| Explorer/RPC endpoints | `/api/supply`, `/api/tokens`, `/api/token/{n}`, `/api/token/tx/{address}`, `/api/alias/{name}`, `/api/aliases/{address}`, `/api/nodes`, `/api/proxy?target=` + token-index | **live/done** (supply background-computed; token-first indexes) |
 | Bootstrap hosting + snapshot | `https://bismuth.cz/ledger.tar.gz` + `scripts/snapshot.py` | **live** — live-safe (SQLite online-backup + LMDB `env.copy`), integrity-checked |
 | Balance index | `balance_index.py` — O(1) display balance | **WIRED** (flag `balance_index`): maintained on commit, reorg-rebuilt, read by `/api/balance`; consensus stays on `ledger_balance3` |
 | Peer reputation + penalization | `peers_reputation.py` | **WIRED** — validate-height-is-real reward/penalize (synced-only), reputation-weighted tip |
 | Auto-recovery rollback | `essentials.rollback_allowed` | **default ON** (`rollback_consensus`) — reputation-gated deep rollback replaces the rigid `rollback_depth` strand |
 | Unified rollback + reorg test | `chain_ops._rollback_aux_stores` | **done** — ledger + all stores roll back in sync (`test_rollback_reorg`) |
-| **Decentralized-apps VM** | `bismuth_riscv.py` (RV32I) + `vm_state`/`vm_engine` | **built + regnet-tested, POST-FORK + flag** — deploy/call, a single RISC-V engine, ENFORCED state root (covers code + storage + **contract custody balances**, `vm_state.py:107-110`), value custody (contracts move real BIS), HTLC; the contract **address now derives from the content txid** (`contract_address`/`_tx_id_of` in `vm_engine.py`), not the malleable signature. **See [doc/19](19-vm.md)** for the full status |
-| **Non-custodial bridge** (doc/45) | VM `keccak256`/`ecrecover` syscalls, Merkle state commitment (`vm_merkle`), peg-in vault + ETH-signer verifier contracts | **built + 3-node-regnet-validated, POST-FORK** — verify Ethereum crypto in-contract, prove a locked entry against the committed Merkle root; the trustless path to backing the live wBIS (ETH/BNB) without a custodian. The **EVM side is BUILT** (`bridge/evm/`, 21 Hardhat tests) — `BismuthBridge.sol` takes over the wBIS mint authority and mints only against on-chain-verified lock proofs (BLAKE2b/Merkle port + guardian/zk verifiers). BLS-finality (Stage 1b) + the zk-PoW proof (Stage 3) are spec'd, dependency-blocked. **See [doc/45](45-bridge.md) (trust model) + [doc/46](46-wbis-evm-bridge.md) (EVM impl)** |
 | Connectivity/sync fixes | self-dial false-consensus, back-off, headers-first, ed25519 dep | **active** |
 
 "Shadow" = written/maintained alongside the authoritative store but not yet read from. "Inert" =

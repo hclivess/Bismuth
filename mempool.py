@@ -510,12 +510,10 @@ class Mempool(MempoolQueriesMixin):
                         if result:
                             for x in result:
                                 debit_tx = quantize_eight(x[0])
-                                # Match consensus: dynamic base_fee + VM surcharge post-fork (mirrored from the
-                                # digester). Pre-fork base_fee is None + fee_post_fork False -> static BASE_FEE,
-                                # byte-identical to the old call.
+                                # Match consensus: dynamic base_fee post-fork (mirrored from the digester).
+                                # Pre-fork base_fee is None -> static BASE_FEE, byte-identical to the old call.
                                 fee = essentials.fee_calculate(x[1], x[2], last_block,
-                                                               base_fee=self._hf('base_fee'),
-                                                               vm_surcharge=self._hf('fee_post_fork'))  # Decimal 8
+                                                               base_fee=self._hf('base_fee'))  # Decimal 8
                                 debit_mempool += debit_tx + fee
 
                         credit = DECIMAL0
@@ -550,12 +548,11 @@ class Mempool(MempoolQueriesMixin):
                             balance -= _immature
                             balance_pre -= _immature
 
-                        # Match consensus fee inputs (mirrored from the digester): dynamic base_fee + VM
-                        # surcharge post-fork, static BASE_FEE pre-fork. Prevents admitting a tx that block
-                        # apply will reject for underpaying — the desync that wedges block production.
+                        # Match consensus fee inputs (mirrored from the digester): dynamic base_fee
+                        # post-fork, static BASE_FEE pre-fork. Prevents admitting a tx that block apply
+                        # will reject for underpaying — the desync that wedges block production.
                         fee = essentials.fee_calculate(mempool_openfield, mempool_operation, last_block,
-                                                       base_fee=self._hf('base_fee'),
-                                                       vm_surcharge=self._hf('fee_post_fork'))
+                                                       base_fee=self._hf('base_fee'))
 
                         # print("Balance", balance, fee)
 

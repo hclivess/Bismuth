@@ -47,12 +47,9 @@ def _rollback_aux_stores(node, keep_height):
 def _rebuild_derived_state(node, db_handler, keep_height):
     """Rebuild every DERIVED consensus projection from the just-rolled-back ledger so a reorg can never
     leave a store AHEAD of the ledger. ``keep_height`` is the new tip (highest block KEPT). This MUST run
-    on EVERY rollback path (rollback / blocknf / sequencing_check). Skipping the VM rebuild is a real
-    rollback-attack vector: a stale ``node.vm_state_root`` makes the mandatory state-root check (digest.py)
-    REJECT the canonical branch — a consensus wedge — AND leaves contract custody balances ahead of their
-    VM_SINK ledger backing, i.e. inflation / double-spend of VM custody across the reorg. The height-keyed
-    DELETE stores (ledger / tokens / aliases) are rolled back at each call site with the site's
-    own boundary; this rebuilds the RE-EXECUTABLE projections. All guarded + logged; disabled stores skip."""
+    on EVERY rollback path (rollback / blocknf / sequencing_check). The height-keyed DELETE stores
+    (ledger / tokens / aliases) are rolled back at each call site with the site's own boundary; this
+    rebuilds the RE-EXECUTABLE projections. All guarded + logged; disabled stores skip."""
     # auxiliary block stores (block-store / reward sidechain) keep <= keep_height
     _rollback_aux_stores(node, keep_height)
     # the balance index is a full-ledger projection (rewards baked into balances) — rebuild from the cursor
@@ -84,27 +81,6 @@ def _rebuild_derived_state(node, db_handler, keep_height):
             if getattr(node, "pk_registry_consensus", "off") != "off":
                 raise
             node.logger.app_log.warning(f"pubkey registry rollback rebuild failed: {e}")
-    # the VM contract state is a re-executable projection of the chain's vm: txs — rebuild it from the
-    # rolled-back ledger and recompute the committed state root (deterministic, VM-active heights only).
-    # Replay starts at fork.VM_ACTIVATION_HEIGHT (NOT fork_height): vm: txs below activation were stored
-    # inert and never executed in digestion, so replaying them here would diverge. Skipped entirely while
-    # the VM is disabled (VM_ACTIVATION_HEIGHT is None).
-    import fork as _fork
-    if getattr(node, "vm_state", None) is not None and _fork.VM_ACTIVATION_HEIGHT is not None:
-        try:
-            import vm_engine
-            vm_engine.rebuild(node.vm_state, db_handler.h, _fork.VM_ACTIVATION_HEIGHT, keep_height)
-            node.vm_state_root = node.vm_state.merkle_root()   # doc/45 Stage 2b: committed root = Merkle root
-        except Exception as e:
-            # The VM is mandatory consensus once activated, so a failed reorg rebuild must HALT — exactly like the
-            # sibling projections above (balance/txid/pk when consensus-on). Continuing with a stale
-            # node.vm_state_root would make the mandatory coinbase state-root check REJECT the canonical branch
-            # (a consensus wedge) and leave contract custody ahead of its VM_SINK ledger backing. Invalidate
-            # the root first so the failure is diagnosable even if this raise is caught upstream, then re-raise.
-            node.vm_state_root = None
-            node.logger.app_log.error(
-                f"vm state rollback rebuild failed: {e} — halting (VM is mandatory consensus post-fork)")
-            raise
 
 
 def rollback(node, db_handler, block_height):
@@ -529,9 +505,8 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler, hyperblocks=False):
                 # rollback indices
                 db_handler.tokens_rollback(node, db_block_height)
                 db_handler.aliases_rollback(node, db_block_height)
-                # rebuild the re-executable projections (VM state + root, balance index, aux stores) — this
-                # is the LIVE reorg path; without the VM rebuild a stale vm_state_root wedges consensus and
-                # custody balances outrun their ledger backing (inflation across the reorg).
+                # rebuild the re-executable projections (balance index, aux stores) — this is the LIVE
+                # reorg path.
                 _rebuild_derived_state(node, db_handler, db_block_height - 1)
                 # /rollback indices
 
@@ -797,9 +772,8 @@ def sequencing_check(node, db_handler):
                         _cut = row[0]
                         db_handler.tokens_rollback(node, _cut)
                         db_handler.aliases_rollback(node, _cut)
-                        # the ledger DELETE above cuts at row[0]; rebuild the VM state + root to the SAME
-                        # boundary (it re-executes from the ledger), else the startup vm_state OPEN reads a
-                        # stale root and the state-root check wedges the resync.
+                        # the ledger DELETE above cuts at row[0]; rebuild the derived projections to the
+                        # SAME boundary (they re-execute from the ledger).
                         _rebuild_derived_state(node, db_handler, _cut - 1)
                         # rollback indices
 
@@ -842,7 +816,7 @@ def sequencing_check(node, db_handler):
                         # Delete positive rows AND every negative-height mirror row generically (block_height
                         # <= -row[0]) — matching the transactions branch above. The old code enumerated only
                         # "Development Reward" and "Hypernode Payouts" negative mirrors, so the generic
-                        # vm:payout (VM_SINK) and shield:payout (SHIELD_SINK) negative mirrors survived above
+                        # negative mirrors for any other sink address survived above
                         # the cut as orphans and were re-credited by the balance-index rebuild below —
                         # balance-index inflation. One generic delete covers all mirror addresses.
                         c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?",

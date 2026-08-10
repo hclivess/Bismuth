@@ -1,4 +1,4 @@
-// bismuth-tx.js — Bismuth transaction builder + JS signer + ABI calldata builders for poker_table.py.
+// bismuth-tx.js — Bismuth transaction builder + JS signer (canonical buffer + RSA-SHA1 framing).
 //
 // SIGNING SCHEME (mirrors the node, verified against polysign + _lite_client):
 //   The node validates a tx via mempool.merge -> SignerFactory.verify_tx_signature. For the CLASSIC
@@ -21,36 +21,13 @@
 //     [timestamp, address, recipient, amount, signature, public_key, operation, openfield]
 //   where timestamp and amount on the wire are the SAME canonical strings used in the buffer.
 //
-//   A vm:call is: operation="vm:call", openfield="<contractAddr>:<calldata_hex>", recipient=contractAddr,
-//   amount=value (BIS). Value is nonzero only for FN_SIT (every other selector runs _require_no_value).
-//
 //   Submission: POST /api/transaction (rest_api_write) with body {"transaction": [<8 fields>]} — the SAME
 //   mempool.merge validation as the socket mpinsert path; just a different transport.
 //
 // WebCrypto note: SubtleCrypto's RSASSA-PKCS1-v1_5 does NOT offer SHA-1, but the classic Bismuth scheme
 // signs SHA-1. So the actual RSA-SHA1 signing primitive is INJECTED (e.g. jsrsasign's KJUR in-browser, or
 // a node 'crypto' Sign('RSA-SHA1') in tests). This module owns the canonical buffer, the b64/hash framing,
-// the tx tuple assembly, and the calldata builders; it delegates only the raw RSA-SHA1 + sha224(pubkey).
-
-// ----------------------------------------------------------------- poker_table.py ABI selectors (doc/28 §4)
-export const FN = {
-  SIT: 0,
-  LEAVE: 1,
-  DEAL: 2,
-  COMMIT: 3,
-  DECK_DIGEST: 4,
-  CHECK: 6,
-  CALL: 7,
-  BET: 8,
-  FOLD: 9,
-  REVEAL: 10,
-  TIMEOUT: 11,
-  SETTLE: 12,
-};
-
-// FN_DECK_DIGEST index sentinels (poker_table.py)
-export const IDX_CARDMAP = 0x10000000;
-export const DECKH_MAXIDX = 0x0FFFFFF;
+// the tx tuple assembly; it delegates only the raw RSA-SHA1 + sha224(pubkey).
 
 // ----------------------------------------------------------------- byte helpers
 export function be4(x) {
@@ -58,8 +35,7 @@ export function be4(x) {
   return new Uint8Array([(x >>> 24) & 0xff, (x >>> 16) & 0xff, (x >>> 8) & 0xff, x & 0xff]);
 }
 
-// 8-byte big-endian (for FN_BET amount path if a >32-bit target is ever needed; poker_table reads BET target
-// as a BE32 from calldata[4..8], so betCalldata uses be4. be8 kept for value/amount byte work.)
+// 8-byte big-endian (value/amount byte work).
 export function be8(x) {
   const v = BigInt(x);
   const out = new Uint8Array(8);
@@ -98,66 +74,11 @@ export function addr28FromHex(addrHex) {
   return b;
 }
 
-// ----------------------------------------------------------------- calldata builders (be4(sel) ++ args)
-// Each returns Uint8Array calldata. The contract decodes args as documented in poker_table.py.
-
-export function sitCalldata(seat, addr28) {
-  // FN_SIT(seat, addr28): be4(sel) ++ be4(seat) ++ addr28(28 bytes). 7 words of address (identity+payout).
-  if (addr28.length !== 28) throw new Error("addr28 must be 28 bytes");
-  return concat([be4(FN.SIT), be4(seat), addr28]);
-}
-
-export function leaveCalldata(seat) {
-  return concat([be4(FN.LEAVE), be4(seat)]);
-}
-
-export function dealCalldata() {
-  return be4(FN.DEAL);
-}
-
-export function commitCalldata(commit32) {
-  if (commit32.length !== 32) throw new Error("commit must be 32 bytes");
-  return concat([be4(FN.COMMIT), commit32]);
-}
-
-// FN_DECK_DIGEST(idx, H32): anchor a deal-stage deck hash (idx in 0..DECKH_MAXIDX-1) or the card-map root
-// (idx == IDX_CARDMAP). H32 is the 32-byte SHA256.
-export function deckDigestCalldata(idx, h32) {
-  if (h32.length !== 32) throw new Error("H32 must be 32 bytes");
-  return concat([be4(FN.DECK_DIGEST), be4(idx), h32]);
-}
-
-export function checkCalldata() { return be4(FN.CHECK); }
-export function callCalldata() { return be4(FN.CALL); }
-
-// FN_BET(target BE): target total street_bet, read as a BE32 from calldata[4..8].
-export function betCalldata(targetTotal) {
-  return concat([be4(FN.BET), be4(targetTotal)]);
-}
-
-export function foldCalldata() { return be4(FN.FOLD); }
-
-// FN_REVEAL(c0..c4, nonce32): 5 single-byte cards (0..51) then a 32-byte nonce.
-export function revealCalldata(cards5, nonce32) {
-  if (cards5.length !== 5) throw new Error("need 5 cards");
-  if (nonce32.length !== 32) throw new Error("nonce must be 32 bytes");
-  const cb = new Uint8Array(5);
-  for (let i = 0; i < 5; i++) {
-    const c = Number(cards5[i]);
-    if (!(c >= 0 && c <= 51)) throw new Error("card out of range 0..51");
-    cb[i] = c;
-  }
-  return concat([be4(FN.REVEAL), cb, nonce32]);
-}
-
-export function timeoutCalldata() { return be4(FN.TIMEOUT); }
-export function settleCalldata() { return be4(FN.SETTLE); }
-
 // ----------------------------------------------------------------- the canonical signing buffer
 // repr of a Python tuple of 6 strings. Python repr of a str uses single quotes unless the string itself
 // contains a single quote and no double quote (then it switches to double quotes). The six canonical tx
-// fields (timestamp/amount are numeric strings; address/recipient are hex; operation is "vm:call"; openfield
-// is "<hexaddr>:<hex>") never contain quotes, so single-quote framing is exact. We still implement Python's
+// fields (timestamp/amount are numeric strings; address/recipient are hex; operation/openfield are short
+// ASCII) never contain quotes, so single-quote framing is exact. We still implement Python's
 // quote-selection rule defensively so any unexpected field is encoded identically to CPython repr.
 export function pyReprStr(s) {
   s = String(s);
@@ -232,24 +153,7 @@ export function fmtAmount(amount) {
 // In the browser, signer.signRsaSha1 is backed by jsrsasign (KJUR.crypto.Signature 'SHA1withRSA');
 // in node tests, by crypto.createSign('RSA-SHA1'). This module never touches the private key.
 
-export function buildVmCall(signer, contractAddr, calldataHex, opts) {
-  opts = opts || {};
-  const value = opts.value || 0;
-  const timestamp = fmtTimestamp(opts.timestamp != null ? opts.timestamp : (Date.now() / 1000));
-  const amount = fmtAmount(value);
-  const operation = "vm:call";
-  const openfield = contractAddr + ":" + calldataHex;
-  const recipient = contractAddr;
-  const address = signer.address;
-  const buffer = signatureBuffer(timestamp, address, recipient, amount, operation, openfield);
-  const signature = signer.signRsaSha1(buffer);            // base64 string
-  const publicKey = signer.publicKeyB64;                   // base64 string
-  // wire tuple order = TX_FIELDS
-  const tx = [timestamp, address, recipient, amount, signature, publicKey, operation, openfield];
-  return { tx, buffer, openfield, txidPrefix: signature.slice(0, 56) };
-}
-
-// Generic signed tx (e.g. plain transfer or vm:deploy). operation/openfield supplied by caller.
+// Signed tx. operation/openfield supplied by caller (plain transfer, token:transfer, alias=..., ...).
 export function buildTx(signer, recipient, value, operation, openfield, opts) {
   opts = opts || {};
   const timestamp = fmtTimestamp(opts.timestamp != null ? opts.timestamp : (Date.now() / 1000));
@@ -265,9 +169,4 @@ export function buildTx(signer, recipient, value, operation, openfield, opts) {
 // POST body for rest_api_write POST /api/transaction.
 export function submitBody(tx) {
   return JSON.stringify({ transaction: tx });
-}
-
-// Convenience: build a vm:call from a calldata Uint8Array.
-export function vmCallFromCalldata(signer, contractAddr, calldataBytes, opts) {
-  return buildVmCall(signer, contractAddr, hex(calldataBytes), opts);
 }

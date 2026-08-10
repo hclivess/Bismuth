@@ -20,7 +20,7 @@ hf2 readiness (see doc/39)
 - new_pow / fork_height come from the node REST /api/fork; signalling follows the node's fork_signal flag.
 - Until activation it behaves exactly as pre-hf2 (new_pow=False, no signal) — zero change today.
 - NOT validated end-to-end across the fork here (no node+miners+fork). Validate on a live pool BEFORE the
-  fork: the blake2b share path, the post-activation VM state-root commitment, and the activation boundary.
+  fork: the blake2b share path and the activation boundary.
 
 Web explorer (optiexplorer.py, port 9080)
 - Pure stdlib http.server now — NO Flask, NO Tornado (dropped from requirements). Serves a dark
@@ -35,7 +35,7 @@ Node communication: 100% REST API (no legacy socket to the node)
     worker blocklast/diffget  -> GET /api/status + /api/difficulty
     coinbase mempool pull      -> GET /api/mempool
     payout submit (mpinsert)   -> POST /api/transaction
-    fork state                 -> GET /api/fork (+ /api/vm/contracts for the post-fork state root)
+    fork state                 -> GET /api/fork
     block submit               -> POST /api/block   (NEW node endpoint — see below)
 - Requires the node started with rest_api=True (reads) AND rest_api_write=True (the POST endpoints).
 - POST /api/block (node, rest_api.py): the REST transport for the legacy socket "block" command. It routes

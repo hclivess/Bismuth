@@ -2,7 +2,7 @@
 Engine-agnostic key/value store abstraction (doc/26 — stage 1 of the DB-engine seam).
 
 The node's LMDB stores (block_store, token_index, txid_index, reward_chain,
-balance_index, vm_state, scripts/snapshot) each call ``lmdb.open()`` directly with bespoke txn
+balance_index, scripts/snapshot) each call ``lmdb.open()`` directly with bespoke txn
 lifecycles and 3 divergent (de)serialization styles, with no shared base or factory. This module
 introduces ONE small interface + an ``open_store`` factory so the underlying KV engine becomes a
 single-arg choice:

@@ -110,8 +110,8 @@ projections are proven and run in parity-strict shadow on regnet; full cutover i
   height. Being superseded by the API but not off-limits to modularization (only `node.py handle()` is
   deferred). See [`06`](06-networking-protocol.md), [`07`](07-mempool.md) (mempool), [`08`](08-api-and-commands.md)
   (socket command + CLI catalog).
-- **Modern REST API** (`rest_api.py`, `rest_client.py`, `transport.py`): parallel, opt-in
-  (`rest_api=True`), CORS, compressed; status/blocks/balance/tx/headers/peers/fork/difficulty/supply/
+- **Modern REST API** (`rest_api.py`, `rest_client.py`, `transport.py`): parallel, **on by default**
+  (`rest_api=True`; set False to opt out), CORS, compressed; status/blocks/balance/tx/headers/peers/fork/difficulty/supply/
   tokens/vm/etc. **Live on the production node (:5659)**; `explorer.bismuth.cz` consumes it. Bitcoin
   JSON-RPC (`rpc_bitcoin.py`) and an ETH/ERC shim (`rpc_ethereum.py`) are implemented but flag-off.
   See [`15`](15-rest-api.md).
@@ -122,19 +122,9 @@ projections are proven and run in parity-strict shadow on regnet; full cutover i
   on mainnet the node only *serves* today.
 
 ### The VM + dApp demos
-**State: VM built + regnet-tested, post-fork + flag-gated (inert on mainnet); demos are off-chain/regnet builds.**
-
-- **VM** (`bismuth_riscv.py` RV32I engine, `vm_engine.py`, `vm_state.py`): deploy/call, an **enforced
-  state root** covering code + storage + contract custody balances, real value custody (contracts move
-  BIS), HTLC. The contract address derives from the **content txid** (not the malleable signature).
-  Gated on `node.fork_height`. See [`19`](19-vm.md).
-- **dApp contracts** (`contracts/`): `amm.py`, `dex.py`, `router.py` (Balancer-Vault model, no
-  cross-contract calls), `poker*.py`, `tournament.py`, `escrow.py`, `vesting.py`, `multisig.py`,
-  `raffle.py`, `prediction_market.py`, `token_contract.py`, plus `asmtools.py`. DeFi design in
-  [`24`](24-defi-dex.md).
-- **Poker app (6 stages, COMPLETE)**: on-chain heads-up Hold'em (chain referee + off-chain mental-poker
-  deal + on-chain hand evaluator), tournaments (SNG/MTT), and spectator parimutuel betting. Web SPAs in
-  `web/`. See [`28`](28-poker.md), [`32`](32-tournaments.md), [`34`](34-spectator-betting.md).
+**State: REMOVED.** The decentralized-apps VM (RV32I engine, contract state store, custody payouts) and
+every dApp built on it were deleted — the node never activated them and they are not coming back. `vm:`
+operations, if any appear on chain, are stored as ordinary inert transaction data and never execute.
 
 ### Shielded value
 **State: stages 1–3 implemented, gated on hf2 (inert until then).**
@@ -205,22 +195,17 @@ post-quantum pivot held in reserve in [`20`](20-post-quantum.md); HD/BIP32-39 + 
 | [16-database-rework-plan.md](16-database-rework-plan.md) | Storage-layer modernization design/roadmap (the deep-dive) |
 | [17-roadmap.md](17-roadmap.md) | Modernization roadmap: phases, shipped vs planned, refactor history |
 | [18-hardfork-hf2.md](18-hardfork-hf2.md) | The bundled `hf2` fork: signal-activated scheduler, the consensus change set |
-| [19-vm.md](19-vm.md) | The decentralized-apps VM: RV32I engine, state root, value custody, HTLC |
 | [20-post-quantum.md](20-post-quantum.md) | Post-quantum signatures: ML-DSA signer, the PQ fork path (held in reserve) |
 | [21-mining.md](21-mining.md) | The built-in solo miner (`miner.py`) and the dual-algo PoW signalling |
 | [22-shielded.md](22-shielded.md) | Shielded value: stealth addresses, ring signatures, RingCT confidential amounts |
 | [23-hd-multisig.md](23-hd-multisig.md) | BIP32/BIP39 HD wallets and M-of-N multisig (native signer + VM vault) |
-| [24-defi-dex.md](24-defi-dex.md) | DeFi on the VM: DEX order book, AMM, multi-pool router; atomic-swap plans |
 | [25-security-audit.md](25-security-audit.md) | Adversarial security audit: findings, fixes, regression tests |
 | [26-storage-postfork.md](26-storage-postfork.md) | Post-fork storage rearchitecture: retiring SQLite for one LMDB store |
 | [27-plugins.md](27-plugins.md) | Modern plugin framework; the `tokens_aliases` plugin (tokens/aliases out of core) |
-| [28-poker.md](28-poker.md) | On-chain heads-up Hold'em: escrow + commit-reveal + on-chain hand eval + mental-poker deal |
 | [29-hf2-serialization-v2.md](29-hf2-serialization-v2.md) | hf2 binary/integer serialization (authoritative spec) |
 | [30-genesis-sync-exceptions.md](30-genesis-sync-exceptions.md) | From-genesis sync & historical validation-exception registry |
 | [31-accuser.md](31-accuser.md) | The Accuser: detect/prove/propagate miner equivocation (finality substitutes) |
-| [32-tournaments.md](32-tournaments.md) | Bismuth Poker tournaments (SNG + MTT) on one Balancer-Vault VM contract |
 | [33-browser-wallet.md](33-browser-wallet.md) | Browser wallet + injected `window.bismuth` provider (non-custodial) |
-| [34-spectator-betting.md](34-spectator-betting.md) | Spectator parimutuel betting on poker outcomes (trustless on-chain settle) |
 | [35-difficulty-divergence-selfheal.md](35-difficulty-divergence-selfheal.md) | #23 difficulty-divergence detector + guarded self-heal |
 | [36-kvstore-engine-seam.md](36-kvstore-engine-seam.md) | Engine-agnostic KV store seam (`kvstore.py`, `open_store` factory; all 8 LMDB stores migrated) |
 | [CHANGELOG-2026-06.md](CHANGELOG-2026-06.md) | Commit-anchored engineering changelog for the 2026-06 session (poker, #23 self-heal, KVStore seam) |

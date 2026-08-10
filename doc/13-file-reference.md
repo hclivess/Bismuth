@@ -62,20 +62,12 @@ imported library; *script* = run directly.
 | `mempool_queries.py` | module | `MempoolQueriesMixin` — mempool read/reporting & maintenance (`mp_get`, `status`, `tx_to_send`, `sig_check`, `purge`/`clear`…) |
 | `mempool_sql.py` | module | mempool SQL statements + tuning constants (re-exported by `mempool` via `import *`) |
 
-## Modernization / VM
+## Modernization
 
 | File | Kind | Description |
 |---|---|---|
-| `bismuth_riscv.py` | module | the RV32I RISC-V interpreter — the single deterministic contract execution engine (doc/19); ECALL syscalls incl. the bridge `SYS_KECCAK256` / `SYS_ECRECOVER` (doc/45) |
-| `vm_engine.py` | module | contract deploy/call orchestration over `bismuth_riscv` — gas/value custody, HTLC, host calls (doc/19) |
-| `vm_state.py` | module | contract state store + the ENFORCED state root committed into the coinbase — now the Merkle root (doc/19, doc/45) |
-| `vm_merkle.py` | module | Merkle commitment + O(log n) inclusion proofs over the VM state (the committed root); pure / zk-circuit-friendly (doc/45 bridge) |
-| `contracts/eth_verify.py` | contract | bridge peg-out auth core: keccak256 → ecrecover → authorise iff the baked Ethereum signer (doc/45) |
-| `contracts/bridge_vault.py` | contract | bridge peg-in vault: lock BIS into custody with a Merkle-provable lock record (doc/45) |
 | `fee_dynamics.py` | module | dynamic/EIP-1559-style fee schedule (post-fork, gated) — see doc/18 |
 | `difficulty_lwma.py` | module | fork-gated LWMA retarget (also listed under Consensus/PoW) — pure; live at/after `node.fork_height` (doc/18) |
-| `contracts/` | dir | demo/reference VM contracts (`dex.py`, `amm.py`, `router.py`, `poker.py`, `multisig.py`, `escrow.py`, `vesting.py`, `prediction_market.py`, `raffle.py`, `token_contract.py`) + `asmtools.py` assembler helpers (doc/19, doc/24, doc/28); `asmtools.assemble()` relaxes out-of-range conditional branches (jal) for large contracts |
-| `web/amm/`, `web/dex/`, `web/router/`, `web/poker/` | dir | demo SPAs + localhost signing relays for the AMM, DEX, multi-pool router (doc/24) and heads-up poker (doc/28; the poker relay also bridges the off-chain mental-poker deal) |
 
 ## Shielded value (doc/22)
 

@@ -20,7 +20,7 @@ and filled in later:
 
 IMPORTANT: many further attributes are attached to the instance dynamically by
 other modules (``node.log_color``, ``node.fork_height``, ``node.block_store``,
-``node.vm_state`` ...). For that reason this class must stay open - do NOT add
+``node.token_index`` ...). For that reason this class must stay open - do NOT add
 ``__slots__`` or otherwise restrict attribute assignment.
 """
 

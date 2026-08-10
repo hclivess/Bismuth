@@ -11,19 +11,20 @@ with its own short-lived DB handler, so many clients can query in parallel witho
 blocking.
 
 Implementation: `rest_api.py` (`BismuthRESTServer`, a daemon thread). It is started from `node.py`
-startup only when enabled.
+startup unless disabled.
 
 ## Enabling it
 
-In `config.txt` (or `config_custom.txt`):
+It is **enabled by default** (`rest_api` defaults to `True` in `options.py`), so a node with no REST
+config serves the read-only API on port 5659. To move the port or opt out, set it in `config.txt`
+(or `config_custom.txt`):
 
 ```
-rest_api=True
+rest_api=True           # default; set False to disable the API entirely
 rest_api_port=5659      # optional; default 5659
 ```
 
-It is **disabled by default** — a node with no REST config behaves exactly as before, so old
-deployments and old clients are unaffected. **Reads** (GET) never affect consensus. **Transaction
+**Reads** (GET) never affect consensus. **Transaction
 submission** (`POST /api/transaction`) is now implemented as the post-hardfork transport that moves
 submission off the socket protocol onto the API — it is gated by a separate `rest_api_write=True`
 flag (off by default) so a read-only node stays read-only until an operator opts in. A submitted tx
@@ -57,9 +58,6 @@ duplicate, format), so the endpoint is a new transport, not a new consensus rule
 | `GET /api/token/tx/{address}?limit=N` | token transfers (sent or received) for an address, newest first; each a dict `{token, block_height, timestamp, sender, recipient, amount, signature}` (LMDB token index when enabled, else legacy index.db) |
 | `GET /api/alias/{name}` | resolve an alias to its owner address: `{alias, address}` (`address` null if unclaimed/free) |
 | `GET /api/aliases/{address}` | all aliases owned by an address: `{address, count, aliases}` |
-| `GET /api/vm/contracts` | deployed contracts + the current VM `state_root`, `fork_height`, `enabled` |
-| `GET /api/vm/contract/{addr}` | a contract: `engine` (`riscv`), code, custody `balance`, storage slots |
-| `GET /api/vm/market/{addr}` | prediction-market contract state: pots, odds, resolution |
 | `GET /api/shield/stats` | shielded pool (doc/22): `notes`/`key_images` counts, `pool_units`, `sink`; the activation-height field is now `shielded_fork_height` (+ an `active` bool), **not** hf2's `fork_height`. Reflects the **staged/deferred** shielded feature — empty/inert unless `shielded_fork_height` is set |
 | `GET /api/shield/note/{note_id}` | public fields of a shielded note (nothing decryptable); part of the **staged/deferred** shielded feature — empty/inert unless `shielded_fork_height` is set |
 | `GET /api/proxy?target={url}` | same-origin relay to another node's read-only `/api` (lets the https explorer browse an http node despite the browser's mixed-content block); read-only, GET-only, `/api`-paths-only, SSRF-guarded (IP-pinned, no-redirect, port-allowlisted, rate-limited); gated by `rest_api_proxy` (default on) |
@@ -158,7 +156,7 @@ single indexed `LIKE` query and is unaffected.)
 
 `tests/test_rest_api.py` runs against a regnet node (`rest_api=True`, port 3031) and exercises the core
 read endpoints + 404 handling. The newer endpoints are covered by their feature tests:
-`/api/fee` by `test_fee_dynamics`/`test_transactions`; `/api/vm/*` by `test_vm_post_fork` + `test_vm_value`;
+`/api/fee` by `test_fee_dynamics`/`test_transactions`;
 `/api/supply`, `/api/tokens`, `/api/nodes` by `test_explorer_endpoints`; `/api/stats/*` by
 `test_stats_endpoints` (summary/tx_per_month/difficulty/geo shapes). The `/api/proxy` relay (happy
 path + SSRF/scheme/path guards + the disabled state) is covered by the `proxy` tests in `test_rest_api`.

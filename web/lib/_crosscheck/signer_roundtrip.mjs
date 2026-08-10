@@ -39,10 +39,9 @@ const signer = {
   },
 };
 
-// Build a vm:call (FN_CHECK, no value) to a sample contract, with a fixed timestamp for reproducibility.
-const contract = "00112233445566778899aabbccddeeff00112233445566778899aabb";
-const calldataHex = tx.hex(tx.checkCalldata());
-const built = tx.buildVmCall(signer, contract, calldataHex, { value: 0, timestamp: 1700000000.0 });
+// Build a plain signed transfer to a sample address, with a fixed timestamp for reproducibility.
+const recipient = "00112233445566778899aabbccddeeff00112233445566778899aabb";
+const built = tx.buildTx(signer, recipient, 0, "", "crosscheck", { timestamp: 1700000000.0 });
 
 writeFileSync(join(__dirname, "signed_tx.json"), JSON.stringify({ tx: built.tx }, null, 1));
 console.log("JS signer built + wrote signed_tx.json");

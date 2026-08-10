@@ -128,7 +128,6 @@ class Get:
         "txid_index_consensus": ["str"],
         "pk_registry_consensus": ["str"],
         "parity_strict": ["bool"],
-        "vm": ["bool"],
         "token_index": ["bool"],
     }
 
@@ -145,7 +144,7 @@ class Get:
         "mempool_path": "./mempool.db",
         "old_sqlite": False,
         "rollback_depth": 30,  # max blocks the node will roll back to rejoin a longer chain (see doc/14)
-        "rest_api": False,     # opt-in modern parallel REST API (see doc/15); off by default
+        "rest_api": True,      # modern parallel REST API (see doc/15); ON by default (reads only; writes need rest_api_write)
         "rest_api_port": 5659,
         "tor": "off",          # Tor mode (doc/38): off (clearnet) | external | managed; default clearnet
         "tor_socks_host": "127.0.0.1",
@@ -206,7 +205,6 @@ class Get:
         "balance_index": False,              # opt-in maintained O(1) balance index for the DISPLAY read path (doc/17); off by default. Consensus stays on ledger_balance3.
         "balance_index_consensus": "off",    # doc/26 stage 4: off|shadow|primary. off=ledger_balance3 (SQLite) authoritative (default/mainnet). shadow=compute the LMDB balance_index too + compare at the overspend read (warn, or raise under parity_strict). primary=index authoritative, still cross-check SQLite + RAISE on mismatch (halt > inflate). Needs balance_index + integer-units + post-fork; never engages pre-fork.
         "parity_strict": False,              # doc/26 stage 4: turn store/index parity mismatches (balance seam) into a raised AssertionError instead of a log warning — for CI/regnet, NEVER prod.
-        "vm": False,                         # opt-in decentralized-apps VM (doc/17); executes vm: txs POST-FORK only. Off by default; inert until hf2 activates.
         "token_index": False,                # opt-in LMDB token/alias side-index (doc/26 stage 2), replacing the SQLite index.db projection. Off by default (mainnet stays on index.db pre-fork); becomes the post-fork home for tokens/aliases.
         "mandatory_message": {
             "Address": "Comment - Dict for addresses that require a message. tx to these addresses withjout a message will not be accepted by mempool.",

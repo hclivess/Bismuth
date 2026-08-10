@@ -5,11 +5,11 @@ This is the heavier sibling of tests/test_two_node_api_sync.py. It brings up a T
 (no socket peering — regnet refuses it by design; api_sync over REST is the ONLY multi-node path) and proves
 that the just-migrated KVStore-backed LMDB stores produce IDENTICAL results across independently-built
 ledgers. config_custom.txt turns on, per node: the four core rebuildable side-indexes that were migrated
-onto kvstore.open_store (block_store / balance_index / txid_index / vm_state), PLUS token_index (owned by the
+onto kvstore.open_store (block_store / balance_index / txid_index), PLUS token_index (owned by the
 optional tokens_aliases PLUGIN, doc/27 — node core never constructs it; it arrives as a plugin service). The
 KVStore-backed indexes serve the consensus reads; this test exercises all of them across the cluster.
 
-    A  socket 4070 / REST 4071   — mines a chain CROSSING the regnet hf2 fork, deploys a vm: contract
+    A  socket 4070 / REST 4071   — mines a chain CROSSING the regnet hf2 fork, issues a token
     B  socket 4072 / REST 4073   — api_sync=ON from A's REST (empty ledger -> reconstructs A's chain)
     C  socket 4074 / REST 4075   — api_sync=ON from A's REST (empty ledger -> reconstructs A's chain)
 
@@ -19,10 +19,9 @@ Asserts, using ONLY the REST API surfaces (never opening the LMDB dirs directly)
                            * balance  (/api/balance/<addr>)         -> balance_index @ primary
                            * tx height(/api/transaction/<txid>)     -> txid_index
                            * block bodies by height (/api/block/...) -> block_store
-                           * vm state root + contract storage (/api/vm/...) -> vm_state
                            * token supply + holders (/api/token/<name>) -> token_index (tokens_aliases PLUGIN)
-                       The vm / token checks run on POPULATED state: node A deploys a contract and
-                       issues+transfers a token (all post-fork) BEFORE B/C sync.
+                       The token checks run on POPULATED state: node A issues+transfers a token
+                       (all post-fork) BEFORE B/C sync.
   3. DETECTOR          — every node's /api/difficulty agrees (the #23 difficulty-divergence detector reads
                           CLEAN: no false divergence on a healthy multi-node net).
 
@@ -158,35 +157,6 @@ def test_multinode_integration(tmp_path):
         a_tip = _tip_via_rest(A_R)
         assert a_tip >= 14, "A only reached height %s" % a_tip
 
-        # Best-effort: deploy a vm: contract AFTER the fork is active so vm_state is non-trivial and we can
-        # prove the migrated vm_state store agrees across nodes. If vm doesn't activate/land, we fall back
-        # to comparing whatever state_root each node reports (which must still agree).
-        vm_deployed = False
-        vm_contract_addr = None
-        try:
-            info = _rest(A_R, "vm/contracts")
-            fh = info.get("fork_height")
-            if info.get("enabled") and fh is not None and a_tip > int(fh):
-                import bismuth_riscv as rv
-                from bismuth_riscv import asm, addi, ecall
-                # RISC-V counter: a0=SLOAD(0); a1=a0+1; SSTORE(0,a1); HALT
-                counter = asm(addi(10, 0, 0), addi(17, 0, rv.SYS_SLOAD), ecall(),
-                              addi(11, 10, 1), addi(10, 0, 0), addi(17, 0, rv.SYS_SSTORE), ecall(),
-                              addi(17, 0, rv.SYS_HALT), ecall())
-                before = set(_rest(A_R, "vm/contracts").get("contracts", []))
-                ca.send(ca.address, 1, "vm:deploy", counter.hex())
-                ca.mine(2)
-                time.sleep(0.5)
-                new = set(_rest(A_R, "vm/contracts").get("contracts", [])) - before
-                if new:
-                    vm_contract_addr = new.pop()
-                    ca.send(ca.address, 1, "vm:call", vm_contract_addr + ":")
-                    ca.mine(2)
-                    time.sleep(0.5)
-                    vm_deployed = True
-        except Exception as e:
-            print("vm deploy best-effort skipped:", e)
-
         # --- populate token_index (tokens_aliases PLUGIN): issue a token to self, then transfer some to a
         # 2nd holder. token_index has NO fork gate, but we are already post-fork so every projected row lands
         # in the window B/C reconstruct over REST. Poll for projection (mempool/mining is async).
@@ -216,8 +186,7 @@ def test_multinode_integration(tmp_path):
             print("token populate best-effort skipped:", e)
 
         a_tip = _tip_via_rest(A_R)
-        print("A tip after mining (vm=%s/%s, token=%s): %d"
-              % (vm_deployed, vm_contract_addr, token_name, a_tip))
+        print("A tip after mining (token=%s): %d" % (token_name, a_tip))
 
         # --- nodes B and C: empty ledgers, catch up from A over REST ONLY ------------------------------
         src = {"BISMUTH_API_SYNC": "1", "BISMUTH_API_SYNC_SOURCE": "127.0.0.1:%d" % A_R}
@@ -257,7 +226,7 @@ def test_multinode_integration(tmp_path):
 
         # === 2. CROSS-NODE STORE AGREEMENT (the point) =================================================
         ports = {"A": A_R, "B": B_R, "C": C_R}
-        fork_height = _rest(A_R, "vm/contracts").get("fork_height")
+        fork_height = _rest(A_R, "fork").get("fork_height")
 
         # --- block_store: full block bodies by height agree across nodes (several heights incl. genesis+tip)
         sample_heights = sorted(set([1, 2, max(1, tip // 2), tip - 1, tip]))
@@ -313,21 +282,6 @@ def test_multinode_integration(tmp_path):
                     "txid_index disagrees for %s (expect h=%s): %s" % (tx_id, expect_h, heights)
                 txid_checked += 1
         print("STORE AGREEMENT txid_index ok: %d post-fork txid height(s) identical across A,B,C" % txid_checked)
-
-        # --- vm_state root: the committed state root must agree across all nodes (best-effort content)
-        roots = {nm: _rest(p, "vm/contracts").get("state_root") for nm, p in ports.items()}
-        assert roots["A"] == roots["B"] == roots["C"], "vm_state root disagrees across nodes: %s" % roots
-        vm_note = "vm_state root identical across A,B,C: %s" % roots["A"]
-        if vm_deployed and vm_contract_addr:
-            # deeper: the migrated vm_state store agrees on the deployed contract's storage too
-            details = {nm: _rest(p, "vm/contract/%s" % vm_contract_addr) for nm, p in ports.items()}
-            slot = {nm: {s["key"]: s["value"] for s in d.get("storage", [])} for nm, d in details.items()}
-            assert slot["A"] == slot["B"] == slot["C"], "vm contract storage disagrees: %s" % slot
-            assert details["A"]["code"] == details["B"]["code"] == details["C"]["code"], "vm code disagrees"
-            assert roots["A"] and len(roots["A"]) == 64, "expected 32-byte state root, got %r" % roots["A"]
-            vm_note = ("vm_state agrees across A,B,C: contract %s storage=%s root=%s"
-                       % (vm_contract_addr, slot["A"], roots["A"]))
-        print("STORE AGREEMENT", vm_note)
 
         # --- token_index (tokens_aliases PLUGIN): the projected token supply + holder set agree across nodes.
         # B/C never received these txs over a socket — their plugin re-projected them from the api_sync'd
@@ -397,7 +351,7 @@ def test_multinode_integration(tmp_path):
             print("DETECTOR in-process drive skipped (cluster /api/difficulty already agrees %s): %s" % (diffs, e))
 
         print("\nALL CHECKS PASSED: 3-node chain parity + block_store/balance_index/txid_index"
-              " agreement + vm_state + token_index (populated) + detector CLEAN at tip %d" % tip)
+              " agreement + token_index (populated) + detector CLEAN at tip %d" % tip)
     finally:
         for proc, log, _ in procs:
             try:

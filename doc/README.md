@@ -8,6 +8,13 @@ supporting tooling. It is written for developers who want to understand, operate
 > partly‑stale `_FILES_DESCRIPTION.md` / `_MOST_USEFUL_FILES.md` (which still reference files that
 > no longer exist, e.g. `classes.py`, `keys.py`, `wallet.py`, `recovery.py`, `rollback.py`).
 
+> **Removed: the decentralized-apps VM.** The RISC-V (RV32I) contract engine (`bismuth_riscv.py`,
+> `vm_engine.py`, `vm_state.py`, `vm_merkle.py`), the `contracts/` dApps, the `/api/vm/*` + `/api/poker/*`
+> endpoints and their docs (19, 24, 28, 32, 34, 44) were **deleted**. The VM never activated on any
+> network; `vm:` operations are stored as ordinary inert transaction data and never execute. Dated
+> records — the security audit (25), the storage-format studies (29, 40) and the changelogs — still
+> describe it as it stood when they were written; they are history, not current behaviour.
+
 ## Project at a glance
 
 | | |
@@ -52,16 +59,10 @@ difficulty)** — treat those as authoritative for validation rules.
 | [16-database-rework-plan.md](16-database-rework-plan.md) | Design/roadmap for a complete storage-layer modernization |
 | [17-roadmap.md](17-roadmap.md) | Modernization roadmap: phases, what's shipped, refactor history |
 | [18-hardfork-hf2.md](18-hardfork-hf2.md) | The bundled `hf2` hard fork: signal-activated scheduler, serialization/difficulty/PoW changes |
-| [19-vm.md](19-vm.md) | The decentralized-apps VM: RISC-V (RV32I) engine, state root, value custody, contract flexibility (CALL/DELEGATECALL/SETCODE/SELFDESTRUCT), HTLC |
-| [44-contracts.md](44-contracts.md) | **Writing Bismuth smart contracts** — complete developer manual: execution model, full syscall ABI, storage, custody, composition & upgradeability, security, testing, demo catalog |
-| [45-bridge.md](45-bridge.md) | **Non-custodial cross-chain bridge** (trust model + overview): trustless light-client/zk peg (BIS ↔ ETH/BNB) — VM crypto syscalls (`keccak256`/`ecrecover`), the Merkle state commitment, the peg-in vault + ETH-signer verifier contracts, and the live wBIS deployments |
-| [46-wbis-evm-bridge.md](46-wbis-evm-bridge.md) | **wBIS EVM bridge (BUILT)** — the Ethereum/BNB side that links native BIS to the live wBIS token: `BismuthBridge.sol` becomes the token's mint authority and mints only against on-chain-verified Bismuth lock proofs (BLAKE2b/Merkle port, guardian + zk verifiers, the oracle, deployment runbook) |
 | [20-post-quantum.md](20-post-quantum.md) | Post-quantum signatures: ML-DSA-65 signer, the `pq` fork path |
 | [21-mining.md](21-mining.md) | The built-in solo miner (`miner.py`) and dual-algo PoW signalling |
 | [22-shielded.md](22-shielded.md) | Shielded value: stealth addresses, ring signatures, RingCT confidential amounts (`shieldedv1.py`, `ringct.py`, `bulletproof.py`) — **STAGED/DEFERRED: decoupled from hf2, gated on default-None `shielded_fork_height`** |
 | [23-hd-multisig.md](23-hd-multisig.md) | BIP32/BIP39 HD wallets and M‑of‑N multisig (native signer + VM vault) |
-| [24-defi-dex.md](24-defi-dex.md) | DeFi on the VM: DEX order book, constant-product AMM, multi-pool any-token router; HTLC/atomic-swap plans |
 | [25-security-audit.md](25-security-audit.md) | Adversarial security audit: findings, fixes, regression tests |
 | [26-storage-postfork.md](26-storage-postfork.md) | Post-fork storage rearchitecture: retiring SQLite for one LMDB store, staged migration |
 | [27-plugins.md](27-plugins.md) | Modern plugin framework; the `tokens_aliases` plugin (tokens/aliases out of core) |
-| [28-poker.md](28-poker.md) | On-chain heads-up Texas Hold'em: escrow + commit-reveal + on-chain hand evaluation, off-chain mental-poker deal |

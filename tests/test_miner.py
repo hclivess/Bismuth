@@ -41,7 +41,7 @@ def test_miner_coinbase_carries_hf2_signal(client):
     of = (cb[0].get("openfield") if cb else "") or ""
     pubkey = (cb[0].get("pubkey") if cb else "") or ""
     # doc/41: pre-fork the readiness signal rides in the openfield; post-fork the coinbase openfield is
-    # free miner data and the signal rides in the public_key commitment slot ("hf2"+"vmsr"<root>).
+    # free miner data and the signal rides in the public_key commitment slot ("hf2").
     assert "hf2" in of or "hf2" in pubkey, \
         "coinbase missing the hf2 readiness signal: openfield=%r pubkey=%r" % (of[:24], pubkey[:24])
 

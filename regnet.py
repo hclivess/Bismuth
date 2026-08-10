@@ -122,15 +122,10 @@ def generate_one_block(blockhash, mempool_txs, node, db_handler):
                     return int.from_bytes(blake2b(b, digest_size=28).digest() if new_pow
                                           else sha224(b).digest(), 'big')
 
-                _sr = getattr(node, "vm_state_root", None)
                 if new_pow:
-                    # doc/41: PoW grinds a BARE nonce (prefix = ADDRESS only). The signal + "vmsr"<root>
-                    # commitment rides in the public_key slot, NOT the PoW pre-image / openfield.
+                    # doc/41: PoW grinds a BARE nonce (prefix = ADDRESS only). The signal commitment
+                    # rides in the public_key slot, NOT the PoW pre-image / openfield.
                     commitment = _signal
-                    import fork as _fork_mod
-                    if _fork_mod.vm_active(node, getattr(node, "hdd_block", 0) + 1) and _sr:
-                        import vm_engine
-                        commitment += vm_engine.embed_state_root(_sr, "")
                     seed = ""
                     prefix = ADDRESS
                 else:

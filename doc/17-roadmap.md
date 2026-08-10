@@ -212,47 +212,16 @@
     on-chain VM below — the Ethereum *execution model*, not EVM bytecode). Honestly bounded by *literal*
     Ethereum compatibility, a deliberate design divergence plus roadmap items — NOT "Bismuth can't do
     contracts": addresses are 28-byte (no reversible 0x map), replay is content-txid dedup (no account
-    nonce), the contract ISA is RV32I (no Solidity ABI), events/logs need a VM log opcode (ROADMAP), and
-    inclusion proofs (`eth_getProof`) need the Merkle state trie (ROADMAP, doc/19). Unbacked methods return
-    `-32601` tagged ROADMAP vs DIVERGENCE. So it is **not** a MetaMask drop-in, but it is a faithful,
-    VM-aware Bismuth-flavoured `eth_*` API. Both adapters are unauthenticated + localhost-only (write paths
+    nonce), and there is no contract VM at all — so `eth_call`/`eth_getCode`/`eth_getStorageAt`/
+    `eth_getLogs` have nothing to read. Unbacked methods return `-32601` with an honest reason. So it is
+    **not** a MetaMask drop-in, but it is a faithful Bismuth-flavoured `eth_*` API over chain data. Both adapters are unauthenticated + localhost-only (write paths
     additionally gated by `rest_api_write`); expose via a reverse proxy, never straight to the internet.
-- **Decentralized-apps v2 protocol — on-chain VM execution (the real smart-contract layer).** What the
-  shim above deliberately *isn't*: transactions carry program/call data, a **deterministic virtual
-  machine** executes it on every node, and the resulting **state + output are written back to the chain
-  and agreed by consensus** — the Ethereum model. A major, consensus-level addition layered on the hf2
-  binary tx encoding. Building blocks:
-  - a **sandboxed deterministic VM** — SHIPPED as a single **RISC-V (RV32I)** interpreter
-    (`bismuth_riscv.py`; Vitalik's "RISC-V over the EVM" direction, a frozen ISA with real C/Rust
-    toolchains) rather than a bespoke bytecode or WASM; *every node must execute byte-identically*, so
-    determinism is the whole game (integer-only, no wall-clock, fixed iteration order, bounded memory);
-  - **gas / metering** to bound execution and halt runaway or adversarial programs;
-  - a **contract state trie committed into the block hash**, so state is verifiable and replay-checkable
-    like everything else behind the frozen boundary;
-  - a deploy/call **tx format** + a contract-storage model, generalising today's openfield + token layer.
-  - **Security is the hard part and designed-against from day one** (per the standing attack-vector
-    rule): reentrancy, integer overflow/underflow, **gas-exhaustion DoS**, and — uniquely fatal for a
-    chain — any **non-determinism** (floats, time, map ordering, uninitialised memory) that makes two
-    honest nodes disagree and forks the network. Also state-bloat / unbounded growth. This is its own
-    multi-stage effort and its own hard fork, well beyond the storage/serialization work.
+- **Decentralized-apps v2 protocol — on-chain VM execution. REMOVED, not planned.** A RISC-V (RV32I)
+  contract VM with gas metering, a committed state root, value custody and a `vm:deploy`/`vm:call` tx
+  format was built and regnet-tested behind its own activation gate, then **deleted in full** — it never
+  activated on any live network and is not on the roadmap. `vm:` operations carry no meaning: they are
+  stored as ordinary inert transaction data.
 
-  **Status (built + regnet-tested):** a deterministic **RISC-V** engine (`bismuth_riscv.py`, RV32I), a
-  contract-state store (`vm_state.py`: code + storage + custody balances), `vm:deploy`/`vm:call` parsing +
-  execution (`vm_engine.py`) GATED behind hf2 in the digest, and `/api/vm/*` for the explorer — all behind
-  the `vm` flag, inert until the fork. Execution is main-layer (every node runs it).
-  - **State root — DONE + ENFORCED:** a deterministic hash of all contract state (code + storage +
-    balances) is committed per post-fork block; the miner embeds it in the coinbase and the digester
-    REJECTS a block whose committed root disagrees — a non-determinism bug is a *caught* block-rejection,
-    not a silent divergence. (doc/19)
-  - **HTLC / atomic swaps — the flagship app; building blocks complete, contract still to write.**
-    Bitcoin-style hash-time-locked contracts (BIP-199) are now *buildable*: `SYS_SHA256` preimage claim +
-    block-height `SYS_NUMBER` timelock refund, and **value custody is DONE** — contracts hold and release
-    real BIS rollback-deterministically (balance in `vm_state`, settled via a custody sink) — so trustless
-    BIS↔BTC/LTC/DOGE swaps need no bridge or sequencer. The standalone HTLC contract itself is not yet in
-    `contracts/` ([24](24-defi-dex.md) tracks it as planned).
-  - **Engine:** a SINGLE deterministic **RISC-V** (RV32I) interpreter — Vitalik's direction, real C/Rust
-    toolchains, a frozen ISA. The state/gate/rollback/root framework is engine-agnostic, but there is one
-    engine now, no dispatch.
 - **Rust client (second, independent implementation).** A Bismuth node/client in Rust, built to the
   same frozen consensus boundary (`bismuth_serialize.py`'s signing/block-hash byte forms) and
   **replay-validated to produce byte-identical block hashes** against the Python node — a second

@@ -98,7 +98,7 @@ def _node_post(path, body, timeout=15):
 
 
 new_pow = False        # blake2b Heavy3 active for the block being mined?
-cb_prefix = ""         # coinbase-openfield prefix: fork.FORK2_SIGNAL ("hf2") [+ VM state root post-fork]
+cb_prefix = ""         # coinbase-openfield prefix: fork.FORK2_SIGNAL ("hf2")
 
 
 def _refresh_fork_state(tip_height):
@@ -109,15 +109,6 @@ def _refresh_fork_state(tip_height):
         fh = _node_get("/fork").get("fork_height")
         np = fh is not None and (int(tip_height) + 1) >= int(fh)
         prefix = fork.FORK2_SIGNAL if getattr(config, "fork_signal", False) else ""
-        if np:
-            # post-fork the coinbase MUST also commit the VM pre-state root (doc/19); fetch it from the node
-            try:
-                sr = _node_get("/vm/contracts").get("state_root")
-                if sr:
-                    import vm_engine
-                    prefix += vm_engine.embed_state_root(sr, "")
-            except Exception:
-                pass
         new_pow, cb_prefix = np, prefix
     except Exception:
         new_pow, cb_prefix = False, ""

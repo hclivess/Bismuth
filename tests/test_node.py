@@ -65,18 +65,18 @@ def test_add_validate(client):
 
 
 def test_pubkey_address(client):
-    import vm_engine
+    import fork as fork_mod
     client.mine(1)
     sleep(0.3)
     last = client.command("blocklastjson")
     pk_field = last["public_key"] or ""
-    if vm_engine.extract_state_root(pk_field) is not None:
+    if fork_mod.FORK2_SIGNAL in pk_field:
         # hf2 (doc/41) compact coinbase: once regnet has crossed the fork, the mining-reward tx is
-        # authorized by PoW + the reward formula and carries the MINING HEADER (hf2 signal + "vmsr"<state
-        # root>) in the freed public_key slot, NOT a real key. The legacy address==sha224(pubkey) binding
-        # no longer applies to the coinbase (it moves to the pubkey registry / ordinary txs); assert the
-        # committed state root is present instead.
-        assert "vmsr" in pk_field
+        # authorized by PoW + the reward formula and carries the MINING HEADER (the hf2 fork signal) in
+        # the freed public_key slot, NOT a real key. The legacy address==sha224(pubkey) binding no longer
+        # applies to the coinbase (it moves to the pubkey registry / ordinary txs); assert the mining
+        # header is what it claims to be — the signal, and NOT a base64 pubkey that hashes to the address.
+        assert hashlib.sha224(pk_field.encode("utf-8")).hexdigest() != client.address
     elif not pk_field:
         assert not last["signature"], "an empty-pubkey coinbase must carry an empty signature too"
     else:

@@ -31,11 +31,10 @@ fork** (doc/18-D). The pool + miner now mirror the node's `miner.py` / `mining_h
 - **Coinbase mining header (→ see [doc/41](41-hf2-coinbase-free-fields.md)).** doc/41 SUPERSEDES the old
   "fold the nonce + `cb_prefix` into the coinbase openfield" scheme. Post-fork the miner grinds a **BARE
   nonce** over `address + nonce + blockhash` (the PoW formula is unchanged); the **pool** places its
-  `cb_prefix` commitment — `fork.FORK2_SIGNAL` (`"hf2"`) when signalling, plus the **VM pre-state root**,
-  `vm_engine.embed_state_root`, fetched from `/api/vm/contracts` — into the coinbase **public_key slot**,
-  and the bare nonce into the coinbase **signature slot**. `operation`/`openfield` are left free-form
-  (optional, uncapped). So the node reads the nonce from the signature slot and the state-root + signal
-  from the public_key slot, never the openfield. The pool **server** (`optipoolware.py`) is updated for
+  `cb_prefix` commitment — `fork.FORK2_SIGNAL` (`"hf2"`) when signalling — into the coinbase **public_key
+  slot**, and the bare nonce into the coinbase **signature slot**. `operation`/`openfield` are left
+  free-form (optional, uncapped). So the node reads the nonce from the signature slot and the signal from
+  the public_key slot, never the openfield. The pool **server** (`optipoolware.py`) is updated for
   this and validated by `tests/test_pool_integration.py`.
 - **getwork is append-only.** The work tuple gains `[4]=cb_prefix [5]=new_pow`; an un-upgraded miner that
   reads only `[0:4]` still works. Post-fork the pool stamps `cb_prefix` into the coinbase public_key slot
@@ -91,7 +90,7 @@ remain (via the `_node_get`/`_node_post` helpers). Off the old socket commands:
 | `blocklast` / `diffget` (worker) | `GET /api/status` + `/api/difficulty` |
 | `api_mempool` (coinbase build) | `GET /api/mempool` |
 | `mpinsert` (payouts) | `POST /api/transaction` |
-| fork state | `GET /api/fork` (+ `/api/vm/contracts`) |
+| fork state | `GET /api/fork` |
 | `block` (submit mined block) | **`POST /api/block`** (new) |
 
 **`POST /api/block`** (node, `rest_api.py`) is the REST transport for the legacy socket `block` command:

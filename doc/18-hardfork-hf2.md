@@ -174,7 +174,7 @@ address, never signature-verified (PoW + reward rules authorize it, not a sender
 gets a content-hash txid (it has the six fields), but it is not an ecrecover single-sig spend. Leave its
 identity path as-is beyond computing the new txid for indexing. **Note (→ doc/41):** post-fork the
 coinbase carries its mining header in the freed slots — the nonce in the `signature` slot and
-`"vmsr"<root>`[+`hf2`] in the `public_key` slot — and `operation`/`openfield` become optional,
+the optional `hf2` signal in the `public_key` slot — and `operation`/`openfield` become optional,
 uncapped, free-form miner data. (Pre-fork the nonce rode in the openfield, `miner.py:103-112`.)
 
 **Map — every txid PRODUCER (`signature[:56]`) to change (file:line):**
@@ -273,21 +273,14 @@ small PoW chains:
 *Risk: moderate* — consensus-critical but well-understood and widely battle-tested; deterministic and
 unit-testable against recorded solvetime series before activation.
 
-### E. Decentralized-apps VM — ✅ **implemented, fork-gated, tested**
-A post-fork smart-contract layer: a SINGLE deterministic **RISC-V (RV32I)** engine (`bismuth_riscv.py`),
-a contract-state store (`vm_state.py`: code + storage + custody balances), `vm:deploy`/`vm:call`
-execution (`vm_engine.py`), a consensus-committed **state root** the miner embeds in the coinbase
-(post-fork in the `public_key` slot, → doc/41) and the
-digester REJECTS on mismatch, and **value custody** so contracts hold and release real BIS
-rollback-deterministically — the BIP-199 HTLC flagship, end-to-end. *Risk: moderate* — main-layer
-execution, but inert pre-fork and the enforced root turns any non-determinism into a caught
-block-rejection rather than a silent divergence. Full map: **doc/19**. (`tests/test_riscv.py`,
-`test_vm_state.py`, `test_vm_post_fork.py`, `test_vm_value.py`.)
+### E. Decentralized-apps VM — ❌ **REMOVED**
+A post-fork RISC-V (RV32I) smart-contract layer was built and regnet-tested behind its own activation
+gate, and then **deleted in full** — it never activated on any network and hf2 does not ship it. `vm:`
+operations carry no consensus meaning: they are stored as ordinary inert transaction data.
 
 ### F. Dynamic fees → congestion-responsive base fee — ✅ **implemented, fork-gated, tested**
 A smooth, clamped, *deterministic* base fee that tracks recent network **congestion** over a window
-(`fee_dynamics.py`, the fee analogue of the LWMA), plus the post-fork `vm:` execution surcharge
-(`fee_dynamics.VM_SURCHARGE`); exposed at `/api/fee` for wallets. (The flat `shield:` surcharge was
+(`fee_dynamics.py`, the fee analogue of the LWMA); exposed at `/api/fee` for wallets. (The flat `shield:` surcharge was
 **removed** when shielded value was decoupled from hf2 — `shield:` txs now pay the ordinary fee; it is
 re-added later gated on `shielded_fork_height` if shielded is ever scheduled. Only the `vm:` surcharge
 remains in hf2.) *Risk: low* — gated; pre-fork the static `BASE_FEE` is unchanged.

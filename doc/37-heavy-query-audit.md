@@ -89,7 +89,6 @@ full aggregate is correct and required.
 
 | Site | Why not now |
 |---|---|
-| `vm_engine.rebuild` (`vm_engine.py:176`, `SELECT *` + `.fetchall()`) | Consensus **state-root** path; column-narrowing means remapping offsets `apply_block_rows` reads (incl. `signature` for calls + the per-deploy content txid) — a mistake diverges the root. And the `vm:` row set is **empty pre-fork** (zero current cost). Deferred as a careful post-fork follow-up: narrow + stream + count, gated on the `vm_state` parity tests. |
 | `mempool` merge balance (`mempool.py:475-487`) | Already the good **2-scan** form (recipient + address, single-pass); no redundant scan to collapse. Deeper win is the same balance-index-primary flip as §3. Hot, peer-reachable, consensus-adjacent → don't churn for marginal gain. |
 | `node.py` `aliascheck` (`WHERE openfield = ?`) | No `openfield` index → full scan, but on mainnet `node.token_index` (the aliases side-index) is the real fix and it is **off pre-fork** (plugin inert). Revisit with the side-index; add `LIMIT 1` opportunistically. |
 | `token_index._sum_party` (`token_index.py:138`) | Iterate-all-with-predicate (no early break) → quadratic backfill, but it is the **tokens_aliases plugin**, inert on mainnet pre-fork. Clean bounded-range follow-up (encode the credit `<h` / debit `<=h` boundary). |
@@ -107,15 +106,11 @@ These are acceptable today but **grow with the post-fork chain** — track and a
 
 - **From-zero rebuilds on every reorg.** `chain_ops` rebuilds `balance_index` and `txid_index` from the
   whole chain to undo even a 1-block reorg. `keep_height` is already in scope at the call site (it is
-  passed to `vm_engine.rebuild`) but **not** to the balance/txid rebuilds. Make them rewind to
   `keep_height` (balance_index has `rollback_rows`; txid_index needs a height-keyed secondary), keeping
   the full rebuild as a flag-gated correctness fallback.
 - **`txid_index.rollback` is O(all-indexed-txids)** — it scans the whole txid→height map (keyed by random
   txid) to find the few rows above `keep_height`. Add a height-ordered secondary db (`height||txid`, like
   shieldedv1's `kimg_h`/`notes_h`) to make rollback a range-delete.
-- **`vm_engine.rebuild` re-executes ALL post-fork `vm:` txs** from fork activation on every reorg (cost
-  scales with total VM usage, not reorg depth). Needs periodic **VM-state checkpointing** so a reorg
-  replays only from the last checkpoint ≤ `keep_height`.
 - **`ledger_balance3` per-block cost** rises with each address's history — the balance-index-primary flip
   (§3) must be activated post-fork or this becomes the dominant per-block consensus cost.
 - **`/api/fork`** (`rest_api.py:686`) does a genesis→tip `GROUP BY` + unindexable `openfield LIKE '%hf2%'`,

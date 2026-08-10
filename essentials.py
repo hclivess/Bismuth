@@ -305,9 +305,9 @@ def immature_coinbase(address, validate_height, cursor, maturity, app_log=None):
 
 
 def fee_calculate(openfield: str, operation: str = '', block: int = 0,
-                  base_fee=None, vm_surcharge: bool = False) -> Decimal:
+                  base_fee=None) -> Decimal:
     # base_fee: the post-fork DYNAMIC base fee (fee_dynamics); None -> the static BASE_FEE (pre-fork, and
-    # any caller that doesn't supply it). vm_surcharge: post-fork, charge vm: txs for execution (gas).
+    # any caller that doesn't supply it).
     base = BASE_FEE if base_fee is None else Decimal(base_fee)
     fee = base + (Decimal(len(openfield)) / DECIMAL_HUNDRED_THOUSAND)
 
@@ -316,9 +316,6 @@ def fee_calculate(openfield: str, operation: str = '', block: int = 0,
         fee += DECIMAL_TEN
     elif openfield.startswith("alias="):  # Only check if needed
         fee += DECIMAL_ONE
-    if vm_surcharge and operation.startswith("vm:"):
-        import fee_dynamics
-        fee += fee_dynamics.VM_SURCHARGE
 
     return quantize_eight(fee)
 

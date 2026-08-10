@@ -89,7 +89,7 @@ extra dependency (a tiny built-in TOML serializer covers the whole schema). Env-
 
 After load, `genesis` is hardcoded to `4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed`.
 
-## Modernization keys (storage / consensus / VM — doc/16–19)
+## Modernization keys (storage / consensus — doc/16–18)
 
 Declared in `options.py`, assigned onto `node.*` at startup. All default to a safe value and, where
 consensus-affecting, are **inert until the hf2 fork activates**. (The three `rest_api_proxy_ports` /
@@ -107,12 +107,11 @@ as a `node.*` attribute / config line.)
 | `block_store` | bool | maintain the LMDB block-store shadow (doc/17 phase 7; write path live, reads still SQLite) |
 | `balance_index` | bool | maintain the O(1) balance index — DISPLAY read path (`/api/balance`); consensus still uses `ledger_balance3` |
 | `ledger_integer_amounts` | bool | store amounts as integer atomic units (doc/16); **not yet hyperblock-rollup safe — keep off on mainnet** |
-| `vm` | bool | enable the decentralized-apps RISC-V VM (doc/19); inert until hf2 |
 | `fork_signal` | bool | emit the `hf2` coinbase signal when generating blocks (upgraded miners) — asserts readiness for the WHOLE bundle, including the blake2b Heavy3 (doc/18-D) |
 | `fork_window` / `fork_boundary` / `fork_bury` | int | hf2 activation parameters (signal window, round boundary, burial margin) — `/api/fork` reports status |
 | `mine` | bool | run the built-in solo miner (`miner.py`): real Heavy3, embeds mempool txs, writes the hf2 coinbase (doc/21) |
 | `bootstrap_url` / `bootstrap_file` | str | ledger-snapshot source for fast bootstrap (`chain_ops.bootstrap`) |
-| `rest_api` / `rest_api_port` | bool/int | enable the read-only REST API (doc/15) and its port |
+| `rest_api` / `rest_api_port` | bool/int | the read-only REST API (doc/15) and its port; **on by default** (port 5659) — set `rest_api=False` to disable |
 | `rest_api_write` | bool | enable `POST /api/transaction` (tx submission over REST — the post-fork transport, doc/15); off by default so a read-only node stays read-only |
 | `rest_api_proxy` | bool | enable `GET /api/proxy` (default **ON**) — a read-only, SSRF-guarded same-origin relay so an https explorer can browse http nodes (doc/15) |
 | `rest_api_proxy_ports` | str/list | extra target ports the proxy may reach, beyond the built-in `80/443/5658/5659` + this node's `rest_api_port` (`rest_api.py:526`, `PROXY_DEFAULT_PORTS`); space/comma-separated. The allowlist stops the relay being used as an arbitrary-port scanner (audit M-1) |

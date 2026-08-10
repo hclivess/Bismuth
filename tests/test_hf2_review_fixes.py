@@ -72,40 +72,14 @@ def test_recent_block_weights_strict_fails_closed_on_gap():
         s.close()
 
 
-# --- finding 12: hash syscalls charge per input word (asymmetric block-validation DoS) ----------------
-def test_hash_syscall_gas_is_length_proportional():
-    import bismuth_riscv as rv
-    from bismuth_riscv import execute, asm, addi, ecall
-    A2, A7 = 12, 17
-
-    def _keccak_gas(nbytes):
-        # KECCAK256(a0=calldata ptr, a1=calldata len, a2=out) then HALT; same code, different input length.
-        # out=1800 sits above the largest calldata below (32..1600 B live just past the ~20-byte code) and
-        # fits the 12-bit signed addi immediate; out+32 stays inside the 64 KB memory.
-        code = asm(addi(A2, 0, 1800), addi(A7, 0, rv.SYS_KECCAK256), ecall(),
-                   addi(A7, 0, rv.SYS_HALT), ecall())
-        r = execute(code, calldata=b"x" * nbytes)
-        assert r.success
-        return r.gas_used
-
-    g1 = _keccak_gas(32)          # 1 word
-    g50 = _keccak_gas(1600)       # 50 words
-    # identical instruction path; the ONLY delta is the per-word hash charge -> exactly 49 words * GAS_HASH_WORD
-    assert g50 - g1 == rv.GAS_HASH_WORD * (50 - 1)
-    assert rv.GAS_HASH_WORD > 0   # the charge exists (flat pricing was the DoS)
-
-
-# --- finding 4: fee_calculate honours the dynamic base_fee + VM surcharge (mempool/consensus parity) ---
-def test_fee_calculate_dynamic_and_vm_surcharge():
+# --- finding 4: fee_calculate honours the dynamic base_fee (mempool/consensus parity) ----------------
+def test_fee_calculate_dynamic():
     import essentials
-    import fee_dynamics
     base = essentials.BASE_FEE
     # base_fee=None -> static (pre-fork / unspecified), byte-identical to the legacy call
     assert essentials.fee_calculate("", "", 0) == base
     assert essentials.fee_calculate("", "", 0, base_fee=None) == base
     # a supplied dynamic base_fee is used verbatim
     assert essentials.fee_calculate("", "", 0, base_fee=Decimal("0.05")) == Decimal("0.05000000")
-    # VM surcharge applies ONLY to vm: ops and ONLY when enabled (post-fork)
-    assert essentials.fee_calculate("", "vm:call", 0, vm_surcharge=True) == base + fee_dynamics.VM_SURCHARGE
-    assert essentials.fee_calculate("", "vm:call", 0, vm_surcharge=False) == base   # off -> no surcharge
-    assert essentials.fee_calculate("", "transfer", 0, vm_surcharge=True) == base   # non-vm op -> no surcharge
+    # the openfield byte charge is the only other term (no per-operation surcharges beyond token/alias)
+    assert essentials.fee_calculate("x" * 100000, "", 0) == base + Decimal("1")

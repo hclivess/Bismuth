@@ -48,7 +48,7 @@ rest of the bundle (the PoW swap was folded into hf2 on 2026-06-12; the interim 
 is retired, and stale `pow2` sidecar keys are ignored). Miners advertise whole-bundle readiness —
 including blake2b mining — by stamping `hf2` into their coinbase (`fork_signal=True`); until hf2 locks
 in, every node mines and validates today's sha224 Heavy3. See [21](21-mining.md) (solo miner / mining),
-[18](18-hardfork-hf2.md) (the fork bundle), [19](19-vm.md) (VM).
+[18](18-hardfork-hf2.md) (the fork bundle).
 
 ## Difficulty retarget (`difficulty.py`)
 

@@ -30,5 +30,4 @@ balance_index_consensus=primary
 txid_index_consensus=primary
 pk_registry_consensus=primary
 parity_strict=True
-vm=True
 token_index=True

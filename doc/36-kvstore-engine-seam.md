@@ -1,7 +1,7 @@
 # doc/36 — The engine-agnostic KV store seam (`kvstore.py`)
 
 > Status: **✅ shipped.** `kvstore.py` is in tree; all **8** LMDB stores
-> (`reward_chain`, `txid_index`, `balance_index`, `vm_state`, `token_index`, `shieldedv1`,
+> (`reward_chain`, `txid_index`, `balance_index`, `token_index`, `shieldedv1`,
 > `block_store`) plus `scripts/snapshot.py` construct through the `open_store(backend, …)` factory.
 > Two real backends are live and tested: **`lmdb`** (the default, a thin passthrough) and
 > **`sqlite-kv`** (always-available, stdlib `sqlite3`). A third, **`mdbx`**, is wired into the factory
@@ -250,7 +250,6 @@ back-compat `self.env = getattr(self.store, "env", None)` for callers/tests that
 | **reward_chain** | `reward_chain.py` | `rewards` | `Codec.pack` msgpack list of `[sender, recipient, amount, mirror_hash]` | key = `Codec.hkey(height)`. The canonical parity reference (§9) |
 | **txid_index** | `txid_index.py` | `txid` | raw 8-byte BE height (no Codec) | key = raw txid bytes; post-fork-only projection |
 | **balance_index** | `balance_index.py` | `bal` | `Codec.pack` msgpack `[credit_units, debit_units]` | key = raw address bytes; bit-matches `ledger_balance3` in integer mode |
-| **vm_state** | `vm_state.py` | `code`, `storage`, `balances` | raw bytes (no Codec): bytecode / BE-256 word / BE custody balance | keys raw (`addr` / `addr:`+BE-256 word); feeds `state_root` |
 | **token_index** | `token_index.py` | 11 (`meta`, `tokreg`, `seen`, `cred`, `deb`, `addrtok`, `tokset`, `journal`, `alias_fwd`, `alias_rev`, `ajournal`) | JSON / decimal-string / `b""` (NOT Codec) | keys `token\0party\0HQ` etc; ordered prefix/range scans via `KVTxn` |
 | **shieldedv1** | `shieldedv1.py` (`ShieldedState`) | 6 (`notes`, `notes_h`, `kimg`, `kimg_h`, `flows`, `meta`) | JSON / BE-height / decimal-string / `b""` (NOT Codec) | reorg = height-ordered range delete via `KVTxn.range` |
 | **block_store** | `block_store.py` | 4 (`blocks`, `hashes`, `pk`, `pkr`) | `blocks`: `Codec.pack` msgpack `{"h":…,"t":[…]}`; others raw bytes | `lock=True` even when readonly; pubkey dedup id via `KVTxn.count` |

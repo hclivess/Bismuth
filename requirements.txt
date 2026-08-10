@@ -22,8 +22,8 @@ cryptography
 # /get_cmdclass() calls replaced by a literal (e.g. "1.5"); older Pythons pip-install it directly.
 # install_node.sh handles this patch automatically.
 ed25519
-# REQUIRED for the LMDB stores — block_store, vm_state, and the shielded value store (doc/26 storage
-# rework). A node with block_store/vm/shield enabled cannot start without these.
+# REQUIRED for the LMDB stores — block_store, balance_index, txid_index, and the plugin token/alias
+# index (doc/26 storage rework). A node cannot start without these.
 lmdb
 msgpack
 # OPTIONAL (post-quantum, doc/20): pure-Python ML-DSA-65 for polysign/signer_mldsa.py. Lazy-imported by

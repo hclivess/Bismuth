@@ -3,31 +3,22 @@ Ethereum/ERC compatibility shim (doc/17) — exposes the ``eth_*`` JSON-RPC subs
 Bismuth backing so web3-style tooling can read chain data. Behind the ``rpc_ethereum`` flag (default off,
 port 8545).
 
-SMART CONTRACTS DO EXIST post-hf2 — Bismuth runs a deterministic on-chain VM whose state is committed to
-the block hash and agreed by consensus (the Ethereum *execution model*), so eth_call / eth_getCode /
-eth_getStorageAt / eth_estimateGas are backed for real here (over vm_state + bismuth_riscv). The VM is
-RISC-V (RV32I), the "RISC-V over the EVM" direction (doc/19) — NOT EVM bytecode. So what bounds this shim
-is *literal Ethereum compatibility*, a deliberate design divergence (some of it roadmapped), NOT "Bismuth
-can't do contracts":
+Bismuth has NO contract VM: the node is a pure value/data ledger, so the contract-execution half of the
+eth_* surface (eth_call / eth_getCode / eth_getStorageAt / eth_estimateGas / eth_getLogs) has nothing to
+read and is answered as unsupported. What this shim DOES back faithfully is chain and account data. The
+other bounds are deliberate design divergences:
   * addresses are 28-byte/56-hex (no reversible 20-byte-0x map) — every address arg is a Bismuth address;
   * replay protection is content-txid dedup, not a per-account nonce — eth_getTransactionCount is a tx COUNT;
-  * the contract ISA is RV32I (4-byte word), not EVM/Solidity ABI — EVM bytecode won't run as-is and
-    uint256/struct ABI returns aren't native (an EVM-bytecode/ABI transcoding layer is a separate effort);
-  * the RV32I ISA has no event/log opcode yet, so eth_getLogs has nothing to read TODAY (a log primitive
-    is addable in the VM, not a hard wall);
-  * the state commitment is a flat root today; the Merkle state TRIE (inclusion proofs -> eth_getProof) is
-    roadmapped (doc/19), not impossible;
   * the node is keyless (eth_sendTransaction / eth_sign sign client-side) and the PoW is blake2b, not
     keccak/RLP/EIP-155 (doc/18), so eth_getWork/submitWork aren't Ethereum-miner-interoperable.
-Methods with no backing TODAY return "-32601 unsupported (<reason>)", saying whether it's a design
-divergence or a roadmap item. eth_sendRawTransaction takes a Bismuth-native pre-signed 8-field tuple
-(gated by rest_api_write), not an RLP secp256k1 MetaMask blob.
+Methods with no backing return "-32601 unsupported (<reason>)". eth_sendRawTransaction takes a
+Bismuth-native pre-signed 8-field tuple (gated by rest_api_write), not an RLP secp256k1 MetaMask blob.
 
 Provided, hex-encoded the way eth_* clients expect: chain height/blocks(+by hash/index)/tx/balance reads,
-native eth_call/eth_getCode/eth_getStorageAt over the RV32I vm_state, fee/sync/peer/mempool(txpool)
-status, synthetic receipts for value txs, and block/pending-tx polling filters. POST-HF2 native: ids are
-content-hash txids; reads prefer node.block_store (LMDB, O(1)) — the `transactions` SQLite table is
-retired. Deps: stdlib + dbhandler/essentials/mempool (same as rpc_bitcoin.py).
+fee/sync/peer/mempool(txpool) status, synthetic receipts for value txs, and block/pending-tx polling
+filters. POST-HF2 native: ids are content-hash txids; reads prefer node.block_store (LMDB, O(1)) — the
+`transactions` SQLite table is retired. Deps: stdlib + dbhandler/essentials/mempool (same as
+rpc_bitcoin.py).
 """
 import json
 import threading
@@ -61,23 +52,27 @@ def _hex(n):
     return hex(int(n))
 
 
-# Methods with no backing TODAY — answered with an honest reason that says whether it's a roadmap item
-# (the VM/state-trie can grow into it) or a design divergence (Bismuth deliberately differs from Ethereum).
+# Methods with no backing — answered with an honest reason. Everything contract-shaped is unsupported
+# because Bismuth has no contract VM; the rest are deliberate divergences from Ethereum.
 _UNSUPPORTED = {
-    "eth_getLogs": "ROADMAP: the RV32I VM has no event/log opcode yet (a log primitive is addable, doc/19)",
-    "eth_newFilter": "ROADMAP: depends on VM events (see eth_getLogs)",
-    "eth_getFilterLogs": "ROADMAP: depends on VM events (see eth_getLogs)",
-    "eth_getProof": "ROADMAP: flat state root today; inclusion proofs arrive with the Merkle state trie (doc/19)",
+    "eth_call": "DIVERGENCE: no contract VM — Bismuth is a value/data ledger, nothing to execute",
+    "eth_estimateGas": "DIVERGENCE: no contract VM — no execution to meter",
+    "eth_getCode": "DIVERGENCE: no contract VM — addresses never hold code",
+    "eth_getStorageAt": "DIVERGENCE: no contract VM — addresses have no storage",
+    "eth_getLogs": "DIVERGENCE: no contract VM — no logs/events are ever emitted",
+    "eth_newFilter": "DIVERGENCE: depends on contract logs/events (see eth_getLogs)",
+    "eth_getFilterLogs": "DIVERGENCE: depends on contract logs/events (see eth_getLogs)",
+    "eth_getProof": "ROADMAP: no state trie — inclusion proofs are not exposed",
     "eth_sendTransaction": "DIVERGENCE: keyless node — sign client-side and use eth_sendRawTransaction (Bismuth tuple)",
     "eth_sign": "DIVERGENCE: keyless node — no server-side keystore",
     "eth_signTransaction": "DIVERGENCE: keyless node — no server-side keystore",
     "eth_getWork": "DIVERGENCE: PoW is blake2b, not keccak/RLP — not Ethereum-miner-interoperable",
     "eth_submitWork": "DIVERGENCE: PoW is blake2b, not keccak/RLP — not Ethereum-miner-interoperable",
-    "eth_createAccessList": "DIVERGENCE: RV32I VM, no EVM access lists",
+    "eth_createAccessList": "DIVERGENCE: no contract VM, no EVM access lists",
     "eth_subscribe": "ROADMAP: no WebSocket transport yet (use the polling filters: eth_newBlockFilter)",
     "eth_unsubscribe": "ROADMAP: no WebSocket transport yet",
-    "debug_traceTransaction": "ROADMAP: no VM tracer / persisted receipts yet",
-    "debug_traceBlockByNumber": "ROADMAP: no VM tracer / persisted receipts yet",
+    "debug_traceTransaction": "DIVERGENCE: no contract VM to trace / no persisted receipts",
+    "debug_traceBlockByNumber": "DIVERGENCE: no contract VM to trace / no persisted receipts",
 }
 
 
@@ -387,9 +382,8 @@ def _make_handler(node):
             return self._tx_obj_idx(rows, idx) if rows and 0 <= idx < len(rows) else None
 
         def m_eth_getTransactionReceipt(self, db, p):
-            # SYNTHETIC receipt: Bismuth persists no receipts and the RV32I VM has no logs yet, so status
-            # is 0x1 for any included tx and logs are empty. (Honest: reconstructed, not stored — real
-            # receipts/logs arrive if the VM gains an event opcode + receipt store, doc/19.)
+            # SYNTHETIC receipt: Bismuth persists no receipts and has no contract VM (so no logs), so
+            # status is 0x1 for any included tx and logs are empty — reconstructed, not stored.
             row = _resolve_tx_row(db, p[0])
             if not row:
                 return None
@@ -397,44 +391,6 @@ def _make_handler(node):
                     "blockNumber": _hex(row[0]), "blockHash": row[7], "from": row[2], "to": row[3],
                     "status": "0x1", "logs": [], "logsBloom": "0x" + "00" * 256,
                     "gasUsed": "0x0", "cumulativeGasUsed": "0x0", "contractAddress": None}
-
-        # ---- VM (native call over committed vm_state — RISC-V/RV32I execution model, NOT EVM bytecode/ABI) ----
-        def _vm(self):
-            vs = getattr(node, "vm_state", None)
-            if vs is None:
-                raise Exception("contract VM not enabled on this node")
-            return vs
-
-        def m_eth_getCode(self, db, p):
-            code = self._vm().get_code(p[0])
-            return "0x" + (bytes(code).hex() if code else "")
-
-        def m_eth_getStorageAt(self, db, p):
-            storage = self._vm().load_storage(p[0])
-            slot = p[1]
-            key = int(slot, 16) if isinstance(slot, str) and slot.startswith("0x") else int(slot)
-            return "0x" + int(storage.get(key, 0)).to_bytes(32, "big").hex()
-
-        def m_eth_call(self, db, p):
-            res = self._run_vm(p[0])
-            return "0x" + bytes(res.output).hex()
-
-        def m_eth_estimateGas(self, db, p):
-            res = self._run_vm(p[0])
-            return _hex(res.gas_used)
-
-        def _run_vm(self, call):
-            import bismuth_riscv
-            vs = self._vm()
-            to = call.get("to")
-            code = vs.get_code(to)
-            if not code:
-                raise Exception("no contract code at %s" % to)
-            data = call.get("data") or call.get("input") or "0x"
-            calldata = bytes.fromhex(data[2:]) if isinstance(data, str) and data.startswith("0x") else b""
-            return bismuth_riscv.execute(bytes(code), calldata=calldata,
-                                         storage=vs.load_storage(to), self_balance=vs.get_balance(to),
-                                         block_height=_tip())
 
         # ---- write (Bismuth-native pre-signed tuple only) ----
         def m_eth_sendRawTransaction(self, db, p):

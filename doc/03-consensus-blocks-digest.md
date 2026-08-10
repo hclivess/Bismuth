@@ -56,11 +56,7 @@ characterization tests (see [14](14-known-issues-and-improvements.md)) passing i
    11. **Update tip** — set `node.last_block` / `node.last_block_hash` (then write).
    12. **Plugin hooks** — fire `block` / `fullblock`.
    13. **Post-fork reject checks** — once `block_height >= node.fork_height` (the dynamic hf2 fork; all
-       three are inert pre-fork and on regnet/when state is absent), still BEFORE the commit:
-       - **VM state-root** (`digest.py` ~545): the coinbase MUST commit the pre-state VM root
-         (`vm_engine.extract_state_root`, read post-fork from the coinbase **public_key** slot — see
-         [doc/41](41-hf2-coinbase-free-fields.md)); a missing root, or one `!= node.vm_state_root`, raises
-         and rejects the block (see [19](19-vm.md)).
+       both are inert pre-fork and on regnet/when state is absent), still BEFORE the commit:
        - **Multisig timing** (`digest.py` ~572): a multisig SENDER address
          (`SignerFactory.address_is_multisig`) is only accepted at/after `fork_height`; any multisig
          spend at a lower height raises (chain-split safety — receiving INTO a multisig is always fine).

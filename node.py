@@ -19,8 +19,8 @@ databases, starts the mempool, the mining/consensus worker threads
 (``connectionmanager`` -> ``worker``), the threaded legacy TCP P2P server
 (``ThreadedTCPServer`` / ``ThreadedTCPRequestHandler``, which speaks the
 socket protocol and serves/ingests blocks, balances, mempool and peer data
-via ``apihandler``), and -- when ``rest_api`` is enabled -- the optional
-read-only REST API. It also installs graceful-shutdown handling so the node
+via ``apihandler``), and -- unless ``rest_api`` is disabled -- the read-only
+REST API. It also installs graceful-shutdown handling so the node
 finishes any in-flight block write before exiting, keeping the ledger and
 hyperblock heights consistent. Block ingestion itself is delegated to
 ``digest.digest_block``; this module is the orchestration and networking shell
@@ -1452,9 +1452,6 @@ if __name__ == "__main__":
     node.pk_registry_consensus = getattr(config, "pk_registry_consensus", "off")
     node.pk_registry = None                            # the LMDB address->pubkey registry, built at startup when pk_registry_consensus != off
     node.parity_strict = getattr(config, "parity_strict", False)  # doc/26 stage 4: raise (not warn) on a parity mismatch
-    node.vm_enabled = config.vm                         # opt-in decentralized-apps VM (doc/17); POST-FORK only
-    node.vm_state = None                               # the contract state store, built at startup if enabled
-    node.vm_state_root = None                          # committed VM state root (doc/19), maintained post-fork
     node.token_index = None                            # the LMDB token/alias side-index store; set by the
     #                                                    tokens_aliases plugin at startup (doc/27) when the
     #                                                    token_index flag is on, else None (legacy index.db).
@@ -1619,7 +1616,7 @@ if __name__ == "__main__":
             connection_manager.start()
             # start connection manager
 
-            # optional modern parallel REST API (read-only; see doc/15). Off unless rest_api=True.
+            # modern parallel REST API (read-only; see doc/15). On by default; rest_api=False opts out.
             if node.rest_api:
                 import rest_api
                 node.rest_server = rest_api.BismuthRESTServer(node, port=node.rest_api_port)
@@ -1713,31 +1710,6 @@ if __name__ == "__main__":
                 except Exception as e:
                     node.logger.app_log.warning("Status: pubkey registry could not start: {}".format(e))
                     node.pk_registry = None
-
-            # decentralized-apps VM contract-state store (doc/17). MANDATORY CONSENSUS post-hf2: the VM's
-            # execution, custody payouts, and committed state-root all gate on the SHARED fork.vm_active
-            # predicate (VM_ACTIVATION_HEIGHT — a network-wide consensus height, not a per-node knob), so
-            # EVERY node must run the VM once it activates. If the store were opened only under the opt-in
-            # `vm` flag, a default (vm=off) node would skip execution AND the "mandatory" coinbase state-root
-            # check while vm=on nodes enforce it — a hard consensus split at activation. The activation height
-            # is not resolved here, so the store is opened UNCONDITIONALLY and is simply INERT until then
-            # (every VM branch in digest is vm_active-gated; the VM is currently DISABLED — VM_ACTIVATION_HEIGHT
-            # is None — pending reengineering). config.vm is kept only as a diagnostic/RPC hint; it no longer
-            # gates consensus participation.
-            try:
-                import os as _os
-                import vm_state as _vm_state_mod
-                vm_path = _os.path.join(_os.path.dirname(node.ledger_path) or ".", "vmstate")
-                node.vm_state = _vm_state_mod.VMState(vm_path)
-                node.vm_state_root = node.vm_state.merkle_root()   # doc/45 Stage 2b: committed root = Merkle root
-                node.logger.app_log.warning(
-                    "Status: VM state store opened (inert — VM disabled, gated on fork.VM_ACTIVATION_HEIGHT)")
-            except Exception as e:
-                # Leaving vm_state None is safe pre-fork (all VM branches are fork-height-gated), but post-fork
-                # the mandatory state-root check REFUSES to run without the store (see digest.py) and halts the
-                # node rather than silently diverging onto lenient rules. Surface the failure loudly.
-                node.logger.app_log.error("Status: VM state store could not open: {}".format(e))
-                node.vm_state = None
 
             # (The LMDB token/alias side-index is now owned by the tokens_aliases PLUGIN — opened in
             # node.plugin_manager.start(node) above and exposed as node.token_index. doc/26 stage 2 + doc/27.)

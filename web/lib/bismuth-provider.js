@@ -10,8 +10,8 @@
 //   import { installBismuthProvider } from "../lib/bismuth-provider.js";
 //   const provider = installBismuthProvider({ walletOrigin: "http://127.0.0.1:8097", walletUrl: "..." });
 //   const [addr] = await window.bismuth.request({ method: "bismuth_requestAccounts" });
-//   const { txid } = await window.bismuth.request({ method: "bismuth_vmCall",
-//          params: [{ contract, calldata_hex, value }] });
+//   const { txid } = await window.bismuth.request({ method: "bismuth_sendTransaction",
+//          params: [{ recipient, amount, operation, openfield }] });
 //
 // The wallet app must answer postMessage envelopes of shape:
 //   { __bismuth: 1, id, method, params }  ->  { __bismuth: 1, id, result }  or  { __bismuth: 1, id, error }
@@ -35,7 +35,6 @@ const KNOWN_METHODS = new Set([
   "bismuth_signTransaction",
   "bismuth_sendTransaction",
   "bismuth_signMessage",
-  "bismuth_vmCall",
   "bismuth_networkId",
 ]);
 
@@ -192,9 +191,6 @@ export class BismuthProvider {
   signTransaction(tx) { return this.request({ method: "bismuth_signTransaction", params: [tx] }); }
   sendTransaction(tx) { return this.request({ method: "bismuth_sendTransaction", params: [tx] }); }
   signMessage(message) { return this.request({ method: "bismuth_signMessage", params: [{ message }] }); }
-  vmCall(contract, calldataHex, value) {
-    return this.request({ method: "bismuth_vmCall", params: [{ contract, calldata_hex: calldataHex, value: value || 0 }] });
-  }
 }
 
 // Inject as window.bismuth (idempotent). Returns the provider instance.

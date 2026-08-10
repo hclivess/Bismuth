@@ -212,9 +212,8 @@ and the conclusions line up with what `polysign` already is:
   same destination, and it is the destination that makes a PQ pivot tractable.
 - **Cutting the verification cost with vectorized-math precompiles.** Lattice verification is
   dominated by modular vector/NTT arithmetic; dedicated **vectorized-math precompiles** make it cheap.
-  Bismuth's analogue is its post-fork **RISC-V VM** ([`19-vm.md`](19-vm.md)) — *if* PQ verification ever
-  needed to be exposed to contract-level logic, a precompile-style fast path is the natural mechanism;
-  for L1 tx verification it is plain native code in the signer.
+  Bismuth has no contract VM, so there is no contract-level surface to expose PQ verification to; for
+  L1 tx verification it is plain native code in the signer.
 - **Cutting the bandwidth/verification cost with recursive proof/signature aggregation.** The ~5 KB-per-
   tx blow-up is the real pain, and the live research answer is **recursive-proof aggregation** — prove
   "all N signatures in this block are valid" in one succinct proof, so nodes verify *one* object instead

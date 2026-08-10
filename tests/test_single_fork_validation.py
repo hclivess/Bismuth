@@ -1,6 +1,6 @@
 """
 ONE fork encompasses everything (the 2026-06-12 unification): hf2 is the only signalled fork, and its
-single activation height flips the whole bundle together — LWMA difficulty, dynamic fees, the VM
+single activation height flips the whole bundle together — LWMA difficulty, dynamic fees
 gates AND the blake2b Heavy3 PoW (the short-lived separate "pow2" PoW fork was folded into hf2).
 
 Live regnet validation, end to end:
@@ -51,7 +51,7 @@ def test_single_fork_encompasses_everything(client):
     assert "PoW-fork" not in log
 
     # 3. every surface reports the SAME single height
-    assert _get("/api/vm/contracts")["fork_height"] == fh
+    assert _get("/api/fork")["fork_height"] == fh
 
     # 4. the REAL miner mines accepted blocks PAST activation: miner (blake2b) and digester (blake2b)
     #    both gate on node.fork_height, so acceptance proves the PoW switched in lockstep

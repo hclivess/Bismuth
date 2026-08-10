@@ -56,8 +56,7 @@ Layout:
 | `tests/fork_transition_smoke.py` | standalone (non-pytest) **hf2 transition gate**: lock-in → restart mid-transition (sidecar replay) → real-miner sha224→blake2b boundary crossing with a pre-fork tx confirming post-fork → reorg back across the boundary → sidecar-less restart (self-healing re-derivation). Uses the `BISMUTH_REGNET_KEEP=1` test-only env escape so a regnet chain survives a restart ([18](18-hardfork-hf2.md)) |
 | `tests/config_custom.txt` | regnet test config (`regnet=True`, `heavy=False`, `port=3030`) |
 
-Beyond the above, the suite carries a broader consensus / VM / fork / storage set — e.g. `test_riscv`,
-`test_vm_state` / `test_vm_value` / `test_vm_post_fork` (the RISC-V VM, [19](19-vm.md)), `test_fee_dynamics`,
+Beyond the above, the suite carries a broader consensus / fork / storage set — e.g. `test_fee_dynamics`,
 `test_difficulty_lwma`, `test_fork_wiring`, `test_consensus_invariants`, `test_replay`,
 `test_characterization`, `test_integer_storage`, and `test_rollback_reorg` / `test_rollback_autorecover`.
 

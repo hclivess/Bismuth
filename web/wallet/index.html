@@ -35,7 +35,6 @@
 </style>
 </head>
 <body>
-<script src="../lib/poker-nav.js" data-active="wallet"></script>
 <div class="wrap">
   <h1><span class="logo"></span> Bismuth Wallet <span class="pill" id="mode">standalone</span></h1>
   <div class="sub">Keys are generated and stored <b>only in this origin</b>, encrypted with your passphrase.
@@ -123,30 +122,9 @@ const $ = (id) => document.getElementById(id);
 function log(m){ const l=$("log"); l.textContent += m + "\n"; l.scrollTop = l.scrollHeight; }
 
 const wallet = new Wallet();
-let CONNECTED_ORIGINS = new Map();   // origin -> {approvedContracts:Set}
+let CONNECTED_ORIGINS = new Map();   // origin -> {}
 let IDLE_TIMER = null;
 const IDLE_MS = 5 * 60 * 1000;
-
-// ---------------------------------------------------------------- selector decode (for the modal)
-const FN_NAME = Object.fromEntries(Object.entries(btx.FN).map(([k, v]) => [v, k]));
-function decodeCalldata(calldataHex){
-  const b = btx.fromHex(calldataHex);
-  if (b.length < 4) return { selector: null, name: "(empty)", detail: "" };
-  const sel = (b[0]<<24)|(b[1]<<16)|(b[2]<<8)|b[3];
-  const name = FN_NAME[sel] !== undefined ? "FN_" + FN_NAME[sel] : ("selector " + sel);
-  let detail = "";
-  const be4 = (o) => (b[o]<<24>>>0)+(b[o+1]<<16)+(b[o+2]<<8)+b[o+3];
-  try {
-    if (sel === btx.FN.SIT)        detail = "seat " + be4(4) + " (BUY-IN — moves funds)";
-    else if (sel === btx.FN.LEAVE) detail = "seat " + be4(4) + " (refund stack)";
-    else if (sel === btx.FN.BET)   detail = "raise street total to " + be4(4) + " units";
-    else if (sel === btx.FN.COMMIT)detail = "anchor 32-byte hole commitment";
-    else if (sel === btx.FN.REVEAL)detail = "reveal cards " + Array.from(b.slice(4,9)).join(",");
-    else if (sel === btx.FN.DECK_DIGEST) detail = "anchor deal-stage deck hash (idx " + be4(4) + ")";
-    else detail = "no arguments";
-  } catch(e){ detail = "(unparsed args)"; }
-  return { selector: sel, name, detail, isValueBearing: sel === btx.FN.SIT };
-}
 
 // ---------------------------------------------------------------- node REST
 async function nodeGet(path){
@@ -282,7 +260,7 @@ async function handleRpc(origin, source, msg){
           bodyHtml: kv("Site", origin) + kv("Account", wallet.account.address.slice(0,20)+"…") +
                     '<div class="muted" style="margin-top:8px">This site will see your address. It must still ask you to approve every transaction.</div>' });
         if (!ok) return reply(origin, source, id, null, REJECTED());
-        CONNECTED_ORIGINS.set(origin, { approvedContracts: new Set() });
+        CONNECTED_ORIGINS.set(origin, {});
         window.__dappSource = source;
         return reply(origin, source, id, [wallet.account.address]);
       }
@@ -301,38 +279,32 @@ async function handleRpc(origin, source, msg){
         return reply(origin, source, id, wallet.account.signMessage(p.message));
       }
 
-      case "bismuth_vmCall":
       case "bismuth_sendTransaction":
       case "bismuth_signTransaction": {
         if (wallet.locked) return reply(origin, source, id, null, {code:4100,message:"wallet locked"});
         if (!CONNECTED_ORIGINS.has(origin)) return reply(origin, source, id, null, {code:4100,message:"connect first"});
-        // Normalize to a vm:call shape (contract, calldata_hex, value).
-        let contract, calldataHex, value;
-        if (method === "bismuth_vmCall"){ contract = p.contract; calldataHex = p.calldata_hex; value = p.value || 0; }
-        else { // raw tx with openfield "<addr>:<calldata_hex>"
-          const of = String(p.openfield || ""); const ci = of.indexOf(":");
-          contract = p.recipient || of.slice(0, ci); calldataHex = of.slice(ci+1); value = p.amount || p.value || 0;
-        }
-        const dec = decodeCalldata(calldataHex);
-        const valueWarn = dec.isValueBearing || Number(value) > 0
-          ? ("This call attaches " + value + " BIS of your funds.") : "";
+        const recipient = String(p.recipient || "");
+        const value = p.amount != null ? p.amount : (p.value || 0);
+        const operation = String(p.operation || "");
+        const openfield = String(p.openfield || "");
         const ok = await approve({
           title:"Approve transaction", origin,
-          bodyHtml: kv("Site", origin) + kv("Action", '<b>'+dec.name+'</b>') + kv("", dec.detail) +
-                    kv("Contract", contract.slice(0,16)+"…"+contract.slice(-6)) +
-                    kv("Value", (Number(value)||0) + " BIS") +
-                    kv("Calldata", '<span class="mono">'+calldataHex.slice(0,40)+(calldataHex.length>40?"…":"")+'</span>'),
-          valueWarn });
+          bodyHtml: kv("Site", origin) +
+                    kv("To", recipient.slice(0,16)+"…"+recipient.slice(-6)) +
+                    kv("Amount", (Number(value)||0) + " BIS") +
+                    (operation ? kv("Operation", '<span class="mono">'+escapeHtml(operation)+'</span>') : "") +
+                    (openfield ? kv("Data", '<span class="mono">'+escapeHtml(openfield).slice(0,40)+(openfield.length>40?"…":"")+'</span>') : ""),
+          valueWarn: Number(value) > 0 ? ("This transaction moves " + value + " BIS of your funds.") : "" });
         if (!ok) return reply(origin, source, id, null, REJECTED());
 
         // Build + sign with the in-origin key (bismuth-tx.js owns the canonical buffer/framing).
-        const built = btx.buildVmCall(wallet.account, contract, calldataHex, { value: Number(value)||0 });
+        const built = btx.buildTx(wallet.account, recipient, Number(value)||0, operation, openfield);
         if (method === "bismuth_signTransaction") return reply(origin, source, id, { tx: built.tx });
-        // sendTransaction / vmCall: submit to the node and return the txid echo.
+        // sendTransaction: submit to the node and return the txid echo.
         try {
           const res = await nodePostTx(built.tx);
           const txid = (res.txids && res.txids[0]) || built.txidPrefix;
-          log("submitted " + dec.name + " -> " + txid);
+          log("submitted tx -> " + txid);
           return reply(origin, source, id, { txid, result: res.result });
         } catch(e){
           // surface "already in mempool" so the dApp can poll for inclusion (doc/33 §4 nonce/dup)
