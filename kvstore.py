@@ -29,7 +29,29 @@ for the always-available sqlite-kv backend). ``mdbx`` imported lazily, optional.
 """
 from __future__ import annotations
 
+import os
 import struct
+
+
+# --------------------------------------------------------------------------- store paths
+def store_path(ledger_path, name):
+    """Path of a derived LMDB store, NAMESPACED BY LEDGER FILENAME — ``<name>-<ledger>``.
+
+    Every derived store MUST be per-ledger. They used to be bare siblings of the ledger
+    (``static/blockstore``), which made mainnet (``static/ledger.db``), testnet and regnet
+    (``static/regmode.db``) share one directory: a regnet run would hand its blocks/balances to a
+    mainnet node, and each network's startup wipe/rebuild would silently trash the other's store.
+    That is the doc/18 regnet->mainnet pollution class, and it also made the regnet suite flaky
+    against a running production node. Keying on the ledger filename gives each network its own
+    store, which is what ``token_index.open_for`` already did (``tokenindex-<ledger>``).
+
+    No migration from the legacy shared path: it cannot be attributed to a network (whichever node
+    ran last owns its contents), so adopting it is exactly the pollution this prevents. All four
+    stores recover on their own — balance/txid/pubkey indexes rebuild from the ledger at startup, and
+    the block store is built forward as blocks are digested.
+    """
+    base = os.path.basename(str(ledger_path)) or "ledger.db"
+    return os.path.join(os.path.dirname(str(ledger_path)) or ".", "%s-%s" % (name, base))
 
 
 # --------------------------------------------------------------------------- Codec

@@ -1586,6 +1586,39 @@ if __name__ == "__main__":
             else:
                 _bind_listener = False
 
+            # LMDB block-body store (doc/17 phase 7, doc/26). MANDATORY CONSENSUS post-hf2: it is the source
+            # of the post-fork DYNAMIC-FEE weight window (fee_dynamics), and the base_fee is consensus (it
+            # sets the per-tx required fee and the coinbase reward), so every node must derive it from the
+            # SAME complete window. If the store were opt-in, a default node would fall back to the static fee
+            # while a store-on node used the dynamic fee — a chain split. There is no backfill-from-ledger, so
+            # the window is built FORWARD as blocks are digested; opening the store UNCONDITIONALLY now (well
+            # before hf2 lock-in) lets every node accumulate a complete recent window before activation with no
+            # operator action. Inert pre-fork (the digest fee branch is fork-height-gated). The digest read is
+            # fail-closed (strict): a missing window height HALTS the node rather than diverging.
+            #
+            # ORDERING: this MUST come before the P2P listener / connection manager start below. The store
+            # is written forward by digest (there is no backfill), and digest SKIPS the write when
+            # block_writer is None -- so any block digested while the store was still closed is a
+            # PERMANENT HOLE in it, and a hole inside the post-fork weight window makes the strict fee read
+            # halt the node. Opening it late used to be masked by the shared store directory (a previous
+            # regnet run had already written those heights); with per-ledger stores the hole is real.
+            try:
+                import block_store
+                import kvstore as _kv
+                bs_path = _kv.store_path(node.ledger_path, "blockstore")
+                node.block_store = block_store.BlockStore(bs_path)
+                import storage_backend as _sb
+                node.block_writer = _sb.LmdbWriteBackend(node.block_store, node)   # stage-4 write seam (doc/26); node -> live fork_height gate (doc/40)
+                node.logger.app_log.warning(
+                    f"Status: block store opened at {bs_path} (tip {node.block_store.tip()}; "
+                    f"mandatory consensus post-hf2, inert pre-fork)")
+            except Exception as e:
+                # Pre-fork this is inert (fee is static); post-fork the digest fee read fails closed and halts
+                # rather than diverging. Surface loudly.
+                node.logger.app_log.error(f"Status: block store could not open: {e}")
+                node.block_store = None
+                node.block_writer = None
+
             if _bind_listener:
                 # Port 0 means to select an arbitrary unused port
                 host, port = bind_host, int(node.port)
@@ -1646,9 +1679,9 @@ if __name__ == "__main__":
             # never enable spending (attack-vector safety).
             if getattr(node, "balance_index_enabled", False):
                 try:
-                    import os as _os
                     import balance_index as _bi_mod
-                    bi_path = _os.path.join(_os.path.dirname(node.ledger_path) or ".", "balanceindex")
+                    import kvstore as _kv
+                    bi_path = _kv.store_path(node.ledger_path, "balanceindex")
                     node.balance_index = _bi_mod.BalanceIndex(bi_path)
                     _bidb = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
                                                 node.ledger_ram_file, node.logger,
@@ -1670,9 +1703,9 @@ if __name__ == "__main__":
             # the flag flips to "primary" -- in "shadow" it only cross-checks the SQLite verdict.
             if getattr(node, "txid_index_consensus", "off") != "off":
                 try:
-                    import os as _os
                     import txid_index as _txi_mod
-                    txi_path = _os.path.join(_os.path.dirname(node.ledger_path) or ".", "txidindex")
+                    import kvstore as _kv
+                    txi_path = _kv.store_path(node.ledger_path, "txidindex")
                     node.txid_index = _txi_mod.TxidIndex(txi_path)
                     _txidb = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
                                                  node.ledger_ram_file, node.logger,
@@ -1694,9 +1727,9 @@ if __name__ == "__main__":
             # ancient addresses must survive pruning), maintained on commit.
             if getattr(node, "pk_registry_consensus", "off") != "off":
                 try:
-                    import os as _os
                     import pubkey_registry as _pkr_mod
-                    pkr_path = _os.path.join(_os.path.dirname(node.ledger_path) or ".", "pkregistry")
+                    import kvstore as _kv
+                    pkr_path = _kv.store_path(node.ledger_path, "pkregistry")
                     node.pk_registry = _pkr_mod.PubkeyRegistry(pkr_path)
                     _pkrb = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
                                                 node.ledger_ram_file, node.logger,
@@ -1713,32 +1746,6 @@ if __name__ == "__main__":
 
             # (The LMDB token/alias side-index is now owned by the tokens_aliases PLUGIN — opened in
             # node.plugin_manager.start(node) above and exposed as node.token_index. doc/26 stage 2 + doc/27.)
-
-            # LMDB block-body store (doc/17 phase 7, doc/26). MANDATORY CONSENSUS post-hf2: it is the source
-            # of the post-fork DYNAMIC-FEE weight window (fee_dynamics), and the base_fee is consensus (it
-            # sets the per-tx required fee and the coinbase reward), so every node must derive it from the
-            # SAME complete window. If the store were opt-in, a default node would fall back to the static fee
-            # while a store-on node used the dynamic fee — a chain split. There is no backfill-from-ledger, so
-            # the window is built FORWARD as blocks are digested; opening the store UNCONDITIONALLY now (well
-            # before hf2 lock-in) lets every node accumulate a complete recent window before activation with no
-            # operator action. Inert pre-fork (the digest fee branch is fork-height-gated). The digest read is
-            # fail-closed (strict): a missing window height HALTS the node rather than diverging.
-            try:
-                import os as _os
-                import block_store
-                bs_path = _os.path.join(_os.path.dirname(node.ledger_path) or ".", "blockstore")
-                node.block_store = block_store.BlockStore(bs_path)
-                import storage_backend as _sb
-                node.block_writer = _sb.LmdbWriteBackend(node.block_store, node)   # stage-4 write seam (doc/26); node -> live fork_height gate (doc/40)
-                node.logger.app_log.warning(
-                    f"Status: block store opened at {bs_path} (tip {node.block_store.tip()}; "
-                    f"mandatory consensus post-hf2, inert pre-fork)")
-            except Exception as e:
-                # Pre-fork this is inert (fee is static); post-fork the digest fee read fails closed and halts
-                # rather than diverging. Surface loudly.
-                node.logger.app_log.error(f"Status: block store could not open: {e}")
-                node.block_store = None
-                node.block_writer = None
 
         except Exception as e:
             node.logger.app_log.info(e)

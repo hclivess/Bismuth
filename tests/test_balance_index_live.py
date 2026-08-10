@@ -18,7 +18,7 @@ pytest.importorskip("lmdb")
 
 import balance_index
 
-INDEX = "static/balanceindex"
+INDEX = "static/balanceindex-regmode.db"
 LEDGER = "file:static/regmode.db?mode=ro"
 RECIP = "0badcafe" * 7
 

@@ -70,9 +70,10 @@ def main():
     ap.add_argument("--tarball", default="/tmp/ledger.tar.gz", help="output bootstrap tarball")
     ap.add_argument("--dbs", default="ledger.db,hyper.db,index.db",
                     help="comma-separated SQLite DB filenames to include (skips any that are absent)")
-    ap.add_argument("--stores", default="blockstore,balanceindex",
+    ap.add_argument("--stores", default="blockstore-ledger.db,balanceindex-ledger.db",
                     help="comma-separated LMDB store dirs — the POST-HARDFORK stores (block store, "
-                         "balance index); skips any that are absent")
+                         "balance index). They are namespaced per ledger (<name>-<ledger filename>, "
+                         "kvstore.store_path) so networks never share one; skips any that are absent")
     ap.add_argument("--keep", action="store_true", help="keep the loose snapshots (default: remove)")
     a = ap.parse_args()
 

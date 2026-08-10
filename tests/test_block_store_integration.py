@@ -18,7 +18,7 @@ pytest.importorskip("lmdb")
 
 import block_store
 
-STORE = "static/blockstore"
+STORE = "static/blockstore-regmode.db"
 
 
 def test_store_mirrors_the_chain(client):

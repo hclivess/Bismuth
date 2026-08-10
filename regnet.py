@@ -26,9 +26,11 @@ REGNET_DIFF = 16
 
 # Port + storage paths are env-overridable so SEVERAL regnet nodes can run side by side (the two-node API
 # sync harness sets these per process). Defaults are the historical single-node values, so an un-set env is
-# byte-for-byte the old behaviour. The derived LMDB stores (blockstore / balanceindex / txidindex / vmstate)
-# and the shielded / token-index / fork-lockin sidecars all hang off the ledger path, so pointing REGNET_DB
-# at a per-instance directory isolates a node's ENTIRE on-disk footprint.
+# byte-for-byte the old behaviour. The derived LMDB stores (blockstore / balanceindex / txidindex /
+# pkregistry / tokenindex) are named ``<name>-<ledger filename>`` (kvstore.store_path) and the shielded /
+# fork-lockin sidecars hang off the ledger path too, so regnet NEVER shares a store with a mainnet or
+# testnet node in the same directory, and pointing REGNET_DB at a per-instance directory isolates a
+# node's ENTIRE on-disk footprint.
 REGNET_PORT = int(os.environ.get("BISMUTH_REGNET_PORT", "3030"))
 
 REGNET_DB = os.environ.get("BISMUTH_REGNET_DB", "static/regmode.db")

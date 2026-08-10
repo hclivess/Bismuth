@@ -60,11 +60,11 @@ def node_proc():
             os.remove(os.path.join(ROOT, name))
         except OSError:
             pass
-    shutil.rmtree(os.path.join(ROOT, "static/blockstore"), ignore_errors=True)  # fresh LMDB block store
-    shutil.rmtree(os.path.join(ROOT, "static/balanceindex"), ignore_errors=True)  # fresh balance index
-    shutil.rmtree(os.path.join(ROOT, "static/txidindex"), ignore_errors=True)  # fresh txid->height index
-    shutil.rmtree(os.path.join(ROOT, "static/vmstate"), ignore_errors=True)  # fresh VM contract state
-    shutil.rmtree(os.path.join(ROOT, "static/tokenindex-regmode.db"), ignore_errors=True)  # fresh LMDB token/alias side-index
+    # The derived LMDB stores are namespaced per ledger (kvstore.store_path), so wiping REGNET's
+    # leaves a mainnet/testnet node on the same machine untouched. These used to be shared bare dirs
+    # (static/blockstore, ...) and this reset trashed a running production node's stores.
+    for _d in ("blockstore", "balanceindex", "txidindex", "pkregistry", "tokenindex"):
+        shutil.rmtree(os.path.join(ROOT, "static/%s-regmode.db" % _d), ignore_errors=True)
     shutil.copy(os.path.join(ROOT, "tests/config_custom.txt"),
                 os.path.join(ROOT, "config_custom.txt"))
 

@@ -19,7 +19,7 @@ pytest.importorskip("lmdb")
 
 import block_store
 
-STORE = "static/blockstore"
+STORE = "static/blockstore-regmode.db"
 LEDGER = "file:static/regmode.db?mode=ro"
 
 
