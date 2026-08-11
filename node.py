@@ -1420,6 +1420,14 @@ if __name__ == "__main__":
     amounts.LEDGER_INTEGER = node.ledger_integer_amounts          # module flag read by every ledger amount site
     node.bootstrap_url = config.bootstrap_url     # configurable bootstrap source (the old fixed host can vanish)
     node.bootstrap_file = config.bootstrap_file   # local bootstrap archive; if set/present, used instead of downloading
+    # doc/43 snapshot serve + P2P bootstrap. These MUST be copied onto the node: rest_api and chain_ops
+    # read them as getattr(node, ..., False/""), so while they were missing here the whole feature was
+    # unreachable dead code — /api/snapshot answered "snapshot serving disabled" and the P2P fetch was
+    # never attempted, no matter what the operator put in config.
+    node.snapshot_serve = config.snapshot_serve          # serve /api/snapshot[/info] DB-direct, on demand
+    node.snapshot_path = config.snapshot_path            # legacy pre-built tarball (fallback only)
+    node.bootstrap_p2p = config.bootstrap_p2p            # try peers (tip-hash checked) before bootstrap_url
+    node.bootstrap_p2p_peers = config.bootstrap_p2p_peers  # optional explicit ["host:rest_port", ...] sources
     node.block_store_enabled = config.block_store # opt-in LMDB block-body mirror (doc/17 phase 7)
     node.block_store = None                        # the store object, created at startup if enabled
     node.block_writer = None                       # the stage-4 write seam over block_store (doc/26); set with it
