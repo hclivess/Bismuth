@@ -104,16 +104,91 @@ def _hms(s):
     return "%dh%02dm%02ds" % (s // 3600, (s % 3600) // 60, s % 60)
 
 
+def _norm(v):
+    """Normalize a stored field for VALUE comparison.
+
+    The store can legitimately hold two flavours of the same row. Blocks written by the live node come
+    from the wire tuple, where timestamp/amount/fee/reward are canonical STRINGS ('1786443820.50',
+    '2.32955273'). Blocks backfilled by build_from_sqlite come back through SQLite, whose numeric column
+    affinity coerced those same strings to REAL/INTEGER, so they read back as float/int. The VALUES are
+    identical; only the Python type differs. A strict `==` therefore always fails on node-written blocks,
+    which made verify unusable against a running node.
+    Numbers are compared at the chain's OWN precision (8 decimals, quantize_eight). SQLite stores
+    amount/fee/reward in REAL columns, so a canonical 8-dp value like '2.32944909' reads back as the
+    float64 artifact 2.3294490899999998; full-precision float equality would call that a mismatch when
+    the store in fact holds the exact consensus value and SQLite holds the lossy one.
+    """
+    if isinstance(v, (int, float)):
+        return ("num", round(float(v), 8))
+    if isinstance(v, str):
+        try:
+            return ("num", round(float(v), 8))
+        except ValueError:
+            return ("str", v)
+    return ("str", v)
+
+
+def _row_diff(got, want):
+    """(type_only, value) counts of differing fields between two row lists."""
+    type_only = value = 0
+    for g, w in zip(got, want):
+        for a, b in zip(g, w):
+            if a == b:
+                continue
+            if _norm(a) == _norm(b):
+                type_only += 1
+            else:
+                value += 1
+    return type_only, value
+
+
 def cmd_verify(a):
     store = block_store.BlockStore(a.store, readonly=True)
     try:
         end = a.end if a.end is not None else min(store.tip() or 0, _ledger_tip(a.ledger))
         start = a.start if a.start is not None else 1
-        print("verify %s against %s   heights %d..%d" % (a.store, a.ledger, start, end), flush=True)
+        print("verify %s against %s   heights %d..%d%s"
+              % (a.store, a.ledger, start, end, "  [values-only]" if a.values else ""), flush=True)
         t0 = time.time()
-        blocks, txs = block_store.verify_against_sqlite(a.ledger, store, start=start, end=end)
-        print("OK: %d blocks / %d txs byte-identical to SQLite in %s"
-              % (blocks, txs, _hms(time.time() - t0)), flush=True)
+        if not a.values:
+            blocks, txs = block_store.verify_against_sqlite(a.ledger, store, start=start, end=end)
+            print("OK: %d blocks / %d txs byte-identical to SQLite in %s"
+                  % (blocks, txs, _hms(time.time() - t0)), flush=True)
+            return 0
+
+        # values-only: tolerate the str-vs-float/int flavour difference (see _norm) but still fail hard on
+        # any real value divergence, so this is usable against a live node without weakening the check.
+        conn = block_store._open_ro(a.ledger)
+        blocks = txs = type_only = 0
+        bad = []
+        try:
+            cur = conn.cursor()
+            for height, _bh, rows in block_store._grouped_blocks(cur, start, end, 500):
+                got = store.get_block(height)
+                if got is None:
+                    bad.append((height, "missing from store"))
+                    continue
+                if len(got) != len(rows):
+                    bad.append((height, "tx count %d != %d" % (len(got), len(rows))))
+                    continue
+                t, v = _row_diff(got, rows)
+                type_only += t
+                if v:
+                    bad.append((height, "%d field(s) differ in VALUE" % v))
+                blocks += 1
+                txs += len(rows)
+        finally:
+            conn.close()
+        el = _hms(time.time() - t0)
+        if bad:
+            for h, why in bad[:10]:
+                print("  MISMATCH block %d: %s" % (h, why), flush=True)
+            print("FAILED: %d block(s) differ in value (%d blocks / %d txs checked in %s)"
+                  % (len(bad), blocks, txs, el), flush=True)
+            return 1
+        print("OK: %d blocks / %d txs match SQLite in VALUE in %s (%d field(s) differed only in "
+              "str-vs-number flavour, which is expected: node writes the wire tuple, SQLite coerces)"
+              % (blocks, txs, el, type_only), flush=True)
         return 0
     finally:
         store.close()
@@ -168,6 +243,9 @@ def main():
     v.add_argument("--store", required=True)
     v.add_argument("--start", type=int, default=None)
     v.add_argument("--end", type=int, default=None)
+    v.add_argument("--values", action="store_true",
+                   help="compare VALUES, tolerating the str-vs-number flavour difference between "
+                        "node-written and SQLite-backfilled rows (use against a live node)")
     v.set_defaults(func=cmd_verify)
 
     c = sub.add_parser("compact", help="compacting copy of a store")

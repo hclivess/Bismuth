@@ -188,8 +188,14 @@ class Get:
         # configurable and a locally-provided archive takes precedence (see chain_ops.bootstrap).
         "bootstrap_url": "https://bismuth.cz/ledger.tar.gz",
         "bootstrap_file": "",                # path to a local bootstrap archive; if set/present, used instead of downloading
-        "snapshot_serve": False,             # doc/43: serve a pre-built snapshot tarball over /api/snapshot[/info]
-        "bootstrap_p2p": False,              # doc/43: fetch the bootstrap snapshot from peers (sha256-verified) before the central URL
+        "snapshot_serve": True,              # doc/43: serve /api/snapshot[/info] ON DEMAND, DB-DIRECT from the live LMDB
+        #                                      block store (env.copyfd -> a consistent, compacted MVCC image straight to
+        #                                      the socket). No pre-built tarball, no doubled ledger on disk, never stale
+        #                                      and never a scan of the SQLite ledger. ON by default: every node that has
+        #                                      the block store can seed a peer, which is what makes bootstrap_p2p work.
+        "bootstrap_p2p": True,               # doc/43: fetch the bootstrap snapshot from PEERS (tip-hash checked) before
+        #                                      the central bootstrap_url. On by default so a fresh node bootstraps from
+        #                                      the network instead of depending on one hosted tarball.
         "snapshot_path": "static/ledger-snapshot.tar.gz",  # the pre-built snapshot this node serves (build via scripts/snapshot.py)
         "bootstrap_p2p_peers": [],           # optional explicit ["host:rest_port", ...] snapshot sources
         "block_store": False,                # opt-in: also mirror block bodies into an LMDB store (doc/17 phase 7); off by default
