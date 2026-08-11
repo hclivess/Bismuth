@@ -55,7 +55,7 @@ difficulty)** — treat those as authoritative for validation rules.
 | [12-tooling-build-tests.md](12-tooling-build-tests.md) | Send/balance scripts, the test suite, chain snapshot tooling, build & CI |
 | [13-file-reference.md](13-file-reference.md) | Accurate per‑file index of the whole tree |
 | [14-known-issues-and-improvements.md](14-known-issues-and-improvements.md) | Verified bugs, fragile wiring, and the refactor/upgrade roadmap |
-| [15-rest-api.md](15-rest-api.md) | The modern, parallel, opt-in REST/JSON API |
+| [15-rest-api.md](15-rest-api.md) | The modern, parallel REST/JSON API (**on by default**, reads only; writes need `rest_api_write`) |
 | [16-database-rework-plan.md](16-database-rework-plan.md) | Design/roadmap for a complete storage-layer modernization |
 | [17-roadmap.md](17-roadmap.md) | Modernization roadmap: phases, what's shipped, refactor history |
 | [18-hardfork-hf2.md](18-hardfork-hf2.md) | The bundled `hf2` hard fork: signal-activated scheduler, serialization/difficulty/PoW changes |
@@ -66,3 +66,16 @@ difficulty)** — treat those as authoritative for validation rules.
 | [25-security-audit.md](25-security-audit.md) | Adversarial security audit: findings, fixes, regression tests |
 | [26-storage-postfork.md](26-storage-postfork.md) | Post-fork storage rearchitecture: retiring SQLite for one LMDB store, staged migration |
 | [27-plugins.md](27-plugins.md) | Modern plugin framework; the `tokens_aliases` plugin (tokens/aliases out of core) |
+| [29-hf2-serialization-v2.md](29-hf2-serialization-v2.md) | hf2 binary/integer serialization (authoritative spec) |
+| [30-genesis-sync-exceptions.md](30-genesis-sync-exceptions.md) | From-genesis sync + the historical validation-exception registry |
+| [31-accuser.md](31-accuser.md) | The Accuser: detect/prove/propagate miner equivocation |
+| [33-browser-wallet.md](33-browser-wallet.md) | Browser wallet + injected `window.bismuth` provider (non-custodial) |
+| [35-difficulty-divergence-selfheal.md](35-difficulty-divergence-selfheal.md) | #23 difficulty-divergence detector + guarded self-heal |
+| [36-kvstore-engine-seam.md](36-kvstore-engine-seam.md) | Engine-agnostic KV store seam (`kvstore.py`, `open_store`) |
+| [37-heavy-query-audit.md](37-heavy-query-audit.md) | Heavy-query audit: the scans that hurt and what replaces them |
+| [38-tor-onion.md](38-tor-onion.md) | Tor modes (off/external/managed) and the ephemeral onion service |
+| [39-pool-mining.md](39-pool-mining.md) | Pool server/miner interop across the fork |
+| [40-storage-truebytes.md](40-storage-truebytes.md) | hf2 Stage-4 true-bytes storage (raw sig/address/txrec packing) |
+| [41-hf2-coinbase-free-fields.md](41-hf2-coinbase-free-fields.md) | Post-fork coinbase mining header in the freed sig/pubkey slots |
+| [42-coinbase-maturity.md](42-coinbase-maturity.md) | Coinbase maturity: rewards unspendable until N blocks deep |
+| [43-p2p-snapshot.md](43-p2p-snapshot.md) | **On-demand, DB-direct `/api/snapshot`** streamed from the live LMDB store + P2P bootstrap (both ON by default) |

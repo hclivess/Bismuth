@@ -116,6 +116,43 @@ path: introduce the seam, move reads, move writes, then delete the SQLite trio. 
 
 ## 5. Done / in progress
 - ✅ Block store (LMDB), pubkey-deduped, reorg-safe, verified against SQLite (`block_store.py`).
+- ✅ **Block store BACKFILLED from SQLite and holding the whole chain** (`scripts/rebuild_block_store.py`,
+  mainnet 2026-08-11). The node builds the store FORWARD as it digests and had **no backfill**, so a store
+  created after the chain already existed covered only heights since it was opened — everything below was a
+  permanent hole. The tool (`build` / `verify` / `compact` / `info`) fills history from `ledger.db` and proves
+  it before anything is swapped in. Measured on mainnet:
+
+  | step | result |
+  |---|---|
+  | build | 4,937,451 blocks in 28m31s → **9.7 GB** vs **22.4 GB** SQLite (**−58%**) |
+  | verify | 4,937,451 blocks / 6,426,832 txs **byte-identical** to SQLite (9m08s) |
+  | compact | 9.7 GB → 9.6 GB (**0.1%**) — a sequential one-pass build has no fragmentation, so compaction
+    after a fresh build is a no-op; don't budget disk for it |
+
+  The −58% is **pubkey dedup**: the whole 4.9M-block chain contains only **5,586 distinct public keys**
+  across 6.4M txs, so the 1068-byte RSA key repeated on every tx collapses to an integer id in `pk`/`pkr`.
+  Remaining headroom is hf2-gated: with pubkeys gone, `signature` (base64 text) is ~3/4 of the stored bytes,
+  and the doc/40 Stage-4 `post_fork` branch of `put_blocks` packs it plus address/recipient/block_hash as raw
+  bytes in a single `txrec` blob. Nothing to enable — it engages itself at the fork height.
+
+  **Running it against a LIVE node** (the pattern to reuse): ledger opened READ-ONLY (SQLite is in WAL mode,
+  so readers never block the writer); write to a SEPARATE store path (LMDB is single-writer per env and the
+  node owns the live store's lock); `nice -n19 ionice -c3` so a 23 GB read cannot starve the node. With that,
+  the node stayed exactly at network tip through the entire backfill. Swap procedure: stop node → `build`
+  top-up to the now-frozen ledger tip → `verify` the tail → `mv` old aside → `mv` new into place → start.
+- ✅ **Derived stores are NAMESPACED PER LEDGER** — `kvstore.store_path(ledger_path, name)` →
+  `<name>-<ledger filename>` (e.g. `blockstore-ledger.db` vs `blockstore-regmode.db`), matching what
+  `token_index.open_for` always did. They used to be bare siblings of the ledger (`static/blockstore`), so
+  mainnet, testnet and regnet **shared one directory**: a regnet run handed its blocks/balances to a mainnet
+  node (the doc/18 pollution class, storage-layer edition), and the regnet suite's startup wipe destroyed a
+  live production node's derived stores. No migration from the legacy shared path — it cannot be attributed
+  to a network, so adopting it *is* the pollution this prevents; balance/txid/pubkey indexes rebuild from the
+  ledger at startup and the block store is built forward. `tests/test_store_paths.py` locks it in.
+- ✅ **The block store opens BEFORE the P2P listener / connection manager** (`node.py`). It used to open
+  after, and `digest` SKIPS the store write when `block_writer is None` — so every block digested in that
+  window was a **permanent hole**. It went unnoticed because the shared store directory usually already
+  contained those heights from a previous regnet run; with a genuinely per-ledger (empty) store the gap is
+  real, and a hole inside the post-fork weight window makes the strict fee read halt the node.
 - ✅ Dynamic-fee congestion signal reads the **block store**, not SQLite (`block_store.recent_block_weights`).
 - ✅ **Stage 1: shielded notes/keyimages/flows store on LMDB** (`shieldedv1.ShieldedState`) — replaced the
   SQLite sidecar with an LMDB env (sub-DBs `notes`/`notes_h`/`kimg`/`kimg_h`/`flows`/`meta`), SAME API so

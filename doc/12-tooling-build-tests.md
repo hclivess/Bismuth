@@ -104,6 +104,29 @@ default `python3 -m pytest -v` run skips all six (latest full run: **790 passed,
 | `vacuum.sh` | `VACUUM` index/hyper/ledger DBs |
 | `backup.py` | a developer-personal periodic ledger copy (hardcoded path) |
 
+Plus, in `scripts/`:
+
+| Script | Purpose |
+|---|---|
+| `rebuild_block_store.py` | **backfill the LMDB block store from the SQLite ledger** — `build` (resumable, default start = store tip + 1), `verify` (byte-exact, or `--values` for a live node), `compact`, `info`. Safe against a running node: ledger opened READ-ONLY (SQLite is WAL, so readers never block the writer), writes to a SEPARATE store path (LMDB is single-writer per env), run under `nice -n19 ionice -c3`. See doc/26 |
+| `snapshot.py` | build the legacy pre-built snapshot tarball + manifest (fallback path only — `/api/snapshot` now serves DB-direct on demand, doc/43) |
+
+### Verifying a store against SQLite
+
+`verify` has two modes, and the difference matters:
+
+* **strict** (default) — `got == rows`, byte-exact. Correct for a store built entirely by
+  `build_from_sqlite`, and the right gate before swapping a rebuilt store in.
+* **`--values`** — compares at the chain's own precision. Use this against a **live** node, because a
+  strict `==` can never pass on a block the node itself wrote:
+  * the node stores the **wire tuple**, where `timestamp`/`amount`/`fee`/`reward` are canonical strings;
+    SQLite's numeric column affinity coerces the same values to REAL/INTEGER, so `build_from_sqlite` reads
+    them back as float/int. Both are correct; only the Python type differs.
+  * SQLite REAL is lossy: a canonical `'2.32944909'` reads back as `2.3294490899999998`. The store holds the
+    exact 8-decimal consensus value, so numbers are compared **rounded to 8 dp** (`quantize_eight`).
+  `--values` reports type-only differences separately and still **fails hard** on any real value divergence,
+  so it is a usable live check rather than a weakened one.
+
 ## Install / build
 
 - `auto-install/bis-node-alone-install.sh` — unattended Ubuntu node setup (swap, OS limits, deps,

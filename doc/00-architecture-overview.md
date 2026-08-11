@@ -191,7 +191,7 @@ post-quantum pivot held in reserve in [`20`](20-post-quantum.md); HD/BIP32-39 + 
 | [12-tooling-build-tests.md](12-tooling-build-tests.md) | Send/balance scripts, test suite, snapshot tooling, build & CI |
 | [13-file-reference.md](13-file-reference.md) | Accurate per-file index of the whole tree |
 | [14-known-issues-and-improvements.md](14-known-issues-and-improvements.md) | Verified bugs, fragile wiring, refactor/upgrade list |
-| [15-rest-api.md](15-rest-api.md) | The modern, parallel, opt-in REST/JSON API |
+| [15-rest-api.md](15-rest-api.md) | The modern, parallel REST/JSON API (**on by default**, reads only; writes need `rest_api_write`) |
 | [16-database-rework-plan.md](16-database-rework-plan.md) | Storage-layer modernization design/roadmap (the deep-dive) |
 | [17-roadmap.md](17-roadmap.md) | Modernization roadmap: phases, shipped vs planned, refactor history |
 | [18-hardfork-hf2.md](18-hardfork-hf2.md) | The bundled `hf2` fork: signal-activated scheduler, the consensus change set |

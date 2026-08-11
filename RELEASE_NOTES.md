@@ -95,9 +95,25 @@ Continuation of the modernization, same rule (consensus only changes at a signal
 
 - **Storage (shadow/validated):** LMDB content-addressed block store, O(1) balance index, integer
   atomic-unit amounts, reward sidechain — each proven lossless / replay-byte-identical.
-- **Edges (live):** parallel compressed **REST API**, the **block explorer** (blocks / tx / address /
-  tokens / nodes / supply), Bitcoin-JSON-RPC and Ethereum/ERC compatibility shims (opt-in),
-  and a zero-downtime **bootstrap snapshot**.
+- **Edges (live):** parallel compressed **REST API** (now **on by default**), the **block explorer**
+  (blocks / tx / address / tokens / nodes / supply), Bitcoin-JSON-RPC and Ethereum/ERC compatibility
+  shims (opt-in), and a zero-downtime **bootstrap snapshot**.
+- **The block store now holds the WHOLE chain, backfilled from SQLite** — `scripts/rebuild_block_store.py`
+  (`build`/`verify`/`compact`/`info`). The node only ever built the store *forward* as it digested, so
+  everything below the last restart was a permanent hole. Mainnet: 4,937,451 blocks in 28m31s →
+  **9.7 GB vs 22.4 GB SQLite (−58%)**, then **byte-verified** (4,937,451 blocks / 6,426,832 txs identical).
+  The saving is pubkey dedup — the entire chain has only **5,586 distinct public keys** across 6.4M txs.
+  Runs safely against a live node (read-only ledger, separate store path, `nice`/`ionice`); the node held
+  network tip throughout. Compaction after a fresh sequential build is a **no-op** (0.1%).
+- **`/api/snapshot` is on-demand and DB-direct** — generated from the live LMDB store at request time via
+  `env.copyfd` (consistent, compacted, streamed straight to the socket): **no pre-built tarball, no doubled
+  ledger on disk, never stale**. Measured: **9.7 GB in 75 s**, and the bytes open as a valid block store with
+  a tip hash matching the advertised header. `snapshot_serve` + `bootstrap_p2p` are now **on by default**, so
+  fresh nodes bootstrap from **peers** rather than one hosted file (the stale central `ledger.tar.gz` — 92k
+  blocks behind — has been removed).
+- **Derived LMDB stores are namespaced per ledger** (`blockstore-ledger.db` vs `blockstore-regmode.db`).
+  They previously shared one directory across mainnet/testnet/regnet, so a regnet run could hand its blocks
+  to a mainnet node and the test suite's startup wipe destroyed a live node's stores.
 
 ## Documentation ✅
 

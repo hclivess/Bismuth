@@ -51,7 +51,9 @@ duplicate, format), so the endpoint is a new transport, not a new consensus rule
 | `GET /api/nodes` | known nodes with reachable-API status + reputation (explorer node browser); deduplicated to one row per host (the connection set is normalized to bare host so a connected peer isn't listed twice) |
 | `GET /api/capabilities` | peer-sync capability descriptor: `version`, `node_version`, `rest_api`/`rest_port`, `compress` (transport codecs), `blocks`, `rest_api_write`, `testnet`/`regnet` — reachability of this endpoint is itself the REST-capable test |
 | `GET /api/fork` | hf2 readiness: signalling %, lock-in state, activation height |
-| `GET /api/fee` | current fee params: `base_fee` (demand-responsive post-fork), `vm_surcharge`, target/window |
+| `GET /api/fee` | current fee params: `base_fee` (demand-responsive post-fork), target/window |
+| `GET /api/snapshot/info` | snapshot manifest — DB-direct: `{available, db_direct, format:"lmdb", height, tip_hash}`, read O(1) from the live block store (doc/43) |
+| `GET /api/snapshot` | streams a whole-chain snapshot **generated on demand** from the live LMDB store (`env.copyfd`, consistent + compacted, no pre-built file). Headers carry `X-Bismuth-Snapshot-{Height,Format,Tip-Hash}`; no `Content-Length` (compacted on the fly) so the body ends at connection close (doc/43) |
 | `GET /api/supply` | circulating BIS supply (background-computed; returns `"computing"` until the first scan finishes) |
 | `GET /api/tokens` | issued tokens (from the token index) |
 | `GET /api/token/{name}` | a token's supply + holders |

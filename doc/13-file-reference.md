@@ -159,5 +159,7 @@ imported library; *script* = run directly.
 
 `tests/` (see [12](12-tooling-build-tests.md)), `static/` (snapshot/maintenance tooling + web assets),
 `install_node.sh` (full node installer: deps + systemd unit; `scripts/install-node-service.sh` +
-`scripts/snapshot.py` companions), `_mkbootstrap.sh` (ledger-snapshot/bootstrap builder),
+`scripts/snapshot.py` companions), `scripts/rebuild_block_store.py` (backfill the LMDB block store
+from the SQLite ledger — `build`/`verify`/`compact`/`info`; resumable, ledger opened read-only, safe to run
+against a live node under `nice`/`ionice`; doc/26), `_mkbootstrap.sh` (ledger-snapshot/bootstrap builder),
 `graphics/`, `auto-install/`, `compile_nuitka.cmd`, `setup.iss`, `.travis.yml`, `pytest.ini`, `doc/`.

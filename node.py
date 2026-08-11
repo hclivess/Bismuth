@@ -1598,8 +1598,9 @@ if __name__ == "__main__":
             # of the post-fork DYNAMIC-FEE weight window (fee_dynamics), and the base_fee is consensus (it
             # sets the per-tx required fee and the coinbase reward), so every node must derive it from the
             # SAME complete window. If the store were opt-in, a default node would fall back to the static fee
-            # while a store-on node used the dynamic fee — a chain split. There is no backfill-from-ledger, so
-            # the window is built FORWARD as blocks are digested; opening the store UNCONDITIONALLY now (well
+            # while a store-on node used the dynamic fee — a chain split. The digester itself never backfills, so
+            # the window is built FORWARD as blocks are digested (scripts/rebuild_block_store.py fills in
+            # history out-of-band); opening the store UNCONDITIONALLY now (well
             # before hf2 lock-in) lets every node accumulate a complete recent window before activation with no
             # operator action. Inert pre-fork (the digest fee branch is fork-height-gated). The digest read is
             # fail-closed (strict): a missing window height HALTS the node rather than diverging.

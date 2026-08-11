@@ -301,6 +301,24 @@ miner who stuffs blocks to inflate the fee pays the very fees they raise — the
 EIP-1559, but non-recursive so it needs no saved fee state across restarts. (`tests/test_fee_dynamics.py`,
 `test_transactions.py`.)
 
+**The window floors at block 2, never block 1.** Genesis is written when the ledger is CREATED, not through
+`digest`, so it is the one height the forward-built block store can never contain. The consensus fee read is
+deliberately **strict** (`recent_block_weights(..., strict=True)` raises on a missing window height, rather
+than averaging a short window and deriving a divergent `base_fee`), so a window that reached height 1 raised,
+the first post-fork block was rejected, and the node fell back forever:
+
+```
+block store missing height 1 in the dynamic-fee window [1, 9]
+-- cannot compute a consensus-consistent base_fee
+```
+
+Regnet hit this on **every** run (fork at 10, `WINDOW` 20 → window `[1, 9]`), which is why the whole
+post-fork regnet path was untestable: the chain stalled at height 9 and every test needing an included tx or
+post-fork behaviour failed. A pristine-HEAD baseline had **116 failures vs 41** after the fix. The floor is
+pure height arithmetic — identical on every node, no dependence on local store state — so the consensus fee
+stays byte-identical network-wide, and on any chain more than `WINDOW` blocks past genesis (i.e. mainnet) it
+never binds. If you ever see a pile of regnet failures around tx inclusion, **check the fork crossing first**.
+
 ### D. Heavy3 improvement — **optional, highest-risk; recommend caution**
 Heavy3 (`sha224` → 1 GB memory-hard anneal → substring-prefix difficulty) is already GPU-mineable
 (`gpuminer/` proves it), so **a GPU miner does NOT require changing Heavy3.** If we do change it:

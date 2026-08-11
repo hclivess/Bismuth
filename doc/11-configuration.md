@@ -91,7 +91,12 @@ After load, `genesis` is hardcoded to `4edadac9093d9326ee4b17f869b14f1a2534f96f9
 
 ## Modernization keys (storage / consensus — doc/16–18)
 
-Declared in `options.py`, assigned onto `node.*` at startup. All default to a safe value and, where
+Declared in `options.py`, assigned onto `node.*` at startup. **Both halves are required**: a key that is
+declared in `options.py` but never assigned onto the node object is unreachable, because the consuming code
+reads `getattr(node, "<key>", <falsy default>)`. That was the state of `snapshot_serve`, `snapshot_path`,
+`bootstrap_p2p` and `bootstrap_p2p_peers` until 2026-08-11 — the whole doc/43 feature answered "snapshot
+serving disabled" no matter what the operator configured. When adding a flag, wire it in `node.py` and then
+**exercise the surface it gates**; a passing default is not evidence. All default to a safe value and, where
 consensus-affecting, are **inert until the hf2 fork activates**. (The three `rest_api_proxy_ports` /
 `rest_api_geo` / `txid_scan_limit` knobs below are the exception: they are *not* in the `options.py`
 schema — the REST layer reads them via `getattr(node, …, default)`, so they only take effect when set
@@ -112,6 +117,9 @@ as a `node.*` attribute / config line.)
 | `mine` | bool | run the built-in solo miner (`miner.py`): real Heavy3, embeds mempool txs, writes the hf2 coinbase (doc/21) |
 | `bootstrap_url` / `bootstrap_file` | str | ledger-snapshot source for fast bootstrap (`chain_ops.bootstrap`) |
 | `rest_api` / `rest_api_port` | bool/int | the read-only REST API (doc/15) and its port; **on by default** (port 5659) — set `rest_api=False` to disable |
+| `snapshot_serve` | bool | expose `/api/snapshot[/info]`, generated **on demand, DB-direct** from the live LMDB block store (doc/43); **on by default** |
+| `bootstrap_p2p` | bool | a fresh node fetches a verified snapshot from **peers** before the central `bootstrap_url` (doc/43); **on by default** |
+| `snapshot_path` / `bootstrap_p2p_peers` | str/list | legacy pre-built tarball (fallback only) and an optional explicit `host:rest_port` source list |
 | `rest_api_write` | bool | enable `POST /api/transaction` (tx submission over REST — the post-fork transport, doc/15); off by default so a read-only node stays read-only |
 | `rest_api_proxy` | bool | enable `GET /api/proxy` (default **ON**) — a read-only, SSRF-guarded same-origin relay so an https explorer can browse http nodes (doc/15) |
 | `rest_api_proxy_ports` | str/list | extra target ports the proxy may reach, beyond the built-in `80/443/5658/5659` + this node's `rest_api_port` (`rest_api.py:526`, `PROXY_DEFAULT_PORTS`); space/comma-separated. The allowlist stops the relay being used as an arbitrary-port scanner (audit M-1) |

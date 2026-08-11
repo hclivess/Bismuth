@@ -68,6 +68,27 @@ gate really is, and should be hardened (e.g. weight by distinct peers / known go
 
 ## Known, not yet fixed
 
+- **A restart costs a full-chain fork-signal scan (~14 min on mainnet), and the tip looks frozen while it
+  runs.** `digest.process_block_data` runs `fork.dynamic_fork_height` **once per process**
+  (`_first_scan = not node._fork_caught_up`), forward-scanning **every height 1..tip** — ~4.9M individual
+  `SELECT openfield ... WHERE block_height=?` — before flipping to the cheap incremental `lockin_at_tip`.
+  It holds the digest path, so the tip cannot advance until it finishes. The result is only persisted by
+  `save_locked_height` once hf2 actually **locks in**; hf2 has not, so nothing is written and **every** boot
+  redoes the whole scan.
+
+  **It is not a wedge — do NOT restart into it**, that throws the work away and starts over. Confirm health:
+  1. `py-spy dump --pid <pid>` shows a worker *active* in `fork.py` / `dynamic_fork_height`;
+  2. `rchar` in `/proc/<pid>/io` keeps climbing (~20 MB/s) — it is reading, not blocked;
+  3. the journal is silent. NB `Chain:` lines are **not** WARNING-level — a healthy 9.7-day run logged zero
+     of them, so "no `Chain:` lines" proves nothing;
+  4. the block hash at the local tip **matches a live peer** at the same height. Use
+     `GET /api/block/height/<h>` and read `transactions[0].block_hash` — there is **no top-level
+     `block_hash`** key, so a naive `.get('block_hash')` returns `None` on *both* sides and looks like a
+     false match.
+
+  Fix worth doing: persist a "scanned to height H, no lock-in yet" watermark so a restart resumes instead of
+  rescanning from 1.
+
 - **`received_block_height` possibly-undefined** in the `blockheight` sync handler (`node.py`).
   `pyflakes` flags it; it appears to be assigned on the live path before use, but the control
   flow should be made explicit.
