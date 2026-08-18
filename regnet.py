@@ -4,6 +4,7 @@ Regnet specific functions and settings
 
 import base64
 import math
+import json
 import os
 import sqlite3
 import sys
@@ -255,11 +256,19 @@ def command(sdef, data, blockhash, node, db_handler):
 
 
 def init(app_log, trace_db_calls=False):
-    # Empty peers
+    # Empty peers — unless the multi-node harness seeds them (BISMUTH_REGNET_PEERS_SEED="ip:port,ip:port";
+    # together with BISMUTH_REGNET_PEERING=1 the regnet node dials them and answers "hello", so two or more
+    # regnet nodes can peer over the real socket protocol — the fork-resolution / reorg harness, doc/47).
+    _seed = {}
+    for entry in (os.environ.get("BISMUTH_REGNET_PEERS_SEED", "") or "").split(","):
+        entry = entry.strip()
+        if entry:
+            ip, port = entry.rsplit(":", 1)
+            _seed[ip.strip()] = port.strip()
     with open(REGNET_PEERS, 'w') as f:
-        f.write("{}")
+        f.write(json.dumps(_seed))
     with open(REGNET_SUGGESTED_PEERS, 'w') as f:
-        f.write("{}")
+        f.write(json.dumps(_seed))
     # Regnet starts a FRESH chain at every boot by design. BISMUTH_REGNET_KEEP=1 is a test-only
     # escape (tests/fork_transition_smoke.py) that keeps an existing regnet chain across a restart,
     # so live restart/replay continuity — e.g. the hf2 transition and its lock-in replay — can be

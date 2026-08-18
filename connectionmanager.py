@@ -28,6 +28,11 @@ class ConnectionManager (threading.Thread):
 
         self.connection_manager()
 
+    def _dials_out(self):
+        """Does this node dial peers? Mainnet/testnet always; regnet only under the multi-node harness
+        (node.regnet_peering, doc/47)."""
+        return (not self.node.is_regnet) or bool(getattr(self.node, "regnet_peering", False))
+
     def _loop_seconds(self):
         """Seconds to sleep before the next maintenance/dial pass.
 
@@ -37,7 +42,7 @@ class ConnectionManager (threading.Thread):
         uses to wipe back-off and re-dial every peer -- so the faster cadence and the redial-all bypass
         are coupled on one condition and can never get out of sync (the reverted attempt's regression).
         Regnet never dials, so it always gets the full interval and never busy-spins."""
-        if not self.node.is_regnet and self.node.peers.is_isolated():
+        if self._dials_out() and self.node.peers.is_isolated():
             return RECOVERY_LOOP_SECONDS
         return NORMAL_LOOP_SECONDS
 
@@ -57,8 +62,8 @@ class ConnectionManager (threading.Thread):
                 until_purge -= 1
 
                 # peer management
-                if not self.node.is_regnet:
-                    # regnet never tries to connect
+                if self._dials_out():
+                    # regnet never tries to connect (unless the multi-node harness enables regnet_peering)
                     self.node.peers.client_loop(self.node, this_target=worker)
                 self.node.logger.app_log.warning(f"Status: Threads at {threading.active_count()} / {self.node.thread_limit}")
                 self.node.logger.app_log.info(f"Status: Syncing nodes: {self.node.syncing}")

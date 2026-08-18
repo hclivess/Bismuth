@@ -106,6 +106,7 @@ class Get:
         "rollback_consensus_threshold": ["int"],
         "rollback_consensus_min_peers": ["int"],
         "rollback_consensus_min_reputable": ["int"],
+        "fork_resolution": ["str"],
         "ledger_integer_amounts": ["bool"],
         "bootstrap_url": ["str"],
         "bootstrap_file": ["str"],
@@ -183,6 +184,7 @@ class Get:
         "rollback_consensus_threshold": 75,  # % peer agreement required to allow a deep rollback
         "rollback_consensus_min_peers": 3,   # min peers in consensus to allow a deep rollback
         "rollback_consensus_min_reputable": 1,  # min PROVEN (positive-reputation) peers required for a deep auto-recovery rollback (anti-sybil)
+        "fork_resolution": "measured",       # doc/47 (from nado): "measured" = tri-state ancestor probes + possession-before-rollback + one-shot tie-break + corroborated deep reorgs; "legacy" = the old blind one-block-per-blocknf rollback
         "ledger_integer_amounts": False,     # store amount/fee/reward as integer atomic units (doc/16); off by default
         # Bootstrap source. The historical hardcoded host can disappear (it did), so the URL is
         # configurable and a locally-provided archive takes precedence (see chain_ops.bootstrap).

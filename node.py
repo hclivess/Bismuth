@@ -222,7 +222,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     send(self.request, mempool_txs)
 
                 elif data == "hello":
-                    if node.is_regnet:
+                    if node.is_regnet and not node.regnet_peering:
                         node.logger.app_log.info("Inbound: Got hello but I'm in regtest mode, closing.")
                         return
 
@@ -382,9 +382,15 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "blocknf":
                     block_hash_delete = receive(self.request)
                     # print peer_ip
-                    if consensus_blockheight == node.peers.consensus_max:
-                        blocknf(node, block_hash_delete, peer_ip, db_handler_instance)
-                        if node.peers.warning(self.request, peer_ip, "Rollback", 2):
+                    # measured mode evaluates any advertiser (possession + full validation make it safe and
+                    # a liar can no longer pin the pool max); the legacy blind rollback keeps its max gate
+                    if node.fork_resolution != "legacy" or consensus_blockheight == node.peers.consensus_max:
+                        blocknf(node, block_hash_delete, peer_ip, db_handler_instance,
+                                peer_height=consensus_blockheight)
+                        # measured mode strikes a peer itself, only when its claim was DISPROVED (inconsistent, served
+                        # nothing/shorter, invalid branch); an honest reorg or an unreachable advertiser costs it nothing —
+                        # the flat "Rollback" strike banned honest peers on every legit reorg and isolated nodes (a fork driver)
+                        if node.fork_resolution == "legacy" and node.peers.warning(self.request, peer_ip, "Rollback", 2):
                             node.logger.app_log.info(f"{peer_ip} banned")
                             break
                     node.logger.app_log.info("Inbound: Deletion complete, sending sync request")
@@ -396,9 +402,13 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "blocknfhb": #node announces it's running hyperblocks
                     block_hash_delete = receive(self.request)
                     # print peer_ip
-                    if consensus_blockheight == node.peers.consensus_max:
-                        blocknf(node, block_hash_delete, peer_ip, db_handler_instance, hyperblocks=True)
-                        if node.peers.warning(self.request, peer_ip, "Rollback", 2):
+                    if node.fork_resolution != "legacy" or consensus_blockheight == node.peers.consensus_max:
+                        blocknf(node, block_hash_delete, peer_ip, db_handler_instance, hyperblocks=True,
+                                peer_height=consensus_blockheight)
+                        # measured mode strikes a peer itself, only when its claim was DISPROVED (inconsistent, served
+                        # nothing/shorter, invalid branch); an honest reorg or an unreachable advertiser costs it nothing —
+                        # the flat "Rollback" strike banned honest peers on every legit reorg and isolated nodes (a fork driver)
+                        if node.fork_resolution == "legacy" and node.peers.warning(self.request, peer_ip, "Rollback", 2):
                             node.logger.app_log.info(f"{peer_ip} banned")
                             break
                     node.logger.app_log.info("Inbound: Deletion complete, sending sync request")
@@ -1416,6 +1426,10 @@ if __name__ == "__main__":
     node.rollback_consensus_threshold = config.rollback_consensus_threshold
     node.rollback_consensus_min_peers = config.rollback_consensus_min_peers
     node.rollback_consensus_min_reputable = config.rollback_consensus_min_reputable  # anti-sybil gate for deep rollback
+    node.fork_resolution = (getattr(config, "fork_resolution", "measured") or "measured").strip().lower()  # doc/47
+    # multi-node regnet harness (doc/47): regnet normally never dials and drops "hello"; with this env the
+    # regnet node peers over the real socket protocol with the nodes seeded by BISMUTH_REGNET_PEERS_SEED
+    node.regnet_peering = os.environ.get("BISMUTH_REGNET_PEERING", "").lower() in ("1", "true", "yes")
     node.ledger_integer_amounts = config.ledger_integer_amounts   # doc/16 phase 2 cutover (default off)
     amounts.LEDGER_INTEGER = node.ledger_integer_amounts          # module flag read by every ledger amount site
     node.bootstrap_url = config.bootstrap_url     # configurable bootstrap source (the old fixed host can vanish)

@@ -256,11 +256,15 @@ def worker(host, port, node):
                 block_hash_delete = receive(s)
                 # print peer_ip
                 # if max(consensus_blockheight_list) == int(received_block_height):
-                if int(received_block_height) == node.peers.consensus_max:
+                if node.fork_resolution != "legacy" or int(received_block_height) == node.peers.consensus_max:
 
-                    blocknf(node, block_hash_delete, peer_ip, db_handler_instance, hyperblocks=True)
+                    blocknf(node, block_hash_delete, peer_ip, db_handler_instance, hyperblocks=True,
+                            peer_height=int(received_block_height), peer_port=port)
 
-                    if node.peers.warning(s, peer_ip, "Rollback", 2):
+                    # measured mode strikes a peer itself, only when its claim was DISPROVED (inconsistent, served
+                    # nothing/shorter, invalid branch); an honest reorg or an unreachable advertiser costs it nothing —
+                    # the flat "Rollback" strike banned honest peers on every legit reorg and isolated nodes (a fork driver)
+                    if node.fork_resolution == "legacy" and node.peers.warning(s, peer_ip, "Rollback", 2):
                         raise ValueError(f"{peer_ip} is banned")
 
                 sendsync(s, peer_ip, "Block not found", node)
@@ -269,11 +273,15 @@ def worker(host, port, node):
                 block_hash_delete = receive(s)
                 # print peer_ip
                 # if max(consensus_blockheight_list) == int(received_block_height):
-                if int(received_block_height) == node.peers.consensus_max:
+                if node.fork_resolution != "legacy" or int(received_block_height) == node.peers.consensus_max:
 
-                    blocknf(node, block_hash_delete, peer_ip, db_handler_instance)
+                    blocknf(node, block_hash_delete, peer_ip, db_handler_instance,
+                            peer_height=int(received_block_height), peer_port=port)
 
-                    if node.peers.warning(s, peer_ip, "Rollback", 2):
+                    # measured mode strikes a peer itself, only when its claim was DISPROVED (inconsistent, served
+                    # nothing/shorter, invalid branch); an honest reorg or an unreachable advertiser costs it nothing —
+                    # the flat "Rollback" strike banned honest peers on every legit reorg and isolated nodes (a fork driver)
+                    if node.fork_resolution == "legacy" and node.peers.warning(s, peer_ip, "Rollback", 2):
                         raise ValueError(f"{peer_ip} is banned")
 
                 sendsync(s, peer_ip, "Block not found", node)

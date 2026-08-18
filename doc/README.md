@@ -79,3 +79,4 @@ difficulty)** — treat those as authoritative for validation rules.
 | [41-hf2-coinbase-free-fields.md](41-hf2-coinbase-free-fields.md) | Post-fork coinbase mining header in the freed sig/pubkey slots |
 | [42-coinbase-maturity.md](42-coinbase-maturity.md) | Coinbase maturity: rewards unspendable until N blocks deep |
 | [43-p2p-snapshot.md](43-p2p-snapshot.md) | **On-demand, DB-direct `/api/snapshot`** streamed from the live LMDB store + P2P bootstrap (both ON by default) |
+| [47-fork-resolution.md](47-fork-resolution.md) | **Fork resolution (from nado):** tri-state ancestor probes, possession-before-rollback, one-shot same-height tie-break, corroborated deep reorgs — replaces the blind one-block-per-`blocknf` rollback |

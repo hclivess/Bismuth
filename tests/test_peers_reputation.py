@@ -8,6 +8,7 @@ node and no single peer can dictate the tip.
 
 Run with: python3 -m pytest tests/test_peers_reputation.py -v
 """
+import threading
 import logging
 
 import peers_reputation as R
@@ -31,9 +32,10 @@ def test_weighted_tip_resists_lowrep_flood():
 
 class _Harness(PeersReputationMixin):
     """A minimal Peers-like object exercising the mixin without the full manager."""
-    __slots__ = ('_reputation', 'banlist', 'whitelist', 'peer_opinion_dict', 'app_log')
+    __slots__ = ('_reputation', 'banlist', 'whitelist', 'peer_opinion_dict', 'app_log', 'peers_lock')
 
     def __init__(self):
+        self.peers_lock = threading.RLock()   # the real Peers' one reentrant lock
         self._reputation = {}
         self.banlist = []
         self.whitelist = ["127.0.0.1"]

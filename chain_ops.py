@@ -15,6 +15,7 @@ import os
 import shutil
 import sqlite3
 import tarfile
+import threading
 import time
 from decimal import Decimal
 
@@ -446,8 +447,304 @@ def reconcile_ledger_hyper(node):
     app_log.warning(f"Status: Ledger/hyper reconciled to a single consistent tip {common}")
 
 
-def blocknf(node, block_hash_delete, peer_ip, db_handler, hyperblocks=False):
+def blocknf(node, block_hash_delete, peer_ip, db_handler, hyperblocks=False, peer_height=None, peer_port=None):
+    """A peer says it does not have our tip block ``block_hash_delete``.
+
+    ``fork_resolution=measured`` (default): the nado-derived rules in ``fork_resolution`` — measure the
+    common ancestor with tri-state probes, fetch the competing branch FIRST, prove it longer, tie-break a
+    same-height fork once at the first divergent block, corroborate a below-checkpoint rollback with a
+    hash-level peer majority — and only then roll back to the ancestor in ONE operation and apply the held
+    branch through ``digest_block``. ``fork_resolution=legacy``: the old blind one-block rollback.
+
+    ``peer_height`` / ``peer_port`` are what the peer advertised (its claimed tip, its listening port when
+    known — outbound connections). Returns a dict describing what happened (``rolled``, ``state``,
+    ``reason``) — callers may ignore it."""
+    if getattr(node, "fork_resolution", "measured") == "legacy":
+        _blocknf_legacy(node, block_hash_delete, peer_ip, db_handler, hyperblocks=hyperblocks)
+        return {"rolled": None, "state": "legacy", "reason": ""}
+    return _blocknf_measured(node, block_hash_delete, peer_ip, db_handler, hyperblocks=hyperblocks,
+                             peer_height=peer_height, peer_port=peer_port)
+
+
+def _our_hash_at_factory(db_handler):
+    """``our_hash_at(height) -> block_hash | None`` against the FULL ledger cursor (what
+    ``block_height_from_hash`` serves to peers, so both sides of a probe read the same store)."""
+    def our_hash_at(height):
+        try:
+            db_handler.execute_param(db_handler.h, "SELECT block_hash FROM transactions WHERE block_height = ? "
+                                                   "AND reward != 0 LIMIT 1;", (int(height),))
+            row = db_handler.h.fetchone()
+            return str(row[0]) if row and row[0] else None
+        except Exception:
+            return None
+    return our_hash_at
+
+
+def _blocknf_measured(node, block_hash_delete, peer_ip, db_handler, hyperblocks=False, peer_height=None,
+                      peer_port=None):
+    import fork_resolution as fr
+
+    my_time = time.time()
+    log = node.logger.app_log
+    if not hasattr(node, "fork_lock"):
+        node.fork_lock = threading.Lock()
+
+    def _skip(reason, state=fr.UNKNOWN, height=None, bhash=None, cache_key=None, verdict=None):
+        if cache_key is not None:
+            fr._cache_put(node, cache_key, verdict or state)
+        log.warning(f"Fork resolution ({peer_ip}): no rollback — {state}: {reason}")
+        node.plugin_manager.execute_action_hook('rollback', {"timestamp": my_time, "height": height, "ip": peer_ip,
+                                                             "hash": bhash, "skipped": True, "reason": reason})
+        return {"rolled": False, "state": state, "reason": reason}
+
+    # ---- cheap pre-gates (no locks, no network) ---------------------------------------------------------
+    if node.db_lock.locked():
+        return _skip("other ledger operation in progress")   # our tip is in flux; measure it next time
+    try:
+        tipinfo = db_handler.block_max_ram()
+        tip, tip_hash = int(tipinfo['block_height']), str(tipinfo['block_hash'])
+    except Exception as e:
+        return _skip(f"cannot read our tip: {e}")
+    ip = {'ip': peer_ip}
+    node.plugin_manager.execute_filter_hook('filter_rollback_ip', ip)
+    if ip['ip'] == 'no':
+        return _skip("Filter blocked this rollback", height=tip, bhash=tip_hash)
+    if tip_hash != block_hash_delete:
+        return _skip("We moved away from the block to rollback, skipping", fr.SYNCED, tip, tip_hash)
+    if hyperblocks and node.last_block_ago > 30000:
+        return _skip(f"{peer_ip} is running on hyperblocks and our last block is too old, skipping",
+                     fr.UNKNOWN, tip, tip_hash)
+    if peer_height is None:
+        try:
+            peer_height = node.peers.peer_opinion_dict.get(peer_ip)
+        except Exception:
+            peer_height = None
+    if peer_height is None:
+        return _skip("peer advertised no height — no evidence", fr.UNKNOWN, tip, tip_hash)
+    peer_height = int(peer_height)
+    if peer_height < tip:
+        return _skip(f"peer is at {peer_height} < our {tip}: a shorter chain never displaces ours",
+                     fr.SYNCED, tip, tip_hash)
+    cache_key = (tip_hash, peer_ip)
+    cached = fr._cache_get(node, cache_key)
+    if cached is not None:
+        return _skip(f"verdict for this tip cached ({cached})", cached, tip, tip_hash)
+    if not node.fork_lock.acquire(blocking=False):
+        return _skip("another fork resolution is in progress", fr.UNKNOWN, tip, tip_hash)
+    link = None
+    try:
+        # ---- measure: the ancestor, by tri-state probes against the advertising peer ------------------------
+        our_hash_at = _our_hash_at_factory(db_handler)
+        checkpoint = int(getattr(node, "checkpoint", 0) or 0)
+        # Verdict first, donor second: measure against the advertiser when its listening port answers; an
+        # inbound-only (NATed) advertiser can't be dialled, so fall back to an outbound peer at >= its height
+        # that ALSO does not know our tip — the same branch, from a peer we can actually fetch from.
+        link, src_ip = None, peer_ip
+        for cand_ip, cand_port in fr.candidate_peers(node, first_ip=peer_ip, first_port=peer_port,
+                                                     min_height=peer_height):
+            cand = fr.PeerLink(cand_ip, cand_port, proxy=fr._proxy_of(node))
+            if not cand.alive:
+                cand.close(); continue
+            if cand_ip != peer_ip and cand.knows(tip, tip_hash) is not False:
+                cand.close(); continue           # unreachable/mute, or on OUR chain — not this branch's donor
+            link, src_ip = cand, cand_ip
+            break
+        if link is None:
+            link = fr.PeerLink(peer_ip, int(peer_port or getattr(node, "port", 5658) or 5658))   # dead: UNKNOWN below
+        if src_ip != peer_ip:
+            log.warning(f"Fork resolution ({peer_ip}): advertiser not dialable — measuring/fetching via {src_ip}")
+
+        def floor_ok(ancestor):
+            return (ancestor + 1) >= checkpoint          # the shallow policy: the removed block >= checkpoint
+
+        def deep_ok(ancestor):
+            # doc/14 reputation + height-consensus gate AND a hash-level majority: a strict majority of the
+            # ANSWERING peers (the advertiser counts as one "no") must also not know our tip. Ignorance refuses.
+            if not essentials.rollback_allowed(node, ancestor + 1):
+                log.warning(f"Fork resolution ({peer_ip}): deep rollback to {ancestor} refused by the "
+                            f"reputation/consensus gate (checkpoint {checkpoint})")
+                return False
+            others = [p for p in fr.candidate_peers(node, min_height=tip) if p[0] != peer_ip]
+
+            def knows(peer, h, bh):
+                l2 = fr.PeerLink(peer[0], peer[1], proxy=fr._proxy_of(node))
+                try:
+                    return l2.knows(h, bh) if l2.alive else None
+                finally:
+                    l2.close()
+            verdict, answers, disagree = fr.majority_disagrees(tip, tip_hash, others, knows,
+                                                               min_answers=max(1, fr.MIN_ANSWERS_DEEP - 1))
+            answers, disagree = answers + 1, disagree + 1          # + the advertiser's own "no"
+            ok = answers >= fr.MIN_ANSWERS_DEEP and disagree * 2 > answers
+            log.warning(f"Fork resolution ({peer_ip}): deep-reorg corroboration at tip {tip}: {disagree}/{answers} "
+                        f"answering peers do not know our tip -> {'corroborated' if ok else 'REFUSED'}")
+            return ok
+
+        v = fr.measure(node, our_hash_at, tip, tip_hash, link, peer_height, floor_ok, deep_ok)
+        log.warning(f"Fork resolution ({peer_ip}, height {peer_height} vs our {tip}): {v.state} — {v.reason} "
+                    f"[{v.probes} probes, ancestor {v.ancestor}]")
+        if v.state != fr.REORG:
+            # BEHIND = it said "not found" a moment ago but serves our tip now (it just synced it): no strike,
+            # no revert — the ordinary forward sync handles whatever it has above us
+            if v.state == fr.DEAD_FORK:
+                log.warning(f"Fork resolution ({peer_ip}): DEAD FORK — our chain diverges from the peer's at "
+                            f"{v.ancestor}, below what this node may roll back on this evidence. If this node "
+                            f"is stuck on a minority fork: raise 'rollback_depth', check 'rollback_consensus', "
+                            f"or drop a 'rollback_to' file (doc/30) / resync.")
+            return _skip(v.reason, v.state, tip, tip_hash, cache_key)
+        ancestor = int(v.ancestor)
+        anc_hash = our_hash_at(ancestor)
+        if not anc_hash:
+            return _skip(f"no local hash at ancestor {ancestor}", fr.UNKNOWN, tip, tip_hash)
+
+        # ---- same-height fork: decide ONCE at the first divergent block ------------------------------------
+        tie = peer_height == tip
+        if tie:
+            theirs = link.hash_at(ancestor + 1)
+            ours = our_hash_at(ancestor + 1)
+            if fr.tie_winner(ours, theirs) == "ours":
+                return _skip(f"same-height fork from {ancestor}: our branch wins the tie-break at {ancestor + 1} "
+                             f"(ours {str(ours)[:12]} vs theirs {str(theirs)[:12]}) — the peer should reorg",
+                             fr.TIE_WIN, tip, tip_hash, cache_key)
+            log.warning(f"Fork resolution ({peer_ip}): same-height fork from {ancestor}: THEIR branch wins the "
+                        f"tie-break at {ancestor + 1} (ours {str(ours)[:12]} vs theirs {str(theirs)[:12]})")
+
+        # ---- possession: hold the competing branch BEFORE reverting anything ---------------------------------
+        held, complete = fr.fetch_branch(link, ancestor, anc_hash, stop_height=peer_height)
+        if not held:
+            node.peers.warning(None, peer_ip, "Advertised a longer chain but served nothing from the ancestor", 2)
+            return _skip(f"peer served nothing above the ancestor {ancestor} — nothing to adopt",
+                         fr.UNKNOWN, tip, tip_hash, cache_key)
+        their_tip = ancestor + len(held)
+        longer = their_tip > tip or (tie and their_tip == tip)
+        if not longer:
+            if complete:
+                node.peers.warning(None, peer_ip, f"Advertised {peer_height} but its branch ends at {their_tip}", 2)
+            return _skip(f"held branch reaches {their_tip} (complete={complete}), not longer than our {tip} — "
+                         f"possession disproved the advertisement", fr.SYNCED, tip, tip_hash, cache_key)
+
+        # ---- roll back to the ancestor in ONE operation, then apply the held branch, UNDER ONE LOCK ----------
+        # (rollback + apply must be atomic w.r.t. the other peer threads: a digest slipping in between would
+        # build on the bare ancestor and strand the held branch AND our backup)
+        if node.db_lock.locked():
+            return _skip("other ledger operation in progress", fr.UNKNOWN, tip, tip_hash)
+        node.db_lock.acquire()
+        log.warning("Database lock acquired")
+        backup_data, adopted, new_tip = None, False, tip
+        try:
+            log.warning(f"Fork resolution ({peer_ip}): REORG — rolling back {tip - ancestor} block(s) to the measured "
+                        f"ancestor {ancestor} to adopt a held branch of {len(held)} block(s) reaching {their_tip}")
+            backup_data = db_handler.backup_higher(ancestor + 1)
+            _roll_to_locked(node, db_handler, ancestor)
+            fr.invalidate(node)                  # the tip every cached verdict described no longer exists
+            _apply_blocks_locked(node, db_handler, held, src_ip)
+            new_tip = int(node.last_block)
+            adopted = new_tip > tip or (tie and new_tip == tip and new_tip > ancestor)
+            if not adopted:
+                # ---- the held branch did not beat ours under full validation: restore OUR branch ------------
+                log.warning(f"Fork resolution ({peer_ip}): peer's branch validated only to {new_tip} (< our {tip}) — "
+                            f"restoring our own branch from the backup")
+                if int(node.last_block) > ancestor:
+                    rollback(node, db_handler, ancestor + 1)
+                    _roll_to_locked(node, db_handler, ancestor)
+                fr.invalidate(node)
+                _apply_blocks_locked(node, db_handler, fr.blocks_from_rows(backup_data), "127.0.0.1")
+                if int(node.last_block) < tip:
+                    log.warning(f"Fork resolution ({peer_ip}): our branch restored only to {node.last_block} of {tip}; "
+                                f"the rest will re-sync from peers")
+        finally:
+            node.db_lock.release()
+            log.warning("Database lock released")
+
+        if adopted:
+            log.warning(f"Fork resolution ({peer_ip}): adopted the peer's branch — tip {tip} -> {new_tip} "
+                        f"(ancestor {ancestor}, {new_tip - ancestor} block(s) applied)")
+            _return_txs_to_mempool(node, db_handler, backup_data, peer_ip, my_time, tip_hash, "")
+            return {"rolled": True, "state": fr.REORG, "reason": f"adopted longer branch from {ancestor}"}
+        try:
+            import peers_reputation
+            node.peers.penalize(src_ip, peers_reputation.PENALTY_INVALID_BLOCK, "invalid competing branch")
+        except Exception:
+            pass
+        node.peers.warning(None, src_ip, "Served a competing branch that failed validation", 5)
+        fr._cache_put(node, (tip_hash, peer_ip), fr.UNKNOWN)
+        return {"rolled": False, "state": fr.UNKNOWN, "reason": "competing branch failed validation; ours restored"}
+    except Exception as e:
+        log.warning(f"Fork resolution ({peer_ip}) failed: {type(e).__name__}: {e}")
+        return {"rolled": False, "state": fr.UNKNOWN, "reason": str(e)}
+    finally:
+        if link is not None:
+            link.close()
+        node.fork_lock.release()
+
+
+def _roll_to_locked(node, db_handler, ancestor):
+    """Ledger + derived stores + node tip variables -> ``ancestor`` (caller holds node.db_lock and has already
+    taken its backup). Mirrors the legacy blocknf mutation, for N blocks at once."""
+    db_handler.rollback_under(ancestor + 1)
+    db_handler.tokens_rollback(node, ancestor + 1)
+    db_handler.aliases_rollback(node, ancestor + 1)
+    _rebuild_derived_state(node, db_handler, ancestor)
+    node.last_block_timestamp = db_handler.last_block_timestamp()
+    node.last_block_hash = db_handler.last_block_hash()
+    node.last_block = ancestor
+    node.hdd_hash = db_handler.last_block_hash()
+    node.hdd_block = ancestor
+    tokens.tokens_update(node, db_handler)
+
+
+def _apply_blocks_locked(node, db_handler, blocks, peer_ip):
+    """Apply ``blocks`` through the ONE canonical validation path (digest.process_block_data: PoW, signatures,
+    balances, hash linkage, fork gating) while the CALLER holds node.db_lock — the same body as
+    digest.digest_block minus its own lock handling. Never raises: a rejected block leaves the chain at the
+    last valid height (handle_processing_error) and the caller reads node.last_block."""
+    import digest
+    while mp.MEMPOOL is not None and mp.MEMPOOL.lock.locked():
+        time.sleep(0.1)
+    try:
+        processor = digest.BlockProcessor(node, db_handler, peer_ip)
+        digest.process_block_data(node, blocks, processor, db_handler, peer_ip)
+        node.peers.reward(peer_ip)
+        essentials.checkpoint_set(node)
+    except Exception as e:
+        try:
+            digest.handle_processing_error(node, db_handler, None, peer_ip, e)   # raises after restoring the tip
+        except Exception:
+            pass
+    finally:
+        try:
+            db_handler.db_to_drive(node)
+        except Exception as e:
+            node.logger.app_log.warning(f"Fork resolution: db_to_drive after apply failed: {e}")
+
+
+def _return_txs_to_mempool(node, db_handler, backup_data, peer_ip, my_time, old_hash, reason):
+    """After an adopted reorg: put the rolled-back non-coinbase txs back into the mempool (the mempool's
+    merge de-duplicates against the ledger, so txs the new branch also contains are dropped) and fire the
+    'rollback' hook — the same bookkeeping the legacy path did."""
+    nb_tx, miner, height = 0, "", None
+    try:
+        for tx in backup_data or []:
+            if tx[9] == 0:
+                try:
+                    nb_tx += 1
+                    node.logger.app_log.info(
+                        mp.MEMPOOL.merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]),
+                                         peer_ip, db_handler.c, False, revert=True))
+                except Exception as e:
+                    node.logger.app_log.warning(f"Error during moving tx back to mempool: {e}")
+            else:
+                miner, height = tx[3], tx[0]
+        node.plugin_manager.execute_action_hook('rollback', {"timestamp": my_time, "height": height, "ip": peer_ip,
+                                                             "miner": miner, "hash": old_hash, "tx_count": nb_tx,
+                                                             "skipped": False, "reason": reason})
+    except Exception as e:
+        node.logger.app_log.warning(f"Error during moving txs back to mempool: {e}")
+
+
+def _blocknf_legacy(node, block_hash_delete, peer_ip, db_handler, hyperblocks=False):
     """
+    LEGACY (fork_resolution=legacy) one-block blind rollback — kept verbatim as the opt-out path.
     Rolls back a single block, updates node object variables.
     Rollback target must be above checkpoint.
     Hash to rollback must match in case our ledger moved.

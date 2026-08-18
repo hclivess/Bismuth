@@ -169,13 +169,13 @@ def test_trusted_prefix_skips_overspend():
     n = _node(last_block=699999, assume_valid_height=4000000)
     n.checkpoints = {4000000: "x"}
     proc = digest.BlockProcessor(n, db_handler=None, peer_ip="t")
-    proc._validate_balance(GEN, "10.00000000", Decimal("0"), Decimal("0"), {GEN: Decimal("5.0")})  # no raise
+    proc._validate_balance(GEN, "10.00000000", Decimal("10"), Decimal("0"), {GEN: Decimal("5.0")})  # no raise
     # but ABOVE the horizon it still raises
     n2 = _node(last_block=5000000, assume_valid_height=4000000)
     n2.checkpoints = {4000000: "x"}
     proc2 = digest.BlockProcessor(n2, db_handler=None, peer_ip="t")
     with pytest.raises(ValueError, match="more than spendable"):
-        proc2._validate_balance(GEN, "10.00000000", Decimal("0"), Decimal("0"), {GEN: Decimal("5.0")})
+        proc2._validate_balance(GEN, "10.00000000", Decimal("10"), Decimal("0"), {GEN: Decimal("5.0")})
 
 
 def test_malformed_registry_fails_closed():
@@ -210,7 +210,7 @@ def test_overspend_raises_without_waiver():
     proc = digest.BlockProcessor(n, db_handler=None, peer_ip="t")
     balances = {GEN: Decimal("5.0")}                      # cached -> no DB needed
     with pytest.raises(ValueError, match="more than spendable"):
-        proc._validate_balance(GEN, "10.00000000", Decimal("0"), Decimal("0"), balances)
+        proc._validate_balance(GEN, "10.00000000", Decimal("10"), Decimal("0"), balances)
 
 
 def test_overspend_waived_at_registered_height():
@@ -218,7 +218,7 @@ def test_overspend_waived_at_registered_height():
     n = _node(last_block=699999, validation_exceptions=reg)   # block being validated == 700000
     proc = digest.BlockProcessor(n, db_handler=None, peer_ip="t")
     balances = {GEN: Decimal("5.0")}
-    proc._validate_balance(GEN, "10.00000000", Decimal("0"), Decimal("0"), balances)  # no raise
+    proc._validate_balance(GEN, "10.00000000", Decimal("10"), Decimal("0"), balances)  # no raise
     assert any("overspend" in w for w in n.logger.app_log.warnings)
 
 
@@ -227,7 +227,7 @@ def test_overspend_not_waived_at_other_height():
     n = _node(last_block=700000, validation_exceptions=reg)   # block 700001 -> not registered
     proc = digest.BlockProcessor(n, db_handler=None, peer_ip="t")
     with pytest.raises(ValueError):
-        proc._validate_balance(GEN, "10.00000000", Decimal("0"), Decimal("0"), {GEN: Decimal("5.0")})
+        proc._validate_balance(GEN, "10.00000000", Decimal("10"), Decimal("0"), {GEN: Decimal("5.0")})
 
 
 # ================================================================ WIRING: duplicate ====

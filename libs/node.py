@@ -97,6 +97,9 @@ class Node:
         self.apihandler = None
         self.syncing = []
         self.checkpoint = 0
+        self.regnet_peering = False         # doc/47 multi-node regnet harness: regnet dials + answers hello
+        self.fork_resolution = "measured"   # doc/47: "measured" | "legacy" (config overrides at startup)
+        self.fork_lock = threading.Lock()   # serialises fork measurements/adoptions across peer threads
 
         self.is_testnet = False
         self.is_regnet = False

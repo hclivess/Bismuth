@@ -58,6 +58,7 @@ class _PeersStub(PeersStorageMixin):
         self.app_log = _Log()
         self.peer_dict = {}
         self.peersync_lock = threading.Lock()
+        self.peers_lock = threading.RLock()     # the real Peers' one reentrant lock (peering rework stage 2)
         self.config = types.SimpleNamespace(accept_peers=accept_peers, tor=tor)
         # peersync reads self.node.tor_manager (doc/38 single proxy source) — the real Peers always sets
         # self.node (peershandler.py); clearnet has no tor_manager so probing uses a direct socket.

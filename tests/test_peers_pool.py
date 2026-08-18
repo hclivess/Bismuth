@@ -8,6 +8,7 @@ a 5-30 minute cooldown. Pure unit tests: no node, no sockets.
 
 Run with: python3 -m pytest tests/test_peers_pool.py -v
 """
+import threading
 import types
 from time import time
 
@@ -27,6 +28,7 @@ class _PeersStub(PeersPoolMixin):
     # attach exactly the attributes the pool methods touch.
     def __init__(self):
         self.tried = {}
+        self.peers_lock = threading.RLock()   # the real Peers' one reentrant lock
         self.banlist = []
         self.whitelist = []
         self._connection_pool_set = set()
