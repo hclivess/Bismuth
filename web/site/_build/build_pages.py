@@ -143,7 +143,7 @@ def build_index():
             ("Bitcointalk", "https://bitcointalk.org/index.php?topic=1896497.0", "original 2017 thread"),
             ("Linktree", "https://linktr.ee/bismuthcoin", ""),
         ]),
-        linkrow("Docs &amp; project", [
+        linkrow("Docs & project", [
             ("bismuthcoin.org", "https://bismuthcoin.org/", "main site &amp; docs"),
             ("Whitepaper", "https://bismuthcoin.org/docs/papers/whitepaper/", ""),
             ("Source (GitHub)", "https://github.com/hclivess/Bismuth", ""),
