@@ -185,6 +185,9 @@ ${IGNORE_CUSTOM}
 ExecStart=${PYTHON} node.py ${NODE_ARGS}
 Restart=on-failure
 RestartSec=10
+# 78 = chain_ops.LEDGER_LOST_EXIT_CODE: SQLite ledger gone but the block store holds the chain -> the node
+# refuses to auto-bootstrap; restarting would only repeat that, so don't.
+RestartPreventExitStatus=78
 # Graceful shutdown: SIGTERM -> node._graceful_stop finishes the in-flight block + drains the db lock,
 # so ledger.db/hyper.db stay consistent (no cross-integrity rollback on the next boot). Give it room.
 KillSignal=SIGTERM

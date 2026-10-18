@@ -62,6 +62,16 @@ place — partition handling and the `consensus_most_common` vs `consensus_max` 
 `worker.py`. The Sybil-resistance of the consensus signal also bounds how strong the supermajority
 gate really is, and should be hardened (e.g. weight by distinct peers / known good versions).
 
+### Startup: deleted SQLite ledger + populated block store -> exit 78, no auto-bootstrap
+The SQLite trio is still the source of truth (doc/26: the LMDB block store is a forward mirror; SQLite-free
+operation is stages 3-5, not built). If `hyper.db`/`ledger.db` are deleted while
+`blockstore-<ledger>` still holds the chain, every automatic startup path recreated them: `check_integrity`
+-> `bootstrap` (peer snapshot, then `bootstrap_url`, ~46 GB on mainnet) or `sync_from_genesis`, and a
+failed download crash-looped under systemd. `chain_ops.guard_lost_ledger` (called in `node.py` before
+`seed_genesis`/`check_integrity`, mainnet only) now logs a CRITICAL explanation and exits with
+`LEDGER_LOST_EXIT_CODE = 78`; the unit templates set `RestartPreventExitStatus=78`. To resync on purpose,
+move the block store aside; to run again, restore the SQLite files. Tests: `tests/test_lost_ledger_guard.py`.
+
 ### Tooling
 - A **dependency-light pytest suite** replaces the `bismuthclient`/`bismuthcore`-based tests (which
   don't run on 3.12). See [12](12-tooling-build-tests.md). `.travis.yml` now targets Python 3.12.

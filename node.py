@@ -67,7 +67,7 @@ import mining_heavy3
 import regnet
 import validation_exceptions
 from digest import digest_block
-from chain_ops import recompress_ledger, ledger_check_heights, blocknf, check_integrity, sequencing_check, reconcile_ledger_hyper, rollback
+from chain_ops import recompress_ledger, ledger_check_heights, blocknf, check_integrity, sequencing_check, reconcile_ledger_hyper, rollback, guard_lost_ledger
 from balances import balanceget
 from node_init import setup_net_type, node_block_init, ram_init, initial_db_check, load_keys, add_indices
 from quantizer import quantize_eight, quantize_two
@@ -1487,6 +1487,11 @@ if __name__ == "__main__":
         print("Upgrading wallet location")
         os.rename("../wallet.der", "wallet.der")
     # upgrade wallet location after nuitka-required "files" folder introduction
+
+    # Lost-ledger guard: SQLite ledger deleted while the LMDB block store still holds the chain -> exit
+    # (status 78, systemd RestartPreventExitStatus) instead of re-downloading / re-seeding it. Must run
+    # before seed_genesis, the hyperblock clone and check_integrity -> bootstrap below.
+    guard_lost_ledger(node)
 
     # doc/30: from-genesis sync — seed the canonical genesis block into a FRESH ledger before the
     # hyperblock clone / integrity check run, so neither the clone (needs hyper.db to exist) nor

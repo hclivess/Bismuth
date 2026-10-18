@@ -912,6 +912,91 @@ def seed_genesis(node):
     node.logger.app_log.warning("sync_from_genesis: genesis seeded; will sync the chain from block 2")
 
 
+# Exit status of the lost-ledger guard below. Distinct from every other exit path (1 = generic failure)
+# so systemd can be told not to restart into it: RestartPreventExitStatus=78 (78 = EX_CONFIG, sysexits.h).
+LEDGER_LOST_EXIT_CODE = 78
+
+
+def _sqlite_has_blocks(path):
+    """True if ``path`` is a SQLite ledger with at least one block. Opened READ-ONLY via a URI so a
+    missing file is NOT created as a side effect (plain sqlite3.connect would create an empty one)."""
+    if not path or not os.path.exists(path) or os.path.getsize(path) == 0:
+        return False
+    try:
+        con = sqlite3.connect(f"file:{os.path.abspath(path)}?mode=ro", uri=True)
+        try:
+            mx = con.execute("SELECT MAX(block_height) FROM transactions").fetchone()[0]
+        finally:
+            con.close()
+        return mx is not None and int(mx) >= 1
+    except Exception:
+        return False
+
+
+def lost_ledger_blockstore_tip(node):
+    """Mainnet startup guard: the SQLite ledger is gone but the LMDB block store still holds the chain.
+
+    Returns the block store's tip height when (a) this is a mainnet node, (b) a SQLite file the node
+    reads at startup (``hyper_path``; ``ledger_path`` too in full-ledger mode) is missing / empty / has
+    no ``transactions`` rows, and (c) the per-ledger block store (``kvstore.store_path(ledger_path,
+    "blockstore")``) exists with at least one block. Otherwise None.
+
+    Why: the SQLite trio is still the node's source of truth (doc/26 — the block store is a forward
+    mirror, SQLite-free operation is the unbuilt stages 3-5). With the SQLite files deleted, every
+    automatic startup path recreates them: ``check_integrity`` -> ``bootstrap`` (peer snapshot, then
+    ``bootstrap_url``) writes ~46 GB back, or ``sync_from_genesis`` rebuilds them from block 1, and a
+    failed download crash-loops under systemd. A populated block store means the operator deleted the
+    ledger deliberately (or lost it) on a node that has the chain — that is a decision, not a fresh
+    install, so the node must stop and say so instead of silently re-downloading."""
+    version = str(getattr(node, "version", "") or "")
+    if "testnet" in version or "regnet" in version or getattr(node, "is_testnet", False) \
+            or getattr(node, "is_regnet", False):
+        return None
+    paths = [getattr(node, "hyper_path", None)]
+    if getattr(node, "full_ledger", True):
+        paths.append(getattr(node, "ledger_path", None))
+    if all(_sqlite_has_blocks(p) for p in paths if p):
+        return None
+    import kvstore
+    bs_path = kvstore.store_path(node.ledger_path, "blockstore")
+    if not os.path.isdir(bs_path) or not os.path.exists(os.path.join(bs_path, "data.mdb")):
+        return None
+    try:
+        import block_store
+        store = block_store.BlockStore(bs_path, readonly=True)
+        try:
+            tip = store.tip()
+        finally:
+            store.close()
+    except Exception:
+        return None
+    return tip if tip and tip >= 1 else None
+
+
+def guard_lost_ledger(node):
+    """Refuse to start (exit ``LEDGER_LOST_EXIT_CODE``) when ``lost_ledger_blockstore_tip`` fires: no
+    peer snapshot, no ``bootstrap_url`` download, no ``sync_from_genesis`` rebuild. Must run before
+    ``seed_genesis`` / the hyperblock clone / ``check_integrity``."""
+    tip = lost_ledger_blockstore_tip(node)
+    if tip is None:
+        return
+    import kvstore
+    bs_path = kvstore.store_path(node.ledger_path, "blockstore")
+    msg = (
+        f"CRITICAL: the SQLite ledger ({node.hyper_path}, {node.ledger_path}) is missing or empty, but the "
+        f"LMDB block store {bs_path} holds the chain up to block {tip}. The node still needs the SQLite "
+        f"ledger to run (doc/26: the block store is a mirror; SQLite-free operation is not built yet). "
+        f"Refusing to auto-bootstrap (peer snapshot / bootstrap_url download / sync_from_genesis would "
+        f"recreate tens of GB of SQLite files). Options: restore ledger.db + hyper.db; or, to resync on "
+        f"purpose, move {bs_path} aside and start again. Exiting with status {LEDGER_LOST_EXIT_CODE}.")
+    try:
+        node.logger.app_log.critical(msg)
+    except Exception:
+        pass
+    print(msg, flush=True)
+    raise SystemExit(LEDGER_LOST_EXIT_CODE)
+
+
 def bootstrap(node):
     # TODO: Candidate for single user mode
     # doc/30: when syncing from genesis, never download a snapshot — seed the genesis block and let
