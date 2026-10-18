@@ -21,8 +21,8 @@ GPU CUDA Miner for Bismuth.
 * ```cd ~``` ```git clone https://github.com/Bismuthfoundation/kbkminer.git```
 * ```sudo apt install cmake``` ```sudo apt install python3-pybind11```
 * ```cd kbkminer``` ```chmod u+x mycompile.sh``` ```./mycompile.sh```
-* Edit miner.txt to use your own miner_address
-* ```cp optihash.py ../Bismuth``` ```cp miner.txt ../Bismuth``` ```cp bis.so ../Bismuth```
+* Edit miner.toml to use your own miner_address
+* ```cp optihash.py ../Bismuth``` ```cp minerconfig.py miner.toml ../Bismuth``` ```cp bis.so ../Bismuth```
 * Do not start the miner before the ledger is fully synced. The variable last_block_ago should be less than 300 seconds. Check with ```cd ~/Bismuth``` ```python3 commands.py statusget```
 * ```cd ~/Bismuth``` ```screen -mS miner python3 optihash.py``` You can press ```Ctrl-A d```to detach from the miner session, and ```screen -r miner``` to go back.
 
@@ -61,15 +61,15 @@ If you want to install kbkminer on the Ubuntu 20.04 Desktop edition, instead of 
 * ```cd pybind11``` ```cmake .``` ```make``` ```sudo make install```
 * ```cd ~``` ```git clone https://github.com/Bismuthfoundation/kbkminer.git```
 * ```cd kbkminer``` ```chmod u+x mycompile.sh``` ```./mycompile.sh```
-* Edit miner.txt to use your own miner_address
-* ```cp optihash.py ../Bismuth``` ```cp miner.txt ../Bismuth``` ```cp bis.so ../Bismuth```
+* Edit miner.toml to use your own miner_address
+* ```cp optihash.py ../Bismuth``` ```cp minerconfig.py miner.toml ../Bismuth``` ```cp bis.so ../Bismuth```
 * Do not start the miner before the ledger is fully synced. The variable last_block_ago should be less than 300 seconds. Check with ```cd ~/Bismuth``` ```python3 commands.py statusget```
 * ```cd ~/Bismuth``` ```screen -mS miner python3 optihash.py``` You can press Ctrl-A dto detach from the miner session, and screen -r miner to go back.
 
 
 ### Notes
 
-The pool will use the Bismuth address in the node wallet, found in the file `wallet.der`. If you want to solo mine, you can mine directly to this address by editing the file `miner.txt` and make the miner_address equal to the address in `wallet.der`. In this case, you can also edit min_payout in pool.txt to a large number to prevent payout transactions from the pool.
+The pool will use the Bismuth address in the node wallet, found in the file `wallet.der`. If you want to solo mine, you can mine directly to this address by editing the file `miner.toml` and make the miner_address equal to the address in `wallet.der`. In this case, you can also edit min_payout in pool.toml to a large number to prevent payout transactions from the pool.
 
 #### GPU Architecture Configuration:
 

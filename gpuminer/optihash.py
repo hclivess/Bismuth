@@ -7,7 +7,7 @@
 """CUDA pool miner for Bismuth (Optipoolware-style pools).
 
 A standalone GPU miner that offloads Heavy3 nonce search to a CUDA extension
-(``bis``). It reads ``miner.txt`` for pool/connection settings, repeatedly
+(``bis``). It reads ``miner.toml`` for pool/connection settings, repeatedly
 fetches work from the pool over the socket protocol, hands the current block
 hash and difficulty condition to the GPU, collects candidate nonces, verifies
 each against the required difficulty on the CPU and submits winning solutions
@@ -38,25 +38,19 @@ def cuda_to_nonce_arr(string):
 
 __version__ = '0.3.1-cuda'
 
-# load config
-lines = [line.rstrip('\n') for line in open('miner.txt')]
-for line in lines:
-    if "port=" in line:
-        port = line.split('=')[1]
-    if "mining_ip=" in line:
-        mining_ip_conf = line.split('=')[1]
-    if "mining_threads=" in line:
-        mining_threads_conf = line.strip('mining_threads=')
-    if "tor=" in line:
-        tor_conf = int(line.strip('tor='))
-    if "miner_address=" in line:
-        self_address = line.split('=')[1]
-    if "nonce_time=" in line:
-        nonce_time = int(line.split('=')[1])
-    if "miner_name=" in line:
-        mname = line.split('=')[1]
-    if "hashcount=" in line:
-        hashcount = int(line.split('=')[1])
+# load config (miner.toml next to this script; a legacy miner.txt is migrated once -- minerconfig.py)
+import os, minerconfig
+SCHEMA = {"port": "str", "mining_ip": "str", "mining_threads": "str", "tor": "int", "miner_address": "str",
+          "max_diff": "int", "miner_name": "str", "nonce_time": "int", "hashcount": "int"}
+_mc = minerconfig.load(os.path.dirname(os.path.abspath(__file__)), "miner.toml", SCHEMA, legacy="miner.txt")
+port = _mc["port"]
+mining_ip_conf = _mc["mining_ip"]
+mining_threads_conf = _mc["mining_threads"]
+tor_conf = _mc.get("tor", 0)
+self_address = _mc["miner_address"]
+nonce_time = _mc["nonce_time"]
+mname = _mc["miner_name"]
+hashcount = _mc["hashcount"]
 
 # load config
 

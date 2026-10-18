@@ -294,7 +294,7 @@ def miner(privatekey_readable, public_key_hashed, address, miners, resultQueue):
                     s_node = socks.socksocket()
                     if tor_conf == 1:
                         s_node.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                    s_node.connect((node_ip_conf, int(port)))  # connect to config.txt node
+                    s_node.connect((node_ip_conf, int(port)))  # connect to the config.toml node
                     connections.send(s_node, "mpget", 10)
                     data = connections.receive(s_node, 10)
                     s_node.close()

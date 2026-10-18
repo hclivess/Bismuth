@@ -30,12 +30,17 @@ back. (Solo mining would point them at a local pool.)
 ```
 sudo apt install nvidia-cuda-toolkit cmake python3-pybind11
 cd gpuminer && chmod +x mycompile.sh && ./mycompile.sh     # builds bis.so
-cp bis.so optihash.py miner.txt ..                          # next to node.py
-# edit miner.txt: miner_address, mining_ip (the pool), port
+cp bis.so optihash.py minerconfig.py miner.toml ..          # next to node.py
+# edit miner.toml: miner_address, mining_ip (the pool), port
 python3 optihash.py
 ```
 
 Run a synced node + an Optipoolware pool first; start the miner only once the node is at the tip.
+
+**Config is TOML** (`gpuminer/minerconfig.py`, stdlib `tomllib`): the CUDA miner reads `miner.toml`, the
+OpenCL miner reads `opencl_alt/config.toml` plus an optional `opencl_alt/config_custom.toml` that
+overrides it key by key. A pre-TOML `miner.txt` / `config.txt` / `config_custom.txt` is migrated
+automatically on first start (verified to load identically, then kept as `<name>.migrated`).
 
 ## ⚠️ Two caveats, stated plainly
 

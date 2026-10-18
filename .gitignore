@@ -43,6 +43,7 @@ _start_mainnet.sh
 _restart.pid
 # the node's live config (template: config.toml.example); a migrated pre-TOML file is kept as *.migrated
 config.toml
+!gpuminer/opencl_alt/config.toml
 config.txt
 *.migrated
 
