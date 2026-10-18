@@ -3,48 +3,55 @@
 `options.Get().read()` loads the base config, overrides it with an optional custom config, then reads
 `mandatory_message.json`. Unknown keys are ignored; every key is copied onto `node.*` at startup.
 
-## Config formats: `config.toml` (preferred) and legacy `config.txt` (still supported)
+## Format: `config.toml` + `config_custom.toml`
 
-The node reads **two interchangeable formats** — modern **TOML** and the original `key=value` text:
+The node is configured in **TOML**, in two layers:
 
-| Layer | Modern (preferred) | Legacy (fallback) |
+| Layer | File | Notes |
 |---|---|---|
-| Base | `config.toml` | `config.txt` |
-| Override | `config_custom.toml` | `config_custom.txt` |
+| Base | `config.toml` | the node's live settings (gitignored); restored from the tracked `config.toml.example` template if it goes missing |
+| Override | `config_custom.toml` | optional; each key here overrides the base. Skipped when `BISMUTH_IGNORE_CONFIG_CUSTOM=1` is set — the systemd mainnet service sets it, so a stray regnet `config_custom.toml` can never hijack a mainnet node |
 
-`read()` prefers the `.toml` file in each layer and falls back to the `.txt` file when no `.toml` is
-present, so **an existing node with only `config.txt` is completely unaffected** — the legacy path is
-byte-identical to before. The precedence is unchanged: **base → custom override →
-`mandatory_message.json`**, with `BISMUTH_IGNORE_CONFIG_CUSTOM=1` skipping the custom layer (how the
-systemd mainnet unit ignores a stray regnet `config_custom.*`). Both formats funnel into the same typed
-`Config` object, so every consumer and every `node.*` attribute is identical regardless of format.
+Precedence: **`config.toml` → `config_custom.toml` → `mandatory_message.json`**. Env-var overrides
+(`node.py`, `BISMUTH_*`) apply on top and are unchanged.
 
-**Why TOML:** reading it uses stdlib **`tomllib`** (Python 3.11+; the node targets 3.12), so it adds
-**zero runtime dependency** — the decisive factor for a consensus node. It also avoids YAML's
-type-coercion footguns (the Norway `no`→False problem, implicit numeric/version coercion) that are
-dangerous for consensus-affecting flags like `fork_signal` / `version_allow`. In TOML, scalars map 1:1,
-comma-lists (`version_allow`, `banlist`, `whitelist`, `mempool_allowed`) become **arrays**, the JSON
-dicts (`light_ip`, `mandatory_message`) become **tables**, and `port` stays a **string** (an int like
-`port = 5658` is accepted and coerced to `"5658"`). See `config.toml.example`.
+Values are **native TOML types**, taken as-is per the schema in `options.py` (`Get.vars`):
 
-**Type note:** the legacy `bool` false-set (`false/0/""/no`) applies only to the `.txt` path — TOML uses
-real `true`/`false`. Otherwise the two formats produce an identical Config (asserted in
-`tests/test_config_toml.py`).
-
-### Migrating
-
-```bash
-python scripts/migrate_config.py --check    # verify only: would config.toml load identically?
-python scripts/migrate_config.py            # write config.toml from config.txt (refuses to clobber; --force to override)
-python scripts/migrate_config.py --custom   # also convert config_custom.txt -> config_custom.toml
+```toml
+port = "5658"                                   # str (an int `port = 5658` is accepted and coerced to "5658")
+version = "mainnet0022"                         # str
+version_allow = ["mainnet0021", "mainnet0022"]  # list -> array
+rest_api = true                                 # bool -> real true / false
+rest_api_port = 5659                            # int
+api_sync = true
+api_sync_source = "185.100.232.5:5659"
+tor = "managed"                                 # off | external | managed (doc/38)
+light_ip = { "127.0.0.1" = "5658", "bismuth.live" = "5658" }   # dict -> inline table
 ```
 
-The migrator is **non-destructive**: it reuses the node's own loader so the emitted values match exactly,
-writes only the keys you actually set (not the backfilled defaults), verifies the result round-trips to an
-identical Config before writing, and **leaves `config.txt` in place** — important because the GPU miner
-(`gpuminer/opencl_alt/options.py`) and `legacy_sync_probe.py` still read `config.txt` only. It needs no
-extra dependency (a tiny built-in TOML serializer covers the whole schema). Env-var overrides
-(`node.py`, `BISMUTH_*`) are format-agnostic and unchanged.
+Unknown keys are ignored. Every key is copied onto `node.*` at startup.
+
+**Why TOML:** stdlib **`tomllib`** reads it on Python 3.11+ (on 3.10 the `tomli` package, installed by
+`install_node.sh` / `requirements.txt`, provides the same API), so a consensus node carries no extra parser.
+It also has none of YAML's type-coercion footguns (the Norway `no`→False problem, implicit
+numeric/version coercion) — the right property for consensus-affecting flags like `fork_signal` and
+`version_allow`.
+
+### Migrating from `config.txt`
+
+A pre-TOML `key=value` `config.txt` / `config_custom.txt` is migrated **automatically, once**, on the
+first start that finds it without its TOML counterpart: the node writes `config.toml` /
+`config_custom.toml` beside it, **verifies both files load to the identical Config** (nothing is written
+otherwise), and renames the old file to `config.txt.migrated` / `config_custom.txt.migrated`. The
+emitted TOML contains only the keys you actually set, not the backfilled defaults.
+
+The same conversion by hand:
+
+```bash
+python3 scripts/migrate_config.py --check    # verify only: would config.toml load identically?
+python3 scripts/migrate_config.py            # write config.toml from config.txt (refuses to clobber; --force to override)
+python3 scripts/migrate_config.py --custom   # also convert config_custom.txt -> config_custom.toml
+```
 
 ## Keys
 
@@ -54,7 +61,7 @@ extra dependency (a tiny built-in TOML serializer covers the whole schema). Env-
 | `verify` | bool | full signature re-verification of the ledger at startup |
 | `testnet` / `regnet` | bool | network selection |
 | `heavy` | bool | require the Heavy3 `heavy3a.bin` file (false on regnet) |
-| `version` | str | protocol version (forced to `mainnet0023` on mainnet at startup, regardless of `config.txt`) |
+| `version` | str | protocol version (forced to `mainnet0023` on mainnet at startup, regardless of `config.toml`) |
 | `version_allow` | list | accepted peer protocol versions |
 | `thread_limit` | int | thread budget (inbound throttled at ~2/3; workers below 3×) |
 | `debug` | bool | re-raise exceptions in handlers |
@@ -64,7 +71,7 @@ extra dependency (a tiny built-in TOML serializer covers the whole schema). Env-
 | `ledger_path` | str | names the ledger (mainnet `static/ledger.db`); the LMDB environment is `blockstore-<name>` beside it (`static/blockstore-ledger.db`), and every per-ledger sidecar is namespaced by the same name |
 | `ban_threshold` | int | warning points before a peer is banned |
 | `nodes_ban_reset` | int | pool size under which the banlist auto-resets |
-| `tor` | bool | route outbound via SOCKS5; suppress the local server |
+| `tor` | str | Tor mode `"off"` / `"external"` / `"managed"` (doc/38); a legacy boolean is still accepted |
 | `allowed` | str/list | IPs (or `any`) permitted to issue privileged commands |
 | `banlist` / `whitelist` | list | initial banned / never-banned IPs |
 | `node_ip` | str | the node's own external IP |
@@ -74,7 +81,7 @@ extra dependency (a tiny built-in TOML serializer covers the whole schema). Env-
 | `mempool_allowed` | list | **unused** — declared (`options.py:49`) but read by no module |
 | `terminal_output` | bool | echo logs to stdout |
 | `log_color` | bool | ANSI-coloured console/journald log by level (`log.ColoredFormatter`; honors `NO_COLOR`); file logs stay plain |
-| `mandatory_message` | list | exchange deposit address → required-memo note; the loader's type schema is `list` (`options.py:59`), but the built-in default and `mandatory_message.json` override (see below) are a **dict** — set it via the JSON file, not a `config.txt` line |
+| `mandatory_message` | list | exchange deposit address → required-memo note; the loader's type schema is `list` (`options.py:59`), but the built-in default and `mandatory_message.json` override (see below) are a **dict** — set it via the JSON file, not a `config.toml` key |
 | `egress` | bool | relay blocks to peers (false = receive-only) |
 | `heavy3_path` | str | path to `heavy3a.bin` |
 | `gui_scaling` | str | wallet-GUI hint (unused by the node) |
@@ -107,7 +114,7 @@ always in memory, and tokens/aliases are always indexed by the `tokens_aliases` 
 | `fork_signal` | bool | emit the `hf2` coinbase signal when generating blocks (upgraded miners) — asserts readiness for the WHOLE bundle, including the blake2b Heavy3 (doc/18-D) |
 | `fork_window` / `fork_boundary` / `fork_bury` | int | hf2 activation parameters (signal window, round boundary, burial margin) — `/api/fork` reports status |
 | `mine` | bool | run the built-in solo miner (`miner.py`): real Heavy3, embeds mempool txs, writes the hf2 coinbase (doc/21) |
-| `rest_api` / `rest_api_port` | bool/int | the read-only REST API (doc/15) and its port; **on by default** (port 5659) — set `rest_api=False` to disable |
+| `rest_api` / `rest_api_port` | bool/int | the read-only REST API (doc/15) and its port; **on by default** (port 5659) — set `rest_api = false` to disable |
 | `snapshot_serve` | bool | expose `/api/snapshot[/info]`, generated **on demand, DB-direct** from the live LMDB ledger (doc/43); **on by default** |
 | `bootstrap_p2p` | bool | a fresh node fetches a tip-verified DB-direct ledger snapshot from **peers** (doc/43), else seeds genesis and syncs; **on by default** |
 | `bootstrap_p2p_peers` | list | optional explicit `host:rest_port` snapshot sources |
@@ -134,4 +141,4 @@ Single-line JSON `{ip: port}`: `peers.txt` (mainnet), `peers_test.txt` (testnet)
 (regnet, `{}`), plus `suggested_peers.txt` / `suggested_peers_test.txt` bootstrap lists.
 
 > Runtime artifacts are gitignored and must not be committed: `wallet.der`, the LMDB environments
-> (`static/blockstore-*`, `static/tokenindex-*`), `*.log`, `config_custom.txt`, `heavy3a.bin`.
+> (`static/blockstore-*`, `static/tokenindex-*`), `*.log`, `config.toml`, `config_custom.toml`, `heavy3a.bin`.

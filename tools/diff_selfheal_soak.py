@@ -155,9 +155,9 @@ def main():
     ap.add_argument("--sleep", type=float, default=1.0)
     args = ap.parse_args()
 
-    # regnet nodes read ROOT/config_custom.txt (prod ignores it via BISMUTH_IGNORE_CONFIG_CUSTOM=1)
-    if not os.path.exists(os.path.join(ROOT, "config_custom.txt")):
-        shutil.copy(os.path.join(ROOT, "tests/config_custom.txt"), os.path.join(ROOT, "config_custom.txt"))
+    # regnet nodes read ROOT/config_custom.toml (prod ignores it via BISMUTH_IGNORE_CONFIG_CUSTOM=1)
+    if not os.path.exists(os.path.join(ROOT, "config_custom.toml")):
+        shutil.copy(os.path.join(ROOT, "tests/config_custom.toml"), os.path.join(ROOT, "config_custom.toml"))
 
     tmp = tempfile.mkdtemp(prefix="diffsoak_")
     A_S, A_R, B_S, B_R, C_S, C_R = 4060, 4061, 4062, 4063, 4064, 4065

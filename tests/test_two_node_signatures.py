@@ -103,9 +103,9 @@ def _mine_until(ca, pred, rounds=40):
 @pytest.mark.skipif(not os.environ.get("BISMUTH_RUN_TWONODE"),
                     reason="heavy two-node harness; run with BISMUTH_RUN_TWONODE=1")
 def test_all_signature_schemes_two_node(tmp_path):
-    if not os.path.exists(os.path.join(ROOT, "config_custom.txt")):
+    if not os.path.exists(os.path.join(ROOT, "config_custom.toml")):
         import shutil
-        shutil.copy(os.path.join(ROOT, "tests/config_custom.txt"), os.path.join(ROOT, "config_custom.txt"))
+        shutil.copy(os.path.join(ROOT, "tests/config_custom.toml"), os.path.join(ROOT, "config_custom.toml"))
 
     from polysign.signer import SignerType
     from polysign.signerfactory import SignerFactory

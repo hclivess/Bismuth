@@ -25,13 +25,12 @@ KNOWN_HASH = db_hashes['27258-1493755375.23']
 
 def read_config_version(default="mainnet0022"):
     try:
-        for line in open("config.txt"):
-            line = line.strip()
-            if line.startswith("version="):
-                return line.split("=", 1)[1].strip()
+        import options
+        g = options.Get()
+        g.read()
+        return g.version or default
     except Exception:
-        pass
-    return default
+        return default
 
 
 def reachable_peers(limit=12):

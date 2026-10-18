@@ -25,6 +25,8 @@ ed25519
 # REQUIRED: the ledger is ONE LMDB environment (block_store) and the tokens/aliases plugin owns its own
 # LMDB store (token_index). A node cannot start without these.
 lmdb
+# config.toml parser: stdlib tomllib on Python 3.11+, this backport on 3.10
+tomli; python_version < "3.11"
 msgpack
 # OPTIONAL (post-quantum, doc/20): pure-Python ML-DSA-65 for polysign/signer_mldsa.py. Lazy-imported by
 # the SignerFactory, so a node without it is unaffected until a `pq` fork activates the PQ signature type.

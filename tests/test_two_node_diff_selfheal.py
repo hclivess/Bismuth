@@ -163,8 +163,8 @@ def _confirm_loop(node, rest_port_cache, n_confirm=3, cycles=5):
                     reason="heavy two-node harness (spins up a regnet node process); "
                            "run explicitly with BISMUTH_RUN_TWONODE=1")
 def test_two_node_diff_selfheal(tmp_path, monkeypatch):
-    if not os.path.exists(os.path.join(ROOT, "config_custom.txt")):
-        shutil.copy(os.path.join(ROOT, "tests/config_custom.txt"), os.path.join(ROOT, "config_custom.txt"))
+    if not os.path.exists(os.path.join(ROOT, "config_custom.toml")):
+        shutil.copy(os.path.join(ROOT, "tests/config_custom.toml"), os.path.join(ROOT, "config_custom.toml"))
 
     dir_a = str(tmp_path / "a")
     procs = []

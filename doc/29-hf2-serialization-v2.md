@@ -303,7 +303,7 @@ Keep `tests/test_characterization.py:177` (`signature_buffer`) and `:185` (`bloc
 - **Pre-fork invariance (every stage):** `replay_verify.py` against a stored ledger with `fork_height=None` reports `0 mismatch(es)` (as-stored and integer-roundtrip); `tests/test_replay.py` enforces in CI.
 - **Boundary parity (stages 1-3):** replay a *straddling* regnet chain — blocks `< fork_height` via legacy, `>= fork_height` via v2, whole chain reproduces stored hashes, straddle block links.
 - **Cross-transport parity (stage 3):** socket sync (`node.py` verify) and REST sync (`rest_api.py:439`, `api_sync.py`) must derive byte-identical post-fork blocks at every height across the fork (`tests/test_api_sync.py`, `tests/test_headers_sync.py`). Same concern `amounts.consensus_amount` documents (`amounts.py:65-72`).
-- **Consensus-equivalence:** run the suite under `tests/config_custom.txt` (regnet, integer storage on) and confirm the integer-storage path and v2 path agree on hashes through the boundary.
+- **Consensus-equivalence:** run the suite under `tests/config_custom.toml` (regnet, integer storage on) and confirm the integer-storage path and v2 path agree on hashes through the boundary.
 
 ---
 

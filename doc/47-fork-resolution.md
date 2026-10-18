@@ -66,7 +66,7 @@ LMDB transaction).
 
 ## 4. Operating
 
-* `config.txt`: `fork_resolution=measured` (default) | `legacy` (the old blind one-block rollback).
+* `config.toml`: `fork_resolution = "measured"` (default) | `"legacy"` (the old blind one-block rollback).
 * Log lines start with `Fork resolution (<peer>)`: the verdict (`behind/synced/reorg/dead_fork/unknown/
   tie_win`), probes used, ancestor, what was held, what was applied.
 * Tunables in `fork_resolution.py`: `PROBE_TIMEOUT_S 5`, `LINEAR_PROBES 6`, `MAX_PROBE_DEPTH 720`,

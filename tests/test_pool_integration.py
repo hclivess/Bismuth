@@ -31,7 +31,7 @@ REST = "http://127.0.0.1:3031/api"
 
 # files the pool / node / Heavy3 generate in the repo root that the test must clean up afterwards
 _GEN_FILES = ["privkey.der", "pubkey.der", "pool.log",
-              "heavy3a.bin", "config_custom.txt", "node_pool_it.log"]
+              "heavy3a.bin", "config_custom.toml", "node_pool_it.log"]
 
 
 def _nget(path, timeout=10):
@@ -67,7 +67,7 @@ def test_pool_block_and_payout():
     try:
         # --- start a fresh regnet node (socket 3030, REST 3031 from config_custom) ---
         _clean_state()
-        shutil.copy(os.path.join(ROOT, "tests/config_custom.txt"), os.path.join(ROOT, "config_custom.txt"))
+        shutil.copy(os.path.join(ROOT, "tests/config_custom.toml"), os.path.join(ROOT, "config_custom.toml"))
         logf = open(os.path.join(ROOT, "node_pool_it.log"), "w")
         node = subprocess.Popen([sys.executable, "node.py", "regnet2"], cwd=ROOT,
                                 stdout=logf, stderr=subprocess.STDOUT)

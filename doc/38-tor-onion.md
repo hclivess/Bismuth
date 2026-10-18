@@ -85,8 +85,8 @@ sudo ./install_node.sh --tor   # installs the tor binary (apt/dnf/yum/brew) + th
 ```
 
 Or manually: `sudo apt install tor` (the C binary — required for any tor mode) + `pip install stem` (only
-for managed mode; clearnet nodes skip it). Then set `tor=managed` (and optionally `tor_onion=True` for
-inbound) in `config.toml` / `config.txt`. A clearnet node needs none of this.
+for managed mode; clearnet nodes skip it). Then set `tor = "managed"` (and optionally `tor_onion = true` for
+inbound) in `config.toml`. A clearnet node needs none of this.
 
 ## Security notes
 

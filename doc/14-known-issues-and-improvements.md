@@ -38,7 +38,7 @@ diverges onto a minority/alternate fork by more than ~59 blocks — e.g. after a
 The checkpoint is a deliberate anti-deep-reorg guard, so it must not simply be removed. Changes made:
 - **Diagnosability** — the checkpoint-skip now logs at **WARNING** (it was `INFO`, invisible at the
   default level) with actionable guidance, so a stalled node says *why* it won't roll back.
-- **Configurable depth** — `rollback_depth` (`config.txt`, default **30** = unchanged) sets the
+- **Configurable depth** — `rollback_depth` (`config.toml`, default **30** = unchanged) sets the
   post-fork checkpoint distance. Gated by
   `tests/test_characterization.py::test_checkpoint_set_depth_default_and_configurable`.
 - **Reputation-gated AUTO-RECOVERY deep rollback (default ON)** — `essentials.rollback_allowed(node,

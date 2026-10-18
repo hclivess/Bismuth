@@ -51,7 +51,7 @@ difficulty)** — treat those as authoritative for validation rules.
 | [08-api-and-commands.md](08-api-and-commands.md) | Full `ApiHandler` reference, core socket commands, `commands.py` CLI, demo/cmd scripts |
 | [09-crypto-wallets-keys.md](09-crypto-wallets-keys.md) | Address/key derivation, `wallet.der`, signing/verification, fee formula, aliases, logging |
 | [10-features.md](10-features.md) | Tokens, staking PoC, plugin system + hooks, regnet |
-| [11-configuration.md](11-configuration.md) | `config.txt` reference (every key), `mandatory_message.json`, peers files |
+| [11-configuration.md](11-configuration.md) | `config.toml` reference (every key, migration from `config.txt`), `mandatory_message.json`, peers files |
 | [12-tooling-build-tests.md](12-tooling-build-tests.md) | Send/balance scripts, the test suite, chain snapshot tooling, build & CI |
 | [13-file-reference.md](13-file-reference.md) | Accurate per‑file index of the whole tree |
 | [14-known-issues-and-improvements.md](14-known-issues-and-improvements.md) | Verified bugs, fragile wiring, and the refactor/upgrade roadmap |

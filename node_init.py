@@ -59,16 +59,16 @@ def setup_net_type(node):
             node.version_allow = ['mainnet0021', 'mainnet0022', 'mainnet0023']
         # Do not allow bad configs.
         if not 'mainnet' in node.version:
-            node.logger.app_log.error("Bad mainnet version, check config.txt")
+            node.logger.app_log.error("Bad mainnet version, check config.toml")
             sys.exit()
         num_ver = just_int_from(node.version)
         if num_ver <21:
-            node.logger.app_log.error("Too low mainnet version, check config.txt")
+            node.logger.app_log.error("Too low mainnet version, check config.toml")
             sys.exit()
         for allowed in node.version_allow:
             num_ver = just_int_from(allowed)
             if num_ver < 20:
-                node.logger.app_log.error("Too low allowed version, check config.txt")
+                node.logger.app_log.error("Too low allowed version, check config.toml")
                 sys.exit()
 
     if "testnet" in node.version or node.is_testnet:
@@ -76,7 +76,7 @@ def setup_net_type(node):
         node.ledger_path = "static/ledger_test.db"
         node.peerfile = "peers_test.txt"
         if not 'testnet' in node.version:
-            node.logger.app_log.error("Bad testnet version, check config.txt")
+            node.logger.app_log.error("Bad testnet version, check config.toml")
             sys.exit()
 
     if "regnet" in node.version or node.is_regnet:
@@ -84,7 +84,7 @@ def setup_net_type(node):
         node.ledger_path = regnet.REGNET_DB
         node.peerfile = regnet.REGNET_PEERS
         if not 'regnet' in node.version:
-            node.logger.app_log.error("Bad regnet version, check config.txt")
+            node.logger.app_log.error("Bad regnet version, check config.toml")
             sys.exit()
         if not node.heavy:
             node.logger.app_log.warning("Regnet with no heavy file...")

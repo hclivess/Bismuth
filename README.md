@@ -70,7 +70,7 @@ journalctl -u bismuth-node -f      # follow the logs
 ```
 
 The service sets `BISMUTH_IGNORE_CONFIG_CUSTOM=1` so it always boots **mainnet** even if a leftover
-regnet `config_custom.txt` is present.
+regnet `config_custom.toml` is present.
 
 ### Local dev chain (regnet) + tests
 
@@ -82,12 +82,13 @@ suite spins one up automatically:
 python3 -m pytest
 
 # or run a regnet node yourself (REST API on :3031, socket on :3030)
-cp tests/config_custom.txt config_custom.txt
+cp tests/config_custom.toml config_custom.toml
 python3 node.py regnet2
 ```
 
-Configuration lives in `config.txt` (see [`doc/11`](doc/11-configuration.md)); regnet/test overrides
-are in `tests/config_custom.txt`.
+Configuration lives in `config.toml` (template: `config.toml.example`; see
+[`doc/11`](doc/11-configuration.md)); regnet/test overrides are in `tests/config_custom.toml`. An existing
+`config.txt` is migrated to `config.toml` automatically on first start.
 
 ---
 

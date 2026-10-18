@@ -62,7 +62,7 @@ signal (+ the VM state root) into the coinbase — mirroring the node's `miner.p
 | `worker_time` | how often (seconds) the pool refreshes blockhash/diff/fork state from the node |
 | `m_timeout` | minutes without a share before a worker's hashrate is treated as 0 |
 
-`fork_signal` comes from the **node's** config (`config.txt`), shared via the node's `options`.
+`fork_signal` comes from the **node's** config (`config.toml`), shared via the node's `options`.
 
 ### `optihash/miner.toml` (miner)
 

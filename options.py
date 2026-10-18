@@ -1,7 +1,7 @@
 """Node configuration loader.
 
 Defines ``Get``, the object that reads the node's configuration from
-``config.txt`` (with ``config_custom.txt`` overrides) and exposes each setting
+``config.toml`` (with ``config_custom.toml`` overrides) and exposes each setting
 as a typed attribute -- ports, the ledger path, debug level, peer ban thresholds, Tor toggle, mempool options, the opt-in REST
 API switch, and so on. A typed schema maps each option name to its expected
 type so values are coerced consistently. Nearly every other module obtains its
@@ -15,8 +15,15 @@ from sys import exit
 
 try:
     import tomllib  # stdlib on Python 3.11+ (the node targets 3.12); read-only TOML parser
-except ImportError:  # pragma: no cover - older interpreters degrade gracefully to legacy config.txt
-    tomllib = None
+except ImportError:  # pragma: no cover - Python 3.10: the same API from the tomli package
+    import tomli as tomllib
+
+CONFIG = "config.toml"
+CONFIG_CUSTOM = "config_custom.toml"
+CONFIG_EXAMPLE = "config.toml.example"
+# key=value files from before TOML; migrated once (verified) to the TOML file beside them, then renamed
+# to <name>.migrated so nothing reads them again
+LEGACY = (("config.txt", CONFIG), ("config_custom.txt", CONFIG_CUSTOM))
 
 
 def _coerce_tor_mode(value):
@@ -231,8 +238,7 @@ class Get:
         # print(self.__dict__)
 
     def load_file(self, filename):
-        """Legacy key=value loader (config.txt / config_custom.txt). Behaviour-identical to before; the
-        per-key coercion now lives in _set_from_raw and the genesis/defaults tail in _finalize."""
+        """The pre-TOML key=value format — read only to migrate it (``migrate_legacy``)."""
         # print("Loading",filename)
         with open(filename) as fp:
             for line in fp:
@@ -246,10 +252,8 @@ class Get:
         taken AS-IS when they already match the schema type — no string re-coercion (and so none of the
         legacy false-set / Norway-style footguns). The only cross-type edge is ``port`` (schema type str)
         which an operator may write as an int. Unknown keys are skipped exactly like the legacy loader, and
-        load terminates in the SAME _finalize — so a config.toml and the equivalent config.txt produce a
-        byte-identical Config object (asserted in tests/test_config_toml.py)."""
-        if tomllib is None:  # pragma: no cover
-            raise RuntimeError("TOML config requires Python 3.11+ (tomllib); use config.txt instead")
+        load terminates in the SAME _finalize — so a config.toml and the key=value file it was migrated
+        from produce a byte-identical Config object (asserted in tests/test_config_toml.py)."""
         with open(filename, "rb") as fp:
             data = tomllib.load(fp)
         for left, value in data.items():
@@ -269,29 +273,27 @@ class Get:
         self._finalize()
 
     def read(self):
-        # config.txt is gitignored (it holds the node's live/local settings, incl. rest_api). If it has
-        # gone missing -- e.g. a git checkout / worktree switch removed it -- auto-restore it from the
-        # tracked config.txt.example template, so a missing config can't crash-loop the node at startup
-        # (the FileNotFoundError edge exposed during the v4.5.0.x DB-resilience work).
-        if not path.exists("config.txt") and path.exists("config.txt.example"):
+        # 1. a key=value config from before TOML is migrated once, verified to load to the identical Config
+        ignore_custom = bool(os.environ.get("BISMUTH_IGNORE_CONFIG_CUSTOM"))
+        for legacy, modern in LEGACY:
+            if ignore_custom and modern == CONFIG_CUSTOM:
+                continue
+            if path.exists(legacy) and not path.exists(modern):
+                migrate_legacy(legacy, modern)
+                print("migrated %s -> %s (the old file is kept as %s.migrated)" % (legacy, modern, legacy))
+        # 2. config.toml is gitignored (the node's live settings). If it has gone missing -- e.g. a git
+        # checkout / worktree switch removed it -- restore it from the tracked template so a missing config
+        # can't crash-loop the node at startup.
+        if not path.exists(CONFIG) and path.exists(CONFIG_EXAMPLE):
             import shutil
-            shutil.copyfile("config.txt.example", "config.txt")
-            print("config.txt was missing -- restored it from config.txt.example")
-        # Base layer: prefer the modern config.toml when the operator has opted in by creating one (doc/11);
-        # otherwise the legacy config.txt path is byte-identical to before, so an existing node is untouched.
-        if tomllib is not None and path.exists("config.toml"):
-            self.load_toml("config.toml")
-        else:
-            self.load_file("config.txt")
-        # then override with optional custom config (the regnet test harness drops in config_custom.txt).
+            shutil.copyfile(CONFIG_EXAMPLE, CONFIG)
+            print("%s was missing -- restored it from %s" % (CONFIG, CONFIG_EXAMPLE))
+        self.load_toml(CONFIG)
+        # 3. optional overrides (the regnet test harness drops in config_custom.toml).
         # BISMUTH_IGNORE_CONFIG_CUSTOM=1 lets the systemd mainnet service ignore a leftover test override
-        # so it always boots mainnet regardless of a stray config_custom.* (see scripts/install-node-service.sh).
-        # Same 3-layer precedence as before; config_custom.toml is preferred over .txt when present.
-        if not os.environ.get("BISMUTH_IGNORE_CONFIG_CUSTOM"):
-            if tomllib is not None and path.exists("config_custom.toml"):
-                self.load_toml("config_custom.toml")
-            elif path.exists("config_custom.txt"):
-                self.load_file("config_custom.txt")
+        # so it always boots mainnet (install_node.sh / scripts/install-node-service.sh set it).
+        if not ignore_custom and path.exists(CONFIG_CUSTOM):
+            self.load_toml(CONFIG_CUSTOM)
         file_name = "./mandatory_message.json"
         if path.isfile(file_name):
             try:
@@ -304,3 +306,73 @@ class Get:
             except Exception as e:
                 print("Error loading mandatory_message.json {}".format(e))
 
+
+
+# --------------------------------------------------------------------------- key=value -> TOML migration
+def _present_keys(txt_path):
+    """The schema keys the operator actually set in a key=value file, in file order — the migration emits
+    a minimal config.toml, not the ~50 backfilled defaults."""
+    keys, seen = [], set()
+    with open(txt_path) as fp:
+        for line in fp:
+            s = line.strip()
+            if not s or s.startswith("#") or "=" not in s:
+                continue
+            left = s.split("=", 1)[0].strip()
+            if left in Get.vars and left not in seen:
+                seen.add(left)
+                keys.append(left)
+    return keys
+
+
+def _toml_str(s):
+    """A TOML basic-string literal with the escapes the spec requires for our value set."""
+    out = str(s).replace("\\", "\\\\").replace('"', '\\"')
+    out = out.replace("\n", "\\n").replace("\t", "\\t").replace("\r", "\\r")
+    return '"' + out + '"'
+
+
+def _toml_value(v):
+    if isinstance(v, bool):              # MUST precede int (bool is an int subclass)
+        return "true" if v else "false"
+    if isinstance(v, int):
+        return str(v)
+    if isinstance(v, list):
+        return "[" + ", ".join(_toml_value(x) for x in v) + "]"
+    if isinstance(v, dict):
+        return "{ " + ", ".join("%s = %s" % (_toml_str(k), _toml_value(val)) for k, val in v.items()) + " }"
+    return _toml_str(v)                  # str (incl. the str-typed `port`, round-trips as "5658")
+
+
+def build_toml(txt_path):
+    """Render the operator-set keys of a key=value file as TOML, using the loader's typed values."""
+    g = Get()
+    g.load_file(txt_path)                # the real schema coercion + property renames
+    lines = ["# Bismuth node configuration (TOML, doc/11). Migrated from %s." % path.basename(txt_path), ""]
+    for key in _present_keys(txt_path):
+        params = Get.vars[key]
+        attr = params[1] if len(params) > 1 else key
+        lines.append("%s = %s" % (key, _toml_value(getattr(g, attr))))
+    return "\n".join(lines) + "\n"
+
+
+def migrate_legacy(txt_path, toml_path, keep=True):
+    """Write ``toml_path`` from the key=value ``txt_path``, verified: both must load to the identical Config
+    or nothing is written (ValueError). Atomic (temp + rename). ``keep`` renames the source to
+    ``<txt_path>.migrated`` instead of deleting it."""
+    tmp = toml_path + ".tmp"
+    with open(tmp, "w") as fp:
+        fp.write(build_toml(txt_path))
+    a = Get(); a.load_file(txt_path)
+    b = Get(); b.load_toml(tmp)
+    if a.__dict__ != b.__dict__:
+        os.remove(tmp)
+        diff = {k: (a.__dict__.get(k), b.__dict__.get(k)) for k in set(a.__dict__) | set(b.__dict__)
+                if a.__dict__.get(k) != b.__dict__.get(k)}
+        raise ValueError("%s does not migrate to an identical Config: %s" % (txt_path, diff))
+    os.replace(tmp, toml_path)
+    if keep:
+        os.replace(txt_path, txt_path + ".migrated")
+    else:
+        os.remove(txt_path)
+    return len(_present_keys(txt_path + ".migrated" if keep else toml_path))

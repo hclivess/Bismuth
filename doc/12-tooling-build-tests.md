@@ -18,7 +18,7 @@ running node unless `--restart`), installs the LMDB stack (`lmdb`/`msgpack` — 
 index), and auto-applies the **ed25519 Python-3.12 source patch** (its
 bundled `versioneer` uses APIs removed in 3.12). The unit it writes matches the production service:
 graceful `SIGTERM` stop (`TimeoutStopSec=180`) so the in-flight block finishes its LMDB commit,
-and `Environment=BISMUTH_IGNORE_CONFIG_CUSTOM=1` so a stray regnet `config_custom.txt` can't hijack a
+and `Environment=BISMUTH_IGNORE_CONFIG_CUSTOM=1` so a stray regnet `config_custom.toml` can't hijack a
 mainnet boot.
 
 ## Test suite
@@ -54,7 +54,7 @@ Layout:
 | `tests/test_tokens_aliases_plugin.py` | token + alias lifecycle through the `tokens_aliases` plugin: token issue/transfer, `alias:register`/`alias:transfer`/`alias:free`, and **reorg rollback** of the plugin's side-index ([27](27-tokens-aliases-plugin.md)) |
 | `tests/regnet_smoke.py` | a standalone (non-pytest) gate — see below |
 | `tests/fork_transition_smoke.py` | standalone (non-pytest) **hf2 transition gate**: lock-in → restart mid-transition (sidecar replay) → real-miner sha224→blake2b boundary crossing with a pre-fork tx confirming post-fork → reorg back across the boundary → sidecar-less restart (self-healing re-derivation). Uses the `BISMUTH_REGNET_KEEP=1` test-only env escape so a regnet chain survives a restart ([18](18-hardfork-hf2.md)) |
-| `tests/config_custom.txt` | regnet test config (`regnet=True`, `heavy=False`, `port=3030`) |
+| `tests/config_custom.toml` | regnet test config (`regnet = true`, `heavy = false`, `port = "3030"`), copied to the repo root as `config_custom.toml` |
 
 Beyond the above, the suite carries a broader consensus / fork / storage set — e.g. `test_fee_dynamics`,
 `test_difficulty_lwma`, `test_fork_wiring`, `test_consensus_invariants`, `test_replay`,
@@ -98,7 +98,7 @@ default `python3 -m pytest -v` run skips all five (latest full run: **790 passed
 | Script | Purpose |
 |---|---|
 | `upgrade_ledger.py` | upgrade an LMDB ledger built before the ledger became LMDB-only to the current `block_store.SCHEMA`: replays the per-block difficulty history forward with the node's own `difficulty.retarget`, anchored on exact values published by peers (`GET /api/stats/difficulty`, `--anchor <rest-url>`, every reached anchor reported as match/mismatch), then rebuilds every index with `BlockStore.reindex`. Run with the node stopped (LMDB is single-writer); idempotent. The node refuses to start on an old schema and names this script. Usage: `python3 scripts/upgrade_ledger.py static/blockstore-ledger.db --anchor http://185.100.232.5:5659` |
-| `migrate_config.py` | `config.txt` → `config.toml` (doc/11) |
+| `migrate_config.py` | `config.txt` → `config.toml` by hand; the node also does it automatically on startup (doc/11) |
 | `install-node-service.sh` | install the systemd unit |
 
 Snapshots need no tooling: a node serves its ledger **DB-direct** on demand (`/api/snapshot`, LMDB
@@ -115,5 +115,5 @@ Snapshots need no tooling: a node serves its ledger **DB-direct** on demand (`/a
   `workflow_dispatch` for an existing tag) it builds a standalone `node` executable for **Windows, Linux
   and macOS** with PyInstaller (onefile, Python 3.11 — ed25519's sdist is broken on 3.12) and uploads
   them to the GitHub Release. Trigger for an existing tag:
-  `gh workflow run release.yml -f tag=vX.Y.Z`. The node still needs a `config.txt` in its working dir
-  (copy `config.txt.example`); a clearnet node needs nothing else.
+  `gh workflow run release.yml -f tag=vX.Y.Z`. The node reads `config.toml` from its working dir
+  (restored from `config.toml.example` when it is missing and the template is present); a clearnet node needs nothing else.

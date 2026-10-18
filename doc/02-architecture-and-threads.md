@@ -5,7 +5,7 @@
 1. Instantiate the shared singletons: `node = Node()`, `node.logger = Logger()`, `node.keys = Keys()`
    (the data-holder classes in `libs/`). Default the network flags to mainnet. Install the
    `SIGTERM`/`SIGINT` handler (`_graceful_stop`, which raises `IS_STOPPING`) so shutdown is graceful.
-2. `config = options.Get(); config.read()` — load `config.txt`, then `config_custom.txt` if present,
+2. `config = options.Get(); config.read()` — load `config.toml`, then `config_custom.toml` if present,
    then `mandatory_message.json`. Copy every field onto `node.*` (see [11](11-configuration.md)).
 3. Initialise the logger: `node.logger.app_log = log.log("node.log", debug_level, terminal_output)`.
 4. Create the plugin manager (`plugins.PluginManager(..., init=True)`) and collect any

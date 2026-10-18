@@ -23,7 +23,7 @@ COINBASE_MATURITY = 100   # essentials.py — FIXED hf2 consensus constant
 
 It is **not** tied to `node.rollback_depth` (default 30), and that decision is load-bearing:
 
-- `rollback_depth` is a **per-node `config.txt` value** (`options.py`); a *consensus* spend rule cannot
+- `rollback_depth` is a **per-node `config.toml` value** (`options.py`); a *consensus* spend rule cannot
   depend on a value each operator picks.
 - 30 is a **soft** bound, not finality: `rollback_consensus` (on by default) permits deeper,
   reputation-gated rollbacks to rejoin a longer chain — those can unwind coins matured at 30.

@@ -1,0 +1,27 @@
+# Bismuth node configuration (TOML, doc/11). Regnet test-harness overrides (copied to the repo root as config_custom.toml by tests/conftest.py).
+
+terminal_output = true
+egress = true
+heavy3_path = "./heavy3a.bin"
+debug = true
+port = "3030"
+regnet = true
+heavy = false
+version = "regnet"
+version_allow = ["regnet"]
+rest_api = true
+rest_api_port = 3031
+rest_api_write = true
+rest_api_market = false
+ledger_integer_amounts = true
+fork_signal = true
+fork_window = 5
+fork_boundary = 10
+fork_bury = 2
+rpc_bitcoin = true
+rpc_bitcoin_port = 8331
+rpc_ethereum = true
+rpc_ethereum_port = 8546
+# never inherit an operator's api_sync from config.toml (tests enable it per node via BISMUTH_API_SYNC)
+api_sync = false
+api_sync_source = ""

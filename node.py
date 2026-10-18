@@ -14,7 +14,7 @@ around consensus.
 """
 
 
-VERSION = "4.7.0.0"
+VERSION = "4.7.0.1"
 
 import platform
 import signal

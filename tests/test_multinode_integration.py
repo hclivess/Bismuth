@@ -128,10 +128,10 @@ def _canonical_block(port, height):
                     reason="heavy three-node harness (spins up 3 extra node processes); "
                            "run explicitly with BISMUTH_RUN_MULTINODE=1")
 def test_multinode_integration(tmp_path):
-    # All regnet nodes read ROOT/config_custom.txt (regnet flags: integer amounts, fork window, REST/RPC).
+    # All regnet nodes read ROOT/config_custom.toml (regnet flags: integer amounts, fork window, REST/RPC).
     # Prod ignores it (BISMUTH_IGNORE_CONFIG_CUSTOM=1).
-    if not os.path.exists(os.path.join(ROOT, "config_custom.txt")):
-        shutil.copy(os.path.join(ROOT, "tests/config_custom.txt"), os.path.join(ROOT, "config_custom.txt"))
+    if not os.path.exists(os.path.join(ROOT, "config_custom.toml")):
+        shutil.copy(os.path.join(ROOT, "tests/config_custom.toml"), os.path.join(ROOT, "config_custom.toml"))
 
     dir_a = str(tmp_path / "a")
     dir_b = str(tmp_path / "b")

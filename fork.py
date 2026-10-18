@@ -162,8 +162,8 @@ def db_fork_signal_reader(db_handler):
     store = block_store.as_ledger(db_handler)
 
     def read(height):
-        rows = store.get_block_raw(int(height))
-        return has_fork_signal(rows[-1][11]) if rows else False
+        openfield = store.last_openfield(int(height))
+        return has_fork_signal(openfield) if openfield is not None else False
     return read
 
 

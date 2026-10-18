@@ -87,7 +87,9 @@ log "installing Python dependencies…"
   coincurve cryptography \
   lmdb msgpack \
   dilithium-py
-log "core + LMDB + PQ deps OK"
+# config.toml parser: stdlib tomllib from Python 3.11; the identical-API tomli backport below that
+"$PYTHON" -c 'import tomllib' 2>/dev/null || "${PIP[@]}" tomli
+log "core + LMDB + PQ + TOML deps OK"
 
 # ed25519: REQUIRED (mainnet carries ed25519 txs). Its sdist build is broken on Python 3.12 (bundled
 # versioneer uses configparser.SafeConfigParser/readfp, removed in 3.12). Install from a patched source.
@@ -116,7 +118,7 @@ fi
 # ---- 2b. optional Tor for tor=managed (doc/38) ----------------------------
 # We do NOT vendor a tor binary in the repo (platform matrix + you must get tor's security updates from
 # your distro). Instead --tor installs the distro 'tor' package + the 'stem' controller lib. The node
-# stays clearnet by default; the operator opts in by setting tor=managed in config.toml/config.txt.
+# stays clearnet by default; the operator opts in by setting tor = "managed" in config.toml.
 if [[ $WITH_TOR -eq 1 ]]; then
   log "installing Tor (managed onion routing, doc/38)…"
   if command -v tor >/dev/null; then
@@ -132,7 +134,7 @@ if [[ $WITH_TOR -eq 1 ]]; then
   fi
   "${PIP[@]}" stem >/dev/null 2>&1 && log "stem (tor controller lib) installed" || warn "could not pip-install stem"
   if command -v tor >/dev/null; then
-    log "Tor ready — set tor=managed (and tor_onion=True for inbound) in config.toml/config.txt (doc/38)."
+    log "Tor ready — set tor = \"managed\" (and tor_onion = true for inbound) in config.toml (doc/38)."
   else
     warn "tor binary not found — managed mode will fall back to clearnet until tor is installed."
   fi
@@ -143,6 +145,7 @@ log "verifying imports…"
 "$PYTHON" - <<'PYCHK' || die "a required module failed to import (see above)."
 import importlib, sys
 mods = ["coincurve","ed25519","lmdb","msgpack","base58","Cryptodome","socks","requests","cryptography"]
+mods.append("tomllib" if sys.version_info >= (3, 11) else "tomli")
 bad = []
 for m in mods:
     try: importlib.import_module(m)
@@ -157,12 +160,16 @@ if [[ $DEPS_ONLY -eq 1 ]]; then log "deps-only: done."; exit 0; fi
 # ---- 4. config + runtime dirs ---------------------------------------------
 cd "$REPO_DIR"
 mkdir -p static
-if [[ ! -f config.txt ]]; then
-  if [[ -f config_custom.txt && -n "$NODE_ARGS" ]]; then
-    warn "no config.txt; node will fall back to options.py defaults (regnet uses config_custom.txt)."
-  else
-    warn "no config.txt found in $REPO_DIR — the node will boot on options.py defaults. Create config.txt for mainnet."
-  fi
+# config.toml is the node's live config (gitignored). A pre-TOML config.txt is migrated by the node itself
+# on first start (verified identical, kept as config.txt.migrated); otherwise start from the template.
+if [[ -f config.toml ]]; then
+  log "config: config.toml present (left as is)"
+elif [[ -f config.txt ]]; then
+  log "config: config.txt will be migrated to config.toml on the node's first start"
+else
+  cp config.toml.example config.toml
+  [[ "$RUN_USER" != "root" ]] && chown "$RUN_USER" config.toml
+  log "config: created config.toml from config.toml.example — edit it, then restart the service"
 fi
 
 # ---- 4b. existing ledger: schema check ---------------------------------------
@@ -190,9 +197,9 @@ fi
 # ---- 5. systemd unit -------------------------------------------------------
 UNIT="/etc/systemd/system/${SERVICE_NAME}.service"
 log "writing $UNIT"
-# BISMUTH_IGNORE_CONFIG_CUSTOM=1 for mainnet so a leftover regnet config_custom.txt can't hijack the boot.
+# BISMUTH_IGNORE_CONFIG_CUSTOM=1 for mainnet so a leftover regnet config_custom.toml can't hijack the boot.
 IGNORE_CUSTOM="Environment=BISMUTH_IGNORE_CONFIG_CUSTOM=1"
-[[ -n "$NODE_ARGS" ]] && IGNORE_CUSTOM="# (regnet: config_custom.txt IS honored)"
+[[ -n "$NODE_ARGS" ]] && IGNORE_CUSTOM="# (regnet: config_custom.toml IS honored)"
 cat > "$UNIT" <<UNIT
 [Unit]
 Description=${DESC}

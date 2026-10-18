@@ -131,7 +131,7 @@ imported library; *script* = run directly.
 
 ## Config & data
 
-`config.txt`, `config_custom.txt` (gitignored), `mandatory_message.json`, `peers*.txt`,
+`config.toml`, `config_custom.toml` (gitignored; template `config.toml.example`), `mandatory_message.json`, `peers*.txt`,
 `suggested_peers*.txt`, `requirements.txt`, `requirements-node.txt`.
 
 ## Tests, tooling, assets
@@ -141,5 +141,5 @@ imported library; *script* = run directly.
 deps + systemd unit; `scripts/install-node-service.sh` companion), `scripts/upgrade_ledger.py` (upgrade a
 pre-LMDB-only block store to the current ledger schema: difficulty replay anchored on peers'
 `/api/stats/difficulty`, then `BlockStore.reindex`; node stopped; doc/05), `scripts/migrate_config.py`
-(`config.txt` → `config.toml`), `graphics/`, `auto-install/`, `compile_nuitka.cmd`, `setup.iss`,
+(`config.txt` → `config.toml` by hand; the node also migrates automatically), `graphics/`, `auto-install/`, `compile_nuitka.cmd`, `setup.iss`,
 `.travis.yml`, `pytest.ini`, `doc/`.

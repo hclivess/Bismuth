@@ -16,12 +16,12 @@ startup unless disabled.
 ## Enabling it
 
 It is **enabled by default** (`rest_api` defaults to `True` in `options.py`), so a node with no REST
-config serves the read-only API on port 5659. To move the port or opt out, set it in `config.txt`
-(or `config_custom.txt`):
+config serves the read-only API on port 5659. To move the port or opt out, set it in `config.toml`
+(or `config_custom.toml`):
 
-```
-rest_api=True           # default; set False to disable the API entirely
-rest_api_port=5659      # optional; default 5659
+```toml
+rest_api = true         # default; set false to disable the API entirely
+rest_api_port = 5659    # optional; default 5659
 ```
 
 **Reads** (GET) never affect consensus. **Transaction

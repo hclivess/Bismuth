@@ -91,7 +91,7 @@ Data flow for a new block:
 | `apihandler.py`, `commands.py` | API surface + CLI |
 | `essentials.py`, `simplecrypt.py`, `wallet_keys.py`, `polysign/` | crypto / wallets / signatures |
 | `plugins/tokens_aliases/`, `token_index.py`, `plugins.py`, `plugin_base.py`, `regnet.py` | feature layers |
-| `options.py`, `config.txt`, `mandatory_message.json`, `peers*.txt` | configuration / data |
+| `options.py`, `config.toml`, `mandatory_message.json`, `peers*.txt` | configuration / data |
 | `fork.py`, `ledger_genesis.py`, `chain_ops.py`, `snapshot_p2p.py` | hardfork rules / chain bootstrap |
 | `libs/` | small data-holder classes (`Node`, `Logger`, `Keys`, `Client`) |
 | `tests/` | pytest suite + the dependency-light `regnet_smoke.py` |
@@ -102,7 +102,7 @@ Data flow for a new block:
 
 | Command | Purpose |
 |---|---|
-| `python3 node.py` | run a node (reads `config.txt` / `config_custom.txt`) |
+| `python3 node.py` | run a node (reads `config.toml` / `config_custom.toml`) |
 | `python3 node.py regnet2` | run a regnet node (used by the tests) |
 | `python3 node_stop.py` | ask a local node to stop (sends the `stop` command) |
 | `python3 commands.py <cmd> [args]` | CLI wrapper over node socket commands |

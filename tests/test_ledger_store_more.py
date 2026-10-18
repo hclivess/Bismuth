@@ -357,3 +357,22 @@ def test_dbhandler_delegates_to_the_token_plugin(db):
     db.aliases_rollback(node, 9)                        # a failing plugin rollback is logged, not raised
     assert calls == [("t", 9)]
     assert any("Failed to roll back the alias index" in m for m in _Node.logger.app_log.msgs)
+
+
+def test_last_openfield_matches_the_full_read_pre_and_post_fork(store):
+    _chain(store, 3)
+    for h in (1, 2, 3):
+        assert store.last_openfield(h) == store.get_block_raw(h)[-1][11]
+    store.commit_block(4, "%056x" % 4, _block(4, [(A, B, "1", "s4")]), fork_height=4)    # true-bytes body
+    assert store.last_openfield(4) == "nonce4" == store.get_block_raw(4)[-1][11]
+    assert store.last_openfield(99) is None
+
+
+def test_fork_signal_reader_uses_the_coinbase_openfield(store):
+    import fork
+    _chain(store, 2)
+    store.commit_block(3, "%056x" % 3, [_tx(3, 1180, A, A, "0", "cb3", fee="0", reward="10",
+                                            of=fork.FORK2_SIGNAL)])
+    read = fork.db_fork_signal_reader(store)
+    assert read(2) is False and read(99) is False
+    assert read(3) is True

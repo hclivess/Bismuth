@@ -61,8 +61,8 @@ def node_proc():
         os.remove(os.path.join(ROOT, "node.log"))
     except OSError:
         pass
-    shutil.copy(os.path.join(ROOT, "tests/config_custom.txt"),
-                os.path.join(ROOT, "config_custom.txt"))
+    shutil.copy(os.path.join(ROOT, "tests/config_custom.toml"),
+                os.path.join(ROOT, "config_custom.toml"))
 
     log = open(os.path.join(ROOT, "node_test.log"), "w")
     proc = subprocess.Popen([sys.executable, "node.py", REGNET_PARAM],

@@ -68,7 +68,7 @@ Wants=network-online.target
 Type=simple
 User=${RUN_USER}
 WorkingDirectory=${REPO_DIR}
-# Always boot mainnet: ignore a leftover regnet test override (config_custom.txt). See options.py.
+# Always boot mainnet: ignore a leftover regnet test override (config_custom.toml). See options.py.
 Environment=BISMUTH_IGNORE_CONFIG_CUSTOM=1
 ExecStart=${PYTHON} node.py
 Restart=on-failure

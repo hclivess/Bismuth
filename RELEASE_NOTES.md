@@ -31,6 +31,13 @@ The node no longer uses SQLite anywhere. Consensus is unchanged: same blocks, sa
   so a peer list gossiped back to us can no longer make the node "agree" with itself at 100% consensus.
 - **Installer** ✅ — `sudo ./install_node.sh` is the documented one-command install; it now also checks an
   existing ledger's schema and prints the upgrade command.
+- **TOML configuration only** ✅ — `config.toml` / `config_custom.toml`; an existing `config.txt` is migrated automatically (verified identical) on first start and kept as `config.txt.migrated`.
+
+**4.7.0.1** — TOML configuration only (above); the fork-signal scan reads just the coinbase field; the
+regnet test harness can no longer inherit an operator's `api_sync`. Validated on mainnet: an upgraded
+4.6 node rolled off a stale 61-block minority fork and synced 31,865 blocks to the network tip
+(identical tip hash); 8,321 of 8,337 balances match a reference node exactly (7 malformed early-chain
+addresses are not queryable there; 9 dormant addresses carry historical manual corrections).
 
 **Upgrading an existing node** (block store from 4.6.x):
 

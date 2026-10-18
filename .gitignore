@@ -31,6 +31,7 @@ static/blockstore/
 heavy3a.bin
 heavy3a.bin_
 config_custom.txt
+config_custom.toml
 sequencing_last
 # polysign is now vendored in-tree (reintegrated into the core); it is committed, not ignored.
 bismuthcore
@@ -40,7 +41,10 @@ ledger_queries.py
 # operational scratch from mainnet bring-up / sync diagnostics (not part of the node)
 _start_mainnet.sh
 _restart.pid
+# the node's live config (template: config.toml.example); a migrated pre-TOML file is kept as *.migrated
+config.toml
 config.txt
+*.migrated
 
 # regnet diff-selfheal soak run artifacts (regenerate via tools/diff_selfheal_soak.py)
 tools/diff_selfheal_soak_report.json

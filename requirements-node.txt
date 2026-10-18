@@ -27,4 +27,6 @@ ed25519
 dilithium-py
 # REQUIRED: the ledger is ONE LMDB environment (block_store.py) and every store goes through kvstore.py.
 lmdb
+# config.toml parser: stdlib tomllib on Python 3.11+, this backport on 3.10
+tomli; python_version < "3.11"
 msgpack

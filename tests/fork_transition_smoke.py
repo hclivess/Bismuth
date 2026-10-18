@@ -13,7 +13,7 @@ deployment will see. One fork (hf2) bundles everything incl. the blake2b PoW, so
       (before judging the next block — the self-healing ordering), re-persists it, chain continues
   P6  no 'fork-height detection failed' anywhere; final sidecar == {"hf2": H}
 
-Regnet fork params (tests/config_custom.txt): window=5, boundary=10, bury=2 -> H is expected at 10.
+Regnet fork params (tests/config_custom.toml): window=5, boundary=10, bury=2 -> H is expected at 10.
 
 NOTE on P5: block PRODUCERS read the cached node.fork_height, which is None for the first
 generate after a sidecar-less restart, so the first mined block may be built in the wrong era and
@@ -77,8 +77,8 @@ def start_node(fresh=False):
             os.remove(SIDECAR)
         except OSError:
             pass
-        shutil.copy(os.path.join(ROOT, "tests/config_custom.txt"),
-                    os.path.join(ROOT, "config_custom.txt"))
+        shutil.copy(os.path.join(ROOT, "tests/config_custom.toml"),
+                    os.path.join(ROOT, "config_custom.toml"))
         try:
             os.remove(LOGFILE)
         except OSError:

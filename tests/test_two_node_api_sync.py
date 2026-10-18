@@ -98,10 +98,10 @@ def _tail(path, n=25):
                     reason="heavy two-node harness (spins up 2 extra node processes); "
                            "run explicitly with BISMUTH_RUN_TWONODE=1")
 def test_two_node_api_sync(tmp_path):
-    # both nodes read ROOT/config_custom.txt (regnet flags: integer amounts, fork window, REST/RPC).
+    # both nodes read ROOT/config_custom.toml (regnet flags: integer amounts, fork window, REST/RPC).
     # Prod ignores it (BISMUTH_IGNORE_CONFIG_CUSTOM=1).
-    if not os.path.exists(os.path.join(ROOT, "config_custom.txt")):
-        shutil.copy(os.path.join(ROOT, "tests/config_custom.txt"), os.path.join(ROOT, "config_custom.txt"))
+    if not os.path.exists(os.path.join(ROOT, "config_custom.toml")):
+        shutil.copy(os.path.join(ROOT, "tests/config_custom.toml"), os.path.join(ROOT, "config_custom.toml"))
 
     dir_a, dir_b = str(tmp_path / "a"), str(tmp_path / "b")
     procs = []

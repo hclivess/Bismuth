@@ -174,7 +174,7 @@ post-quantum pivot held in reserve in [`20`](20-post-quantum.md); HD/BIP32-39 + 
 | [08-api-and-commands.md](08-api-and-commands.md) | Legacy socket API (`api_*`), core commands, `commands.py` CLI |
 | [09-crypto-wallets-keys.md](09-crypto-wallets-keys.md) | Address/key derivation, signing/verification, polysign, fee formula |
 | [10-features.md](10-features.md) | Tokens, plugin hooks, regnet (feature layers) |
-| [11-configuration.md](11-configuration.md) | `config.txt` reference (every key), mandatory message, peers files |
+| [11-configuration.md](11-configuration.md) | `config.toml` reference (every key), mandatory message, peers files |
 | [12-tooling-build-tests.md](12-tooling-build-tests.md) | Send/balance scripts, test suite, ledger tooling, build & CI |
 | [13-file-reference.md](13-file-reference.md) | Accurate per-file index of the whole tree |
 | [14-known-issues-and-improvements.md](14-known-issues-and-improvements.md) | Verified bugs, fragile wiring, refactor/upgrade list |

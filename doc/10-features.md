@@ -71,4 +71,4 @@ An isolated, deterministic local network for tests:
   [08](08-api-and-commands.md) for the full list.
 
 The pytest suite and `tests/regnet_smoke.py` both drive a regnet node this way. The regnet test
-config is `tests/config_custom.txt` (`regnet=True`, `heavy=False`, `port=3030`, `version=regnet`).
+config is `tests/config_custom.toml` (`regnet = true`, `heavy = false`, `port = "3030"`, `version = "regnet"`).

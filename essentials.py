@@ -203,7 +203,7 @@ def round_down(number, order):
 
 
 def checkpoint_set(node):
-    # Max rollback depth. Configurable (config.txt: rollback_depth, default 30) so an operator whose
+    # Max rollback depth. Configurable (config.toml: rollback_depth, default 30) so an operator whose
     # node is stuck on a minority fork deeper than the checkpoint can deepen it to rejoin the longest
     # chain. Default 30 preserves historical behavior (max ~59-block rollback). See doc/14.
     limit = getattr(node, "rollback_depth", 30)

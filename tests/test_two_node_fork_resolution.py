@@ -104,8 +104,8 @@ def _stop(procs):
 @pytest.mark.skipif(not os.environ.get("BISMUTH_RUN_TWONODE"),
                     reason="heavy two-node harness; run explicitly with BISMUTH_RUN_TWONODE=1")
 def test_two_node_fork_resolution(tmp_path):
-    if not os.path.exists(os.path.join(ROOT, "config_custom.txt")):
-        shutil.copy(os.path.join(ROOT, "tests/config_custom.txt"), os.path.join(ROOT, "config_custom.txt"))
+    if not os.path.exists(os.path.join(ROOT, "config_custom.toml")):
+        shutil.copy(os.path.join(ROOT, "tests/config_custom.toml"), os.path.join(ROOT, "config_custom.toml"))
     from _lite_client import LiteClient
     dir_a, dir_b = str(tmp_path / "a"), str(tmp_path / "b")
     procs = []

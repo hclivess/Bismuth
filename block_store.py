@@ -479,6 +479,21 @@ class BlockStore:
         with self.store.txn() as txn:
             return self._raw_block(txn, int(height))
 
+    def last_openfield(self, height):
+        """The openfield of block ``height``'s last row (the coinbase), read straight from the stored record
+        — no pubkey or address expansion. The fork-signal scan reads one per block of history."""
+        with self.store.txn() as txn:
+            v = txn.get(self.blocks, _hk(int(height)))
+        if v is None:
+            return None
+        t = _unpack(v)["t"]
+        if not t:
+            return None
+        last = t[-1]
+        if isinstance(last, (bytes, bytearray, memoryview)):
+            return txrec.unpack_row(bytes(last))[10]
+        return last[10]
+
     def blocks_in_range(self, start, end):
         """Yield ``(height, typed_rows)`` for heights in [start, end], ascending."""
         with self.store.txn() as txn:

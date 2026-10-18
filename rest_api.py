@@ -6,11 +6,11 @@ the legacy length-prefixed-JSON socket protocol, so existing peers and wallets k
 during the transition. Unlike that protocol's serial request/response pipeline over a single socket,
 every HTTP request here is served concurrently in its own thread, each with its own short-lived DB handler.
 
-Enable it in config.txt:
+Enable it in config.toml:
 
-    rest_api=True
-    rest_api_port=5659      # optional; defaults to 5659 (regnet/testnet pick their own in node.py)
-    rest_api_write=True     # optional; enables POST /api/transaction (tx submission over REST)
+    rest_api = true
+    rest_api_port = 5659      # optional; defaults to 5659 (regnet/testnet pick their own in node.py)
+    rest_api_write = true     # optional; enables POST /api/transaction (tx submission over REST)
 
 READS (GET) are always available when ``rest_api`` is on and never affect consensus. WRITES — transaction
 submission — are the post-hardfork transport that moves submission OFF the socket protocol onto the API,
