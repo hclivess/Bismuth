@@ -11,8 +11,7 @@ measure, so a block of large data-carrying txs registers as more congested than 
 transfers — the fee reflects how FULL blocks are, not merely how many txs they hold. (``base_fee`` is
 generic over any per-block load list.)
 
-NO SQLITE POST-FORK: the weight is read from the post-fork BLOCK STORE (LMDB), never a SQLite query — there
-is no SQLite on any post-fork path. The store is rolled back with the chain, so the window is canonical.
+The weight is read from the LMDB ledger, which is rolled back with the chain, so the window is canonical.
 
 DETERMINISTIC + STATELESS: computed directly from the stored blocks with a NON-recursive formula, so every
 node derives the same value and a restart needs no saved fee state (unlike EIP-1559's recursive base fee).

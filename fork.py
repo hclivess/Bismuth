@@ -85,6 +85,7 @@ def dynamic_fork_height(read_signal, tip,
 # resync REPLAYS the same height instead of re-deriving one that a later signalling gap could perturb.
 # The reader is forward-scanning (tip-independent) so the persisted value should always agree, but the
 # sidecar makes it authoritative and removes any dependence on which heights are still on disk.
+import block_store
 import json as _json
 import os as _os
 
@@ -157,16 +158,12 @@ def lockin_at_tip(read_signal, tip, window=FORK2_WINDOW, boundary=FORK2_BOUNDARY
 
 
 def db_fork_signal_reader(db_handler):
-    """A read_signal(height) backed by the ledger: the coinbase (the reward!=0 row) openfield."""
+    """A read_signal(height) backed by the ledger: the coinbase (the block's last row) openfield."""
+    store = block_store.as_ledger(db_handler)
+
     def read(height):
-        # the coinbase (miner tx) is the last tx of the block, so the highest rowid at this height;
-        # its openfield carries the nonce + any signal marker.
-        db_handler.execute_param(
-            db_handler.c,
-            "SELECT openfield FROM transactions WHERE block_height = ? ORDER BY rowid DESC LIMIT 1",
-            (height,))
-        row = db_handler.c.fetchone()
-        return has_fork_signal(row[0]) if row else False
+        rows = store.get_block_raw(int(height))
+        return has_fork_signal(rows[-1][11]) if rows else False
     return read
 
 
@@ -211,49 +208,32 @@ class Fork():
                 node.logger.app_log.warning(f"Beginning to reject old protocol versions - block {node.last_block}")
                 node.version_allow.remove(allowed_version)
 
+    @staticmethod
+    def _reward_at(db_handler, height):
+        store = block_store.as_ledger(db_handler)
+        cb = store.coinbase(height)
+        return None if cb is None else cb[9]
+
     def check_postfork_reward(self, db_handler):
         try:
-            # Check RAM first
-            db_handler.execute_param(db_handler.c, "SELECT reward FROM transactions WHERE block_height = ? AND reward != 0", (self.POW_FORK + 1,))
-            result = db_handler.c.fetchone()
-            if result:
-                self.FORK_REWARD = result[0]
-                self.PASSED = self.FORK_REWARD < self.REWARD_MAX
-            else:
-                # Block not found, assume valid fork
-                self.PASSED = True
-        except Exception as e:
-            try:
-                # Fallback to HDD
-                db_handler.execute_param(db_handler.h, "SELECT reward FROM transactions WHERE block_height = ? AND reward != 0", (self.POW_FORK + 1,))
-                result = db_handler.h.fetchone()
-                if result:
-                    self.FORK_REWARD = result[0]
-                    self.PASSED = self.FORK_REWARD < self.REWARD_MAX
-                else:
-                    self.PASSED = True  # Block pruned, assume valid
-            except:
-                self.PASSED = True  # Database error, assume valid
+            reward = self._reward_at(db_handler, self.POW_FORK + 1)
+        except Exception:
+            reward = None
+        if reward is None:
+            self.PASSED = True  # block not on the ledger yet, assume valid
+        else:
+            self.FORK_REWARD = reward
+            self.PASSED = self.FORK_REWARD < self.REWARD_MAX
         return self.PASSED
 
     def check_postfork_reward_testnet(self, db_handler):
         try:
-            db_handler.execute_param(db_handler.c, "SELECT reward FROM transactions WHERE block_height = ? AND reward != 0", (self.POW_FORK_TESTNET + 1,))
-            result = db_handler.c.fetchone()
-            if result:
-                self.FORK_REWARD_TESTNET = result[0]
-                self.PASSED_TESTNET = self.FORK_REWARD_TESTNET < self.REWARD_MAX
-            else:
-                self.PASSED_TESTNET = True
-        except Exception as e:
-            try:
-                db_handler.execute_param(db_handler.h, "SELECT reward FROM transactions WHERE block_height = ? AND reward != 0", (self.POW_FORK_TESTNET + 1,))
-                result = db_handler.h.fetchone()
-                if result:
-                    self.FORK_REWARD_TESTNET = result[0]
-                    self.PASSED_TESTNET = self.FORK_REWARD_TESTNET < self.REWARD_MAX
-                else:
-                    self.PASSED_TESTNET = True
-            except:
-                self.PASSED_TESTNET = True
+            reward = self._reward_at(db_handler, self.POW_FORK_TESTNET + 1)
+        except Exception:
+            reward = None
+        if reward is None:
+            self.PASSED_TESTNET = True
+        else:
+            self.FORK_REWARD_TESTNET = reward
+            self.PASSED_TESTNET = self.FORK_REWARD_TESTNET < self.REWARD_MAX
         return self.PASSED_TESTNET

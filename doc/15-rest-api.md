@@ -42,7 +42,7 @@ duplicate, format), so the endpoint is a new transport, not a new consensus rule
 | `GET /api/block/hash/{hash}` | `{block_hash, block_height, transactions[]}` |
 | `GET /api/blocks/since/{h}?limit=N` | positive-height blocks after `h` (`limit` ≤ 1000) — for parallel sync |
 | `GET /api/blocks/range/{start}/{end}` | blocks in `[start, end]` (span capped at 1000) — for parallel sync |
-| `GET /api/balance/{address}` | `{address, balance}` (the O(1) balance index when enabled, else `ledger_balance3`) |
+| `GET /api/balance/{address}` | `{address, balance}` (O(1) from the ledger's `bal` index, `BlockStore.balance`) |
 | `GET /api/transaction/{txid}` | a transaction, **shape-dispatched** by the id: a 64-char lowercase-hex id resolves the post-fork content-hash txid (computed on read — no column; a **bounded recent-first scan**, see below); anything else matches by legacy signature prefix |
 | `GET /api/address/{address}/transactions?limit=N` | recent txs for an address (newest first; `limit` ≤ 500) |
 | `GET /api/mempool` | `{count, transactions[]}` of pending txs |
@@ -52,12 +52,12 @@ duplicate, format), so the endpoint is a new transport, not a new consensus rule
 | `GET /api/capabilities` | peer-sync capability descriptor: `version`, `node_version`, `rest_api`/`rest_port`, `compress` (transport codecs), `blocks`, `rest_api_write`, `testnet`/`regnet` — reachability of this endpoint is itself the REST-capable test |
 | `GET /api/fork` | hf2 readiness: signalling %, lock-in state, activation height |
 | `GET /api/fee` | current fee params: `base_fee` (demand-responsive post-fork), target/window |
-| `GET /api/snapshot/info` | snapshot manifest — DB-direct: `{available, db_direct, format:"lmdb", height, tip_hash}`, read O(1) from the live block store (doc/43) |
-| `GET /api/snapshot` | streams a whole-chain snapshot **generated on demand** from the live LMDB store (`env.copyfd`, consistent + compacted, no pre-built file). Headers carry `X-Bismuth-Snapshot-{Height,Format,Tip-Hash}`; no `Content-Length` (compacted on the fly) so the body ends at connection close (doc/43) |
+| `GET /api/snapshot/info` | snapshot manifest — DB-direct: `{available, db_direct, format:"lmdb", height, tip_hash}`, read O(1) from the live LMDB ledger (doc/43) |
+| `GET /api/snapshot` | streams a whole-chain snapshot **generated on demand** from the live LMDB ledger (`env.copyfd`, consistent + compacted, no pre-built file). Headers carry `X-Bismuth-Snapshot-{Height,Format,Tip-Hash}`; no `Content-Length` (compacted on the fly) so the body ends at connection close (doc/43) |
 | `GET /api/supply` | circulating BIS supply (background-computed; returns `"computing"` until the first scan finishes) |
 | `GET /api/tokens` | issued tokens (from the token index) |
 | `GET /api/token/{name}` | a token's supply + holders |
-| `GET /api/token/tx/{address}?limit=N` | token transfers (sent or received) for an address, newest first; each a dict `{token, block_height, timestamp, sender, recipient, amount, signature}` (LMDB token index when enabled, else legacy index.db) |
+| `GET /api/token/tx/{address}?limit=N` | token transfers (sent or received) for an address, newest first; each a dict `{token, block_height, timestamp, sender, recipient, amount, signature}` (from the `tokens_aliases` plugin's LMDB token index) |
 | `GET /api/alias/{name}` | resolve an alias to its owner address: `{alias, address}` (`address` null if unclaimed/free) |
 | `GET /api/aliases/{address}` | all aliases owned by an address: `{address, count, aliases}` |
 | `GET /api/shield/stats` | shielded pool (doc/22): `notes`/`key_images` counts, `pool_units`, `sink`; the activation-height field is now `shielded_fork_height` (+ an `active` bool), **not** hf2's `fork_height`. Reflects the **staged/deferred** shielded feature — empty/inert unless `shielded_fork_height` is set |
@@ -68,7 +68,7 @@ duplicate, format), so the endpoint is a new transport, not a new consensus rule
 | `GET /api/stats/monthly` | per-month series in one cached scan: tx count, value transferred, fees, coin emission, cumulative `issued` (block-reward issuance, NOT exact circulating supply), and active (distinct-sender) addresses (`rest_stats.monthly`) |
 | `GET /api/stats/tx_per_month` | transactions-per-month histogram — served from the `monthly` cache; returns `status:"computing"` until the first scan finishes (`rest_stats.tx_per_month`) |
 | `GET /api/stats/new_addresses` | newly-created addresses per month (first positive-height receive); background-cached, incremental per-recipient first-seen test (`rest_stats.new_addresses`) |
-| `GET /api/stats/rich_list` | top addresses by balance (identical to `ledger_balance3`); `?top=N` (≤500); background-cached, incremental over touched addresses (`rest_stats.rich_list`) |
+| `GET /api/stats/rich_list` | top addresses by balance (the ledger's `bal` entries, the same values consensus reads); `?top=N` (≤500); background-cached, incremental over touched addresses (`rest_stats.rich_list`) |
 | `GET /api/stats/top_miners` | mining distribution: blocks + reward + share% per coinbase recipient; `?top=N`; background-cached, additive (`rest_stats.top_miners`) |
 | `GET /api/stats/largest_txs` | largest transactions by amount; `?top=N` (≤100); background-cached, incremental top-K merge (`rest_stats.largest_txs`) |
 | `GET /api/stats/market` | price / market cap / 24h volume + change (coingecko `bismuth`, server-side TTL-cached; gated by `rest_api_market`, default on) (`rest_stats.market`) |
@@ -175,6 +175,5 @@ the endpoint but refused by mempool validation (never reaches a block).
   can be retired).
 - **Sync over REST** — ✅ read side added: `GET /api/blocks/since/{h}` and
   `GET /api/blocks/range/{start}/{end}` return positive-height blocks for **parallel** HTTP fetching
-  (the serial socket sync stays for old peers). Still to do: a client-side parallel-fetch syncer and
-  incremental rollup (doc/16 phase 6).
+  (the serial socket sync stays for old peers). Still to do: a client-side parallel-fetch syncer.
 - **Pagination & filtering**, OpenAPI/Swagger description, optional API keys / rate limiting.

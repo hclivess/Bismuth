@@ -3,10 +3,10 @@
 # Copyright Hclivess, Maccaspacca, vv181 2017-2018; modernization 2026. See LICENSE.
 #
 # Data sources:
-#   * shares.db / archive.db  -> per-miner shares, hashrate, workers, round totals (local pool state).
+#   * the pool's LMDB store   -> per-miner shares, hashrate, workers, round totals (local pool state,
+#                                pool_store.PoolStore, opened read-only beside the running pool).
 #   * the NODE's REST API     -> network height/difficulty, hf2 fork status, and the pool address's
-#                                coinbase rewards + recent payouts. This REPLACES the old per-request
-#                                full scan of static/ledger.db (the 23GB live ledger) — never touch it.
+#                                coinbase rewards + recent payouts. The explorer never reads the ledger.
 #
 # Serves:
 #   GET /            -> the dashboard HTML (templates/index.html), which fetch()es /api/stats and refreshes.
@@ -14,7 +14,6 @@
 import json
 import logging
 import os
-import sqlite3
 import sys
 import time
 import urllib.request
@@ -27,6 +26,9 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import essentials  # noqa: E402
 import options  # noqa: E402
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import pool_store  # noqa: E402
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = 9080
@@ -126,66 +128,73 @@ def _network_and_ledger():
     return out
 
 
-# --- pool state from shares.db (preserves the original per-miner/hashrate logic) ------------------
+# --- pool state from the pool's LMDB store (preserves the original per-miner/hashrate logic) -------
+_STORE = {"s": None}
+
+
+def _pool_records():
+    """The current round's share records, read from the pool's store (read-only; None if absent)."""
+    if _STORE["s"] is None:
+        if not os.path.isdir(pool_store.DEFAULT_PATH):
+            return None
+        _STORE["s"] = pool_store.PoolStore(pool_store.DEFAULT_PATH, readonly=True)
+    return _STORE["s"].all_shares()
+
+
 def _miners_and_round():
     out = {"miners": [], "shares_total": 0, "pool_hashrate_khs": 0, "workers": 0, "block_threshold": time.time()}
     try:
-        sh = sqlite3.connect(os.path.join(_HERE, "shares.db"))
-        sh.text_factory = str
-        s = sh.cursor()
+        records = _pool_records()
     except Exception:
         return out
-    try:
-        addresses = []
-        for row in s.execute("SELECT DISTINCT address FROM shares"):
-            addresses.append(row[0])
+    if not records:
+        return out
 
-        total_hash = 0
-        worker_count = 0
-        unpaid_shares = []
-        first_ts = []
-        now = time.time()
+    by_addr = {}
+    for r in records:
+        by_addr.setdefault(r["address"], []).append(r)
+    unpaid_sums = pool_store.unpaid_sum_by_address(records)
 
-        for x in addresses:
-            s.execute("SELECT sum(shares) FROM shares WHERE address = ? AND paid != 1", (x,))
-            shares_sum = s.fetchone()[0]
-            if shares_sum is None:
-                continue
-            unpaid_shares.append((x, shares_sum))
+    total_hash = 0
+    worker_count = 0
+    unpaid_shares = []
+    first_ts = []
+    now = time.time()
 
-            s.execute("SELECT timestamp FROM shares WHERE address = ? ORDER BY timestamp ASC LIMIT 1", (x,))
-            first_ts.append(float(s.fetchone()[0]))
+    for x, rows in by_addr.items():
+        if x not in unpaid_sums:
+            continue
+        shares_sum = unpaid_sums[x]
+        unpaid_shares.append((x, shares_sum))
 
-            s.execute("SELECT subname FROM shares WHERE address = ? ORDER BY timestamp DESC LIMIT 1", (x,))
-            last_worker = s.fetchone()[0]
+        rows = sorted(rows, key=lambda r: float(r["timestamp"]))
+        first_ts.append(float(rows[0]["timestamp"]))
+        last_worker = rows[-1].get("subname")
 
-            # per-worker latest rate/count, zeroed if older than M_TIMEOUT minutes
-            mrate = wcount = 0
-            last_age = 1e9
-            for (name,) in s.execute("SELECT DISTINCT name FROM shares WHERE address = ?", (x,)).fetchall():
-                s.execute("SELECT rate, workers, timestamp FROM shares WHERE address = ? AND name = ? "
-                          "ORDER BY timestamp DESC LIMIT 1", (x, name))
-                rate, workers, ts = s.fetchone()
-                age_min = (now - float(ts)) / 60
-                last_age = min(last_age, age_min)
-                if age_min < M_TIMEOUT:
-                    mrate += int(rate)
-                    wcount += int(workers)
-            total_hash += mrate
-            worker_count += wcount
+        # per-worker latest rate/count, zeroed if older than M_TIMEOUT minutes
+        latest = {}
+        for r in rows:                                  # ascending -> the last one per name wins
+            latest[r.get("name")] = r
+        mrate = wcount = 0
+        last_age = 1e9
+        for r in latest.values():
+            age_min = (now - float(r["timestamp"])) / 60
+            last_age = min(last_age, age_min)
+            if age_min < M_TIMEOUT:
+                mrate += int(float(r.get("rate") or 0))
+                wcount += int(float(r.get("workers") or 0))
+        total_hash += mrate
+        worker_count += wcount
 
-            if last_age < 30:   # active miner
-                out["miners"].append({"address": x, "shares": shares_sum, "hashrate_khs": mrate,
-                                      "last_worker": last_worker, "workers": wcount})
+        if last_age < 30:   # active miner
+            out["miners"].append({"address": x, "shares": shares_sum, "hashrate_khs": mrate,
+                                  "last_worker": last_worker, "workers": wcount})
 
-        shares_total = sum(v for _, v in unpaid_shares)
-        out["shares_total"] = shares_total
-        out["pool_hashrate_khs"] = total_hash
-        out["workers"] = worker_count
-        out["block_threshold"] = min(first_ts) if first_ts else now
-        out["_unpaid"] = unpaid_shares
-    finally:
-        sh.close()
+    out["shares_total"] = sum(v for _, v in unpaid_shares)
+    out["pool_hashrate_khs"] = total_hash
+    out["workers"] = worker_count
+    out["block_threshold"] = min(first_ts) if first_ts else now
+    out["_unpaid"] = unpaid_shares
     return out
 
 

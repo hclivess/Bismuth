@@ -238,19 +238,19 @@ Source of truth: `bismuth_serialize.py:22-54`. Frozen by `tests/test_characteriz
 - `node.py:1248-1252` (`verify`, startup ledger-sig check) — inlines `str((...)).encode()` and verifies with NO fork awareness. **Latent bug #1, §6.** Route through `verify_tx_signature` with `post_fork = fork_height is not None and int(row[0]) >= fork_height`.
 - `node.py:958-962` (deprecated `txsend`) — inline `str(remote_tx)` buffer. Deprecated; gate or leave pre-fork-only.
 - `send_nogui_noconf.py:118-124` — inline `str(transaction)` buffer + `txid = signature_enc[:56]`. **Latent bug #2, §6.**
-- `genesis.py:74-80` — own sign+hash; chain-creation only, pre-fork, leave.
+- `ledger_genesis.py` — the genesis block as constants (no signing/hashing at runtime); pre-fork, leave.
 
 ### 3.4 Legacy `txid == signature[:56]` consumers (mis-resolve once txid is content hash)
-`apihandler_tx.py:33,37,99`; `apihandler.py` legacy `api_gettransaction`; `rest_api.py:1177`; `check_tx.py:38,53`; `ledger_explorer.py:175`; `plugins/tokens_aliases/__init__.py:145` (has blake2b fallback at `:147`). These already have a dual-mode pattern in `rest_api.py:1141-1181` (64-hex → re-hash scan; else `signature LIKE`); extend the same dual-mode lookup. (`rpc_bitcoin.py` / `rpc_ethereum.py` — **DONE 2026-06-29**: resolve tx-by-id via `block_store` content-txid scan, content-txid producers throughout.)
+`apihandler_tx.py:33,37,99`; `apihandler.py` legacy `api_gettransaction`; `rest_api.py:1177`; `plugins/tokens_aliases/__init__.py:145` (has blake2b fallback at `:147`). These already have a dual-mode pattern in `rest_api.py:1141-1181` (64-hex → content-txid lookup; else signature-prefix match); extend the same dual-mode lookup. (`rpc_bitcoin.py` / `rpc_ethereum.py` — **DONE 2026-06-29**: resolve tx-by-id via `block_store` content-txid scan, content-txid producers throughout.)
 
 ### 3.5 Replay/dedup index keyed on signature (not txid)
-`mempool_sql.py:41,45`; `db_migrations.py:25` (`TXID4_Index` on `substr(signature,1,4)`); `digest.py:98-116` (`_signature_exists_in_ledger`); `mempool.py:425`. Replay protection keys on the **signature**, not the txid — unaffected by txid semantics, but verify the post-fork 65-byte recoverable sig is still a stable dedup key.
+The ledger's `sig` sub-db (`signature[:56]` keys, `BlockStore.signature_exists`); `digest.py` duplicate check; the in-memory mempool keyed by signature. Replay protection keys on the **signature**, not the txid — unaffected by txid semantics, but verify the post-fork 65-byte recoverable sig is still a stable dedup key.
 
 ### 3.6 Signers / wallets / CLI (sign or compute txid)
 SIGN: `signer_rsa.py:162-171`, `signer_ecdsa.py:131-148`, `signer_ed25519.py:136-142`, `signer_mldsa.py:123-127`, `signer_multisig.py` + `multisig_wallet.py:79-106`, `signer_secp256r1.py`, `signer_btc.py`, `signer_crw.py`. VERIFY: `signerfactory.py:151-188`, per-signer `verify_bis_signature(_raw)`. Wallets: `wallet_helpers.py:24-39` (`sign_rsa`), `hd_wallet.py:221-246`, `multisig_wallet.py:94-106`. Demos/tests: `tests/_lite_client.py:92-142`, `_lmdb_demo.py:40`, `web/predictionmarket/relay.py:48-55`.
 
 ### 3.7 Storage boundary (references frozen form, does not redefine — keep both branches)
-`amounts.py`, `db_migrations.py`, `migrate_amounts.py`, `digest.py:184-229` (12-field `block_transactions` row; integer units when `LEDGER_INTEGER`, but block hash uses the separate `to_tuple`, so storage mode does not affect consensus).
+`amounts.py`, `block_store.py` (`typed_row` / `units`), `digest.py` (12-field `block_transactions` row; integer units when `LEDGER_INTEGER`, but block hash uses the separate `to_tuple`, so storage mode does not affect consensus).
 
 ### 3.8 Non-impacts (verified)
 - Shielded/RingCT carrier sigs sign their own domain-separated message (`shieldedv1.py:277-280`, `ringct.py` MLSAG); payload rides in `operation`+`openfield` and is transitively committed by the outer sig. `shieldedv1.validate_block` (`:704-759`) reads 12-field rows by index — depends on row shape, not buffer encoding.

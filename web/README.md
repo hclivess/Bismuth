@@ -17,22 +17,19 @@ vendored Bootstrap).
   - **API** — a live, self-describing console: node status + every endpoint from the `/api` index, with
     a one-click "run" for GET endpoints (routed through the relay when browsing an http node).
   - `explorer/assets/bootstrap.min.css` is the vendored stylesheet.
-- **`site/index.html`** (+ `site/assets/`) — the **bismuth.cz** landing page: the bootstrap-snapshot
-  download (`ledger.tar.gz`) plus a link to the explorer.
+- **`site/index.html`** (+ `site/assets/`) — the **bismuth.cz** landing page: the node install guide plus a
+  link to the explorer.
 
 The newer Tokens / Nodes / Supply views require a node running this repo's `rest_api.py` (the endpoints
 were added here); older nodes return 404 for them until upgraded.
 
 ## Bootstrap snapshots
 
-`ledger.tar.gz` is produced by [`../scripts/snapshot.py`](../scripts/snapshot.py), which takes a
-**consistent, integrity-checked** snapshot of the **running** node (SQLite online-backup for the ledger
-DBs + LMDB `env.copy` for the post-hardfork block store / balance index) and publishes the tarball
-atomically — so it is safe to run on the live node without stopping it. Example:
-
-```
-python3 scripts/snapshot.py --static static --tarball /var/www/bismuth.cz/ledger.tar.gz
-```
+Snapshots are served **DB-direct** by the node itself (doc/43, `snapshot_p2p.py`): with
+`snapshot_serve` on, `GET /api/snapshot/info` reports the ledger tip (height + tip hash) and
+`GET /api/snapshot` streams a consistent, compacted LMDB image of the live ledger env straight to the
+client (`env.copyfd` — no pre-built file, no doubled copy on disk). A fresh node with `bootstrap_p2p` on
+fetches it from peers and verifies tip height + hash before trusting it.
 
 ## Deployment
 

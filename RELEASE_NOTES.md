@@ -10,6 +10,41 @@ and the consensus-touching work waits behind the fork it was designed for.
 
 ---
 
+## What's new in 4.7.0 — LMDB-only ledger
+
+The node no longer uses SQLite anywhere. Consensus is unchanged: same blocks, same hashes, same validation.
+
+- **One LMDB ledger** ✅ — `static/blockstore-ledger.db` holds the blocks, the per-block difficulty and
+  every index (signature, address history, integer-unit balances, content txid, pubkey registry). A block
+  and all of its index entries commit in ONE transaction; a reorg rolls back in one. `ledger.db`,
+  `hyper.db`, `index.db`, `mempool.db`, hyperblocks, RAM mode, the commit-marker lockstep, reconcile,
+  sequencing checks and autoheal are gone, with ~11k lines of code.
+- **In-memory mempool** ✅ — pending transactions live in memory (they are re-broadcast by peers after a
+  restart); admission rules unchanged.
+- **Dev / Hypernode reward mirrors removed** ✅ — the negative-height synthetic rows are gone; their
+  concluded totals (Dev 3,151,476.52720086 BIS, HN 6,521,167.33333333 BIS) are fixed ledger allocations
+  (`ledger_genesis.py`), applied automatically, so both balances match the network.
+- **Tokens & aliases** ✅ — served only by the always-on `tokens_aliases` plugin (its own LMDB store). The
+  first start after upgrading builds that index once from the ledger (~15 minutes on mainnet; the node
+  starts syncing when it is done).
+- **No self-connections** ✅ — the node never dials any address of its own machine (public IP included),
+  so a peer list gossiped back to us can no longer make the node "agree" with itself at 100% consensus.
+- **Installer** ✅ — `sudo ./install_node.sh` is the documented one-command install; it now also checks an
+  existing ledger's schema and prints the upgrade command.
+
+**Upgrading an existing node** (block store from 4.6.x):
+
+```bash
+sudo systemctl stop bismuth-node
+git pull && git checkout v4.7.0.0
+python3 scripts/upgrade_ledger.py static/blockstore-ledger.db --anchor http://<a synced REST node>:5659
+sudo systemctl start bismuth-node
+```
+
+The upgrade replays the difficulty history (anchored on the peer's published values) and rebuilds every
+index from the blocks — ~10 minutes on mainnet, no download. The old SQLite files can be deleted
+afterwards. A node with no ledger needs nothing: it bootstraps from a peer snapshot.
+
 ## What's new in 4.6.0
 
 Continuation of the modernization, same rule (consensus only changes at a signalled fork). New since the
@@ -24,10 +59,12 @@ Continuation of the modernization, same rule (consensus only changes at a signal
   own its own tor with an ephemeral v3 hidden service; `install_node.sh --tor` bundles it. Default off /
   clearnet-unaffected. (doc/38)
 - **Faster restarts & lighter queries** ✅ — fixed the multi-minute sync-resume (bounded peer dial +
-  bounded startup difficulty scan) and narrowed the heavy full-ledger rebuild scans; a full heavy-query
-  audit for current + post-fork growth. (doc/37)
-- **Engine-agnostic storage seam** 🕒 — all 8 LMDB stores behind one `kvstore` factory (LMDB↔MDBX↔sqlite
-  swap is a one-arg change), validated across a 3-node cluster. (doc/26, 36)
+  bounded startup difficulty scan); every heavy read is now an ordered LMDB index range scan.
+- **The ledger is one LMDB environment** ✅ — blocks, per-block difficulty and every index (signature,
+  address history, balances in integer units, content txid, pubkey registry) in `blockstore-<ledger>`,
+  one transaction per block commit and per reorg. The relational ledger files, hyperblocks, the index
+  and mempool databases and the negative-height reward rows are gone (the concluded Dev/HN totals are
+  fixed allocations). Existing block stores upgrade with `scripts/upgrade_ledger.py`. (doc/05, 26, 36)
 - **Difficulty-divergence detector + guarded self-heal** ✅ — recurrence-prevention for the difficulty
   corruption class, with a permanent restart-loop guard. (doc/35)
 
@@ -49,10 +86,8 @@ Continuation of the modernization, same rule (consensus only changes at a signal
   auto-detects repo/python/user, gracefully stops any running node, enables + starts it, survives reboots,
   restarts on failure. `systemctl stop/restart` is graceful; `journalctl -u bismuth-node -f` for logs.
 - **Graceful shutdown.** `SIGTERM`/`SIGINT` (and the `stop` command) now finish the in-flight block and
-  drain `db_lock` before exit, so `ledger.db` and `hyper.db` stay at the same height.
-- **Non-destructive cross-integrity recovery.** If the two DBs ever diverge (e.g. an abrupt kill), startup
-  now keeps the common height and trims only the excess, then resyncs — instead of rolling back further
-  than necessary. Turns a "stuck, flapping, won't sync" node into an automatic ~20s recovery.
+  drain `db_lock` before exit. Even an abrupt kill leaves a clean ledger: each block is one LMDB
+  transaction.
 - **Reputation-weighted consensus.** Peers earn/lose reputation on whether the heights they advertise turn
   out real; the "most common block" tip rule is weighted by reputation and gates deep rollbacks (anti-sybil).
 - **Connectivity fixes.** No longer self-dials `127.0.0.1` and reports false 100% consensus; saner peer
@@ -93,25 +128,24 @@ Continuation of the modernization, same rule (consensus only changes at a signal
 
 ## Storage 🕒 / Edges ✅
 
-- **Storage (shadow/validated):** LMDB content-addressed block store, O(1) balance index, integer
-  atomic-unit amounts, reward sidechain — each proven lossless / replay-byte-identical.
+- **Storage (active):** one LMDB ledger — pubkey-deduped blocks, the difficulty record and O(1)
+  balance / signature / address / txid indexes committed atomically per block; integer atomic-unit
+  amounts (opt-in). Replay-verified byte-identical block hashes.
 - **Edges (live):** parallel compressed **REST API** (now **on by default**), the **block explorer**
   (blocks / tx / address / tokens / nodes / supply), Bitcoin-JSON-RPC and Ethereum/ERC compatibility
   shims (opt-in), and a zero-downtime **bootstrap snapshot**.
-- **The block store now holds the WHOLE chain, backfilled from SQLite** — `scripts/rebuild_block_store.py`
-  (`build`/`verify`/`compact`/`info`). The node only ever built the store *forward* as it digested, so
-  everything below the last restart was a permanent hole. Mainnet: 4,937,451 blocks in 28m31s →
-  **9.7 GB vs 22.4 GB SQLite (−58%)**, then **byte-verified** (4,937,451 blocks / 6,426,832 txs identical).
-  The saving is pubkey dedup — the entire chain has only **5,586 distinct public keys** across 6.4M txs.
-  Runs safely against a live node (read-only ledger, separate store path, `nice`/`ionice`); the node held
-  network tip throughout. Compaction after a fresh sequential build is a **no-op** (0.1%).
-- **`/api/snapshot` is on-demand and DB-direct** — generated from the live LMDB store at request time via
+- **The whole chain in LMDB** — mainnet's 4,937,451 blocks / 6,426,832 txs are **9.7 GB** in the LMDB
+  ledger, less than half the previous on-disk ledger (−58%), byte-verified. The saving is pubkey dedup —
+  the entire chain has only **5,586 distinct public keys** across 6.4M txs. Stores built before the
+  ledger became LMDB-only are brought to the current schema with `scripts/upgrade_ledger.py` (difficulty
+  history replayed and anchored on peers' published values, then every index rebuilt); the node names
+  the script and refuses to start on an old schema.
+- **`/api/snapshot` is on-demand and DB-direct** — generated from the live LMDB ledger at request time via
   `env.copyfd` (consistent, compacted, streamed straight to the socket): **no pre-built tarball, no doubled
   ledger on disk, never stale**. Measured: **9.7 GB in 75 s**, and the bytes open as a valid block store with
   a tip hash matching the advertised header. `snapshot_serve` + `bootstrap_p2p` are now **on by default**, so
-  fresh nodes bootstrap from **peers** rather than one hosted file (the stale central `ledger.tar.gz` — 92k
-  blocks behind — has been removed).
-- **Derived LMDB stores are namespaced per ledger** (`blockstore-ledger.db` vs `blockstore-regmode.db`).
+  fresh nodes bootstrap from **peers** (else seed genesis and sync) rather than one hosted file.
+- **LMDB stores are namespaced per ledger** (`blockstore-ledger.db` vs `blockstore-regmode.db`).
   They previously shared one directory across mainnet/testnet/regnet, so a regnet run could hand its blocks
   to a mainnet node and the test suite's startup wipe destroyed a live node's stores.
 

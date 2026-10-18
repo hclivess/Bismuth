@@ -14,10 +14,10 @@ sudo ./install_node.sh --regnet        # service runs a regnet node for testing
 ```
 
 It is **idempotent** (re-runnable; never bumps an already-working node's deps and won't restart a
-running node unless `--restart`), installs the LMDB stack (`lmdb`/`msgpack` — needed by block_store,
-vm_state, and the shielded store), and auto-applies the **ed25519 Python-3.12 source patch** (its
+running node unless `--restart`), installs the LMDB stack (`lmdb`/`msgpack` — the ledger and the token/alias
+index), and auto-applies the **ed25519 Python-3.12 source patch** (its
 bundled `versioneer` uses APIs removed in 3.12). The unit it writes matches the production service:
-graceful `SIGTERM` stop (`TimeoutStopSec=180`) so `ledger.db`/`hyper.db` stay consistent across reboots,
+graceful `SIGTERM` stop (`TimeoutStopSec=180`) so the in-flight block finishes its LMDB commit,
 and `Environment=BISMUTH_IGNORE_CONFIG_CUSTOM=1` so a stray regnet `config_custom.txt` can't hijack a
 mainnet boot.
 
@@ -77,10 +77,9 @@ enabled by an env flag:
 
 | Test | Enable with | Proves |
 |---|---|---|
-| `tests/test_multinode_integration.py` | `BISMUTH_RUN_MULTINODE=1` | **3-node** cluster (A mines a fork-crossing chain; B/C `api_sync` over REST). Blocks `1..tip` byte-identical across A/B/C, and every migrated KVStore store agrees cross-node — `block_store`, `balance_index`, `txid_index`, `vm_state` (with a deployed RISC-V contract), plus **populated** `token_index` (issue+transfer) and `shieldedv1` (`shield:mint`) state; #23 detector CLEAN ([26](26-storage-postfork.md), [36](36-kvstore-engine-seam.md)) |
+| `tests/test_multinode_integration.py` | `BISMUTH_RUN_MULTINODE=1` | **3-node** cluster (A mines a fork-crossing chain; B/C `api_sync` over REST). Blocks `1..tip` byte-identical across A/B/C, and the LMDB ledger (blocks + its balance / txid / pubkey indexes) and the **populated** `token_index` (issue+transfer) agree cross-node; #23 detector CLEAN ([05](05-database-and-ledger.md), [26](26-storage-postfork.md)) |
 | `tests/test_two_node_api_sync.py` | `BISMUTH_RUN_TWONODE=1` | two-node REST `api_sync` catch-up + chain parity |
 | `tests/test_sync_from_genesis.py` | `BISMUTH_RUN_TWONODE=1` | genesis-up sync with assume-valid / checkpoints ([30](30-genesis-sync-exceptions.md)) |
-| `tests/test_autoheal.py` | `BISMUTH_RUN_TWONODE=1` | #23 difficulty self-heal across two nodes ([35](35-difficulty-divergence-selfheal.md)) |
 | `tests/test_two_node_diff_selfheal.py` | `BISMUTH_RUN_TWONODE=1` | difficulty-divergence detection + heal across a real peer pair |
 | `tests/test_two_node_signatures.py` | `BISMUTH_RUN_TWONODE=1` | post-fork signature acceptance across two nodes ([18](18-hardfork-hf2.md)) |
 
@@ -88,49 +87,27 @@ enabled by an env flag:
 # the 3-node store-agreement test
 BISMUTH_RUN_MULTINODE=1 python3 -m pytest tests/test_multinode_integration.py -v
 # all two-node tests
-BISMUTH_RUN_TWONODE=1 python3 -m pytest tests/test_two_node_*.py tests/test_sync_from_genesis.py tests/test_autoheal.py -v
+BISMUTH_RUN_TWONODE=1 python3 -m pytest tests/test_two_node_*.py tests/test_sync_from_genesis.py -v
 ```
 
 These run regnet (`node.py regnet2`) on isolated ports/dirs and **never touch a mainnet ledger**. The
-default `python3 -m pytest -v` run skips all six (latest full run: **790 passed, 6 skipped, 0 failed**).
+default `python3 -m pytest -v` run skips all five (latest full run: **790 passed, 6 skipped, 0 failed**).
 
-## Chain snapshot / maintenance tooling (`static/`)
-
-| Script | Purpose |
-|---|---|
-| `tar.py` / `tar_testnet.py` | validate the ledger (balance diff ledger↔hyper, duplicate rows/signatures) and, if the node isn't running, VACUUM and pack `ledger.tar.gz` bootstrap snapshots |
-| `untar.py` | path-traversal-safe extraction of a bootstrap snapshot |
-| `migrate.py` | one-off: rebuild the `transactions` table with indexes + VACUUM |
-| `vacuum.sh` | `VACUUM` index/hyper/ledger DBs |
-| `backup.py` | a developer-personal periodic ledger copy (hardcoded path) |
-
-Plus, in `scripts/`:
+## Ledger tooling (`scripts/`)
 
 | Script | Purpose |
 |---|---|
-| `rebuild_block_store.py` | **backfill the LMDB block store from the SQLite ledger** — `build` (resumable, default start = store tip + 1), `verify` (byte-exact, or `--values` for a live node), `compact`, `info`. Safe against a running node: ledger opened READ-ONLY (SQLite is WAL, so readers never block the writer), writes to a SEPARATE store path (LMDB is single-writer per env), run under `nice -n19 ionice -c3`. See doc/26 |
-| `snapshot.py` | build the legacy pre-built snapshot tarball + manifest (fallback path only — `/api/snapshot` now serves DB-direct on demand, doc/43) |
+| `upgrade_ledger.py` | upgrade an LMDB ledger built before the ledger became LMDB-only to the current `block_store.SCHEMA`: replays the per-block difficulty history forward with the node's own `difficulty.retarget`, anchored on exact values published by peers (`GET /api/stats/difficulty`, `--anchor <rest-url>`, every reached anchor reported as match/mismatch), then rebuilds every index with `BlockStore.reindex`. Run with the node stopped (LMDB is single-writer); idempotent. The node refuses to start on an old schema and names this script. Usage: `python3 scripts/upgrade_ledger.py static/blockstore-ledger.db --anchor http://185.100.232.5:5659` |
+| `migrate_config.py` | `config.txt` → `config.toml` (doc/11) |
+| `install-node-service.sh` | install the systemd unit |
 
-### Verifying a store against SQLite
-
-`verify` has two modes, and the difference matters:
-
-* **strict** (default) — `got == rows`, byte-exact. Correct for a store built entirely by
-  `build_from_sqlite`, and the right gate before swapping a rebuilt store in.
-* **`--values`** — compares at the chain's own precision. Use this against a **live** node, because a
-  strict `==` can never pass on a block the node itself wrote:
-  * the node stores the **wire tuple**, where `timestamp`/`amount`/`fee`/`reward` are canonical strings;
-    SQLite's numeric column affinity coerces the same values to REAL/INTEGER, so `build_from_sqlite` reads
-    them back as float/int. Both are correct; only the Python type differs.
-  * SQLite REAL is lossy: a canonical `'2.32944909'` reads back as `2.3294490899999998`. The store holds the
-    exact 8-decimal consensus value, so numbers are compared **rounded to 8 dp** (`quantize_eight`).
-  `--values` reports type-only differences separately and still **fails hard** on any real value divergence,
-  so it is a usable live check rather than a weakened one.
+Snapshots need no tooling: a node serves its ledger **DB-direct** on demand (`/api/snapshot`, LMDB
+`env.copyfd`) and a fresh node fetches and tip-verifies one from peers (doc/43).
 
 ## Install / build
 
 - `auto-install/bis-node-alone-install.sh` — unattended Ubuntu node setup (swap, OS limits, deps,
-  source download + bootstrap, hypernode plugin). Note: firewall config is commented out and the node
+  source download, hypernode plugin; the node bootstraps its LMDB ledger from peers on first start). Note: firewall config is commented out and the node
   is expected to start post-reboot via an external mechanism.
 - `compile_nuitka.cmd` + `setup.iss` — Windows: compile `node`/`node_stop`/`commands` with Nuitka and
   build an Inno Setup installer (local/manual build).

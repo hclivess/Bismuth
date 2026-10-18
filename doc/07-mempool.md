@@ -5,19 +5,16 @@
 
 ## Storage
 
-```sql
-transactions(timestamp, address, recipient, amount, signature, public_key, operation, openfield,
-             mergedts INTEGER(4) DEFAULT (strftime('%s','now')))   -- 9 cols
-```
-
-`mergedts` is the local receive time (not broadcast to peers). RAM mode
-(`mempool_ram`, default true; forced on for regnet) uses `file:mempool?mode=memory&cache=shared`
-with WAL; otherwise the on-disk `mempool.db`. `check()` recreates the file if the column count isn't 9.
+The pool is held **in memory**: an insertion-ordered dict keyed by signature, each entry a 9-tuple —
+the 8 wire fields `(timestamp, address, recipient, amount, signature, public_key, operation,
+openfield)` plus `mergedts`, the local receive time (not broadcast to peers). Every mutation is under
+`self.lock`. Nothing is persisted: the pool is not consensus (the digester re-validates every
+transaction it includes), and a restarted node refills it from its peers.
 
 ## Acceptance rules (`merge()`)
 
 `merge(data, peer_ip, c, size_bypass=False, wait=False, revert=False)` is the single entry point
-(`c` is the ledger cursor). Pre-flight: empty/`'*'` handling, peer-freeze check, sequence-type check
+(`ledger` is a `DbHandler` / `BlockStore`; `None` means `node.ledger`). Pre-flight: empty/`'*'` handling, peer-freeze check, sequence-type check
 (bad format freezes the peer 10 min), and a `db_lock` check (drop or wait per `wait`; skipped when
 `revert=True` because the rollback caller already holds `db_lock`).
 
@@ -32,10 +29,12 @@ Per transaction (inside `self.lock`):
    low-s enforced); pre-fork txs and post-fork RSA / ED25519 / native-multisig keep the legacy
    buffer + explicit-pubkey check (multisig: N-of-M over the frozen buffer, never the txid). This is
    only a pre-filter — the digester re-verifies and is authoritative;
-6. not already in mempool (`sig_check`) nor in the ledger;
-7. balance: `amount <= ledger_balance_before_mempool` **and** `balance - fee >= 0`
+6. not already in mempool (`sig_check`) nor in the ledger (`BlockStore.signature_rows` over the `sig`
+   index);
+7. balance: the confirmed balance (`BlockStore.balance`, O(1) from the `bal` index) minus this
+   address's still-valid pending sends + fees; `amount <= confirmed balance` **and** `balance - fee >= 0`
    (fee via `essentials.fee_calculate(..., block=last_block)`; see fee note below);
-8. insert (with `mergedts = now`), commit, append the literal string `"Success"` (callers match on it
+8. insert (with `mergedts = now`), append the literal string `"Success"` (callers match on it
    — do not change it).
 
 > A fix applied during the revival: an invalid-timestamp transaction now `continue`s instead of
@@ -53,8 +52,7 @@ block of large RingCT/VM txs prices in its real footprint, not merely how many t
 scales the base over a `WINDOW=20`-block demand window toward `TARGET_WEIGHT=30`, clamped to `[0.5×, 10×]`
 — it is deterministic and stateless (a pure function of recent block weights, no saved fee state across
 restarts). The weight window is read from the post-fork **block store (LMDB)**
-(`block_store.recent_block_weights`, computed once per block in `digest.py` ~494), never SQLite — the old
-SQLite `recent_tx_counts` helper was removed. `fee_calculate` also takes a `vm_surcharge` flag that adds
+(`block_store.recent_block_weights`, computed once per block in `digest.py`). `fee_calculate` also takes a `vm_surcharge` flag that adds
 `VM_SURCHARGE = 0.01` (gas) to `vm:` operations and a flat +1 BIS to `shield:` operations post-fork. The
 mempool's own fee checks call `fee_calculate` with the static base and no surcharge today; the dynamic
 value and surcharges are gated on the fork (set per block as `node.base_fee` in `digest.py`).
@@ -85,11 +83,9 @@ size is bounded — live in `merge()`; this routine only orders admission under 
 `delete_transaction()`. On block rollback, the node re-inserts the rolled-back transactions with
 `merge(..., revert=True)`. Peer exchange is rate-limited: `sendable()` (≥30 s since last send),
 `tx_to_send()` (new txs since the peer's last sync, minus signatures the peer already has), `sent()`.
-(These query helpers and the SQL constants now live in `mempool_queries.py` / `mempool_sql.py`.)
 
 The **built-in solo miner** (`miner.py`, opt-in `mine=True`) is the other consumer: it pulls pending
-txs with `mp.MEMPOOL.fetchall(mp.SQL_SELECT_TX_TO_SEND)` (`SELECT * … ORDER BY amount DESC`, capped at
-`MAX_TX_PER_BLOCK`), appends its signed hf2 coinbase, and digests the assembled block — the same
+txs with `mp.MEMPOOL.transactions()` (largest amount first, capped at `MAX_TX_PER_BLOCK`), appends its signed hf2 coinbase, and digests the assembled block — the same
 mempool feed the regnet `regtest_mine` command and the regnet `generate_one_block` use. See
 [21](21-mining.md).
 

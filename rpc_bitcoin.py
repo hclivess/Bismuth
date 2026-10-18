@@ -14,7 +14,7 @@ and with a documented caveat where they diverge:
   * mempool reads (info/raw/entry)                                                   -> mempool.MEMPOOL
   * mining queries + the gated submit path (getmininginfo/getnetworkhashps/submitblock)
   * network/peer reads (connectioncount/networkinfo/peerinfo/nodeaddresses)          -> node.peers
-  * raw-tx read + the gated write path (getrawtransaction/sendrawtransaction)        -> indexed ledger + mempool.merge
+  * raw-tx read + the gated write path (getrawtransaction/sendrawtransaction)        -> ledger txid indexes + mempool.merge
   * address-scoped balance/tx reads (getbalance/getbalances/getreceivedbyaddress/gettransaction)
   * util/control (estimatesmartfee/validateaddress/uptime/help)
 
@@ -23,9 +23,9 @@ multiple; blocks have no bits/merkleroot/chainwork/vsize; the mempool is keyed b
 txid; fees are a deterministic FLOOR, not a market; and sendrawtransaction takes a Bismuth-format signed
 8-field tuple (a JSON array), NOT Bitcoin raw hex (different tx model, no UTXO to spend).
 
-Read paths prefer node.block_store (LMDB, O(1)) and the indexed TXID4 ledger seek — NEVER an unbounded
-`signature LIKE`/`SELECT *` scan of the multi-GB ledger. Deps: stdlib + dbhandler/essentials/mempool
-(same as rest_api.py).
+Every read goes to the node's ONE LMDB ledger (``node.ledger``, a ``block_store.BlockStore``): heights,
+hashes, the content-txid index and the signature-prefix index are all O(log n) seeks — never a scan of the
+chain. Deps: stdlib + dbhandler/essentials/mempool (same as rest_api.py).
 """
 import json
 import threading
@@ -74,40 +74,26 @@ def _make_handler(node):
 
     fh = lambda: getattr(node, "fork_height", None)
 
+    def _ledger():
+        bs = getattr(node, "ledger", None)
+        return bs if bs is not None else getattr(node, "block_store", None)
+
     def _tip():
-        bs = getattr(node, "block_store", None)
-        if bs is not None:
-            t = bs.tip()
-            if t is not None:
-                return int(t)
-        return int(getattr(node, "hdd_block", 0) or 0)
+        t = _ledger().tip()
+        return int(t) if t is not None else int(getattr(node, "hdd_block", 0) or 0)
 
     def _rows_for_height(db, height):
-        """12-field ledger rows for a height, preferring the LMDB block_store (O(1)) over an indexed
-        SQLite read. Returns None if the height is absent."""
-        bs = getattr(node, "block_store", None)
-        if bs is not None:
-            return bs.get_block(int(height))
-        db.execute_param(db.h, "SELECT * FROM transactions WHERE block_height = ? ORDER BY rowid",
-                         (int(height),))
-        rows = db.h.fetchall()
-        return [list(r) for r in rows] if rows else None
+        """Typed 12-field ledger rows for a height, or None if the height is absent."""
+        return _ledger().get_block(int(height))
 
     def _hash_for_height(db, height):
-        bs = getattr(node, "block_store", None)
-        if bs is not None:
-            return bs.block_hash(int(height))
-        rows = _rows_for_height(db, height)
-        return rows[0][7] if rows else None
+        return _ledger().block_hash(int(height))
 
     def _height_for_hash(db, block_hash):
-        bs = getattr(node, "block_store", None)
-        if bs is not None:
-            return bs.height_by_hash(block_hash)
-        db.execute_param(db.h, "SELECT block_height FROM transactions WHERE block_hash = ? LIMIT 1",
-                         (block_hash,))
-        row = db.h.fetchone()
-        return row[0] if row else None
+        try:
+            return _ledger().height_by_hash(block_hash)
+        except Exception:
+            return None
 
     def _post_fork():
         # A pending tx (no block height yet) lands in block last_block+1 — decide its id scheme by that.
@@ -126,50 +112,28 @@ def _make_handler(node):
         return row[4][:56]
 
     def _tx_by_id(db, txid):
-        """Resolve a tx by its canonical id. POST-HF2 (LMDB; the `transactions` SQLite table is retired):
-        a bounded recent-first scan of block_store, recomputing each tx's content txid via format_raw_tx —
-        never an unbounded ledger scan. The SQLite TXID4 seek below is a PRE-FORK legacy fallback, reached
-        only on a node that has no block_store built."""
+        """Resolve a tx by its canonical id: POST-HF2 the content txid (the ledger's txid index -> its block),
+        else the legacy signature[:56] id or any signature prefix (the signature-prefix index)."""
         _fh = fh()
         t = txid[2:] if isinstance(txid, str) and txid.startswith("0x") else txid
-        bs = getattr(node, "block_store", None)
-        if bs is not None:
-            tip = int(bs.tip() or 0)
-            window = int(getattr(node, "rpc_txid_scan_blocks", 50000))
-            lo = max(1, tip - window + 1)
-            for h in range(tip, lo - 1, -1):
-                rows = bs.get_block(h)
-                if not rows:
-                    continue
-                for r in rows:
+        if not isinstance(t, str) or not t:
+            return None
+        bs = _ledger()
+        if _fh is not None:
+            try:
+                h = bs.txid_height(t)
+            except Exception:
+                h = None
+            if h is not None:
+                for r in bs.get_block(h) or ():
                     tx = essentials.format_raw_tx(r, _fh)
-                    if tx.get("txid") == t or (len(t) < 56 and str(r[5]).startswith(t)):
+                    if tx.get("txid") == t:
                         return tx
-            return None
-        # --- pre-fork legacy fallback: indexed SQLite seek (no block_store on this node) ---
-        if len(t) == 64 and all(c in "0123456789abcdef" for c in t):
-            if _fh is None:
-                return None
-            max_scan = int(getattr(node, "txid_scan_limit", 250000))
-            start_h = max(int(_fh), _tip() - max_scan)
-            db.execute_param(db.h, "SELECT * FROM transactions WHERE block_height >= ? "
-                                   "ORDER BY block_height DESC", (start_h,))
-            scanned = 0
-            for row in db.h:
-                scanned += 1
-                if scanned > max_scan:
-                    raise _RpcError(-8, "txid scan limit (%d rows) exceeded; narrow with a recent id" % max_scan)
-                tx = essentials.format_raw_tx(row, _fh)
-                if tx.get("txid") == t:
-                    return tx
-            return None
         if len(t) >= 4:
-            rows = db.fetchall(db.h, "SELECT * FROM transactions WHERE substr(signature,1,4)=substr(?1,1,4) "
-                                     "AND signature LIKE ?2 LIMIT 1", (t, t + "%"))
-        else:
-            rows = db.fetchall(db.h, "SELECT * FROM transactions WHERE signature LIKE ? LIMIT 1",
-                               (t + "%",))
-        return essentials.format_raw_tx(rows[0], _fh) if rows else None
+            rows = bs.rows_by_sig_prefix(t, limit=1)
+            if rows:
+                return essentials.format_raw_tx(rows[0], _fh)
+        return None
 
     def _base_fee():
         bf = getattr(node, "base_fee", None)
@@ -185,9 +149,7 @@ def _make_handler(node):
             pass  # quiet
 
         def _db(self):
-            return dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
-                                       node.ledger_ram_file, node.logger,
-                                       trace_db_calls=node.trace_db_calls)
+            return dbhandler.DbHandler.for_node(node)
 
         def do_POST(self):
             length = int(self.headers.get("Content-Length", 0))
@@ -326,7 +288,7 @@ def _make_handler(node):
             verbose = bool(p[0]) if p else False
             if mp.MEMPOOL is None:
                 return {} if verbose else []
-            rows = mp.MEMPOOL.fetchall(mp.SQL_SELECT_ALL_TXS) or []
+            rows = mp.MEMPOOL.wire_transactions() or []
             # rows: timestamp,address,recipient,amount,signature,public_key,operation,openfield. POST-HF2
             # the mempool identity is the content-hash txid, not the signature slice.
             ids = [_mempool_txid(r) for r in rows]
@@ -342,10 +304,12 @@ def _make_handler(node):
             sig = p[0]
             if mp.MEMPOOL is None:
                 raise _RpcError(-5, "transaction not in mempool")
-            row = mp.MEMPOOL.fetchone(
-                "SELECT timestamp,address,recipient,amount,signature,public_key,operation,openfield "
-                "FROM transactions WHERE substr(signature,1,4)=substr(?1,1,4) and signature LIKE ?2 LIMIT 1",
-                (sig, sig + "%"))
+            sig = str(sig)
+            row = None
+            for r in mp.MEMPOOL.wire_transactions():
+                if (len(sig) >= 4 and str(r[4]).startswith(sig)) or _mempool_txid(r) == sig:
+                    row = r
+                    break
             if not row:
                 raise _RpcError(-5, "transaction not in mempool")
             return {"time": row[0], "address": row[1], "recipient": row[2], "amount": str(row[3]),
@@ -445,7 +409,7 @@ def _make_handler(node):
                 raise _RpcError(-1, "mempool not ready")
             peer_ip = self.client_address[0] if self.client_address else "127.0.0.1"
             txs = [[str(f) for f in tx]]
-            result = mp.MEMPOOL.merge(txs, peer_ip, db.c, True, True)
+            result = mp.MEMPOOL.merge(txs, peer_ip, db, True, True)
             joined = " ".join(str(x) for x in (result or []))
             if "Success" not in joined:
                 raise _RpcError(-26, "tx rejected: %s" % joined)
@@ -476,13 +440,13 @@ def _make_handler(node):
         # ---- balance / address reads ----
         def rpc_getbalance(self, db, p):
             address = p[0]
-            return str(essentials.ledger_balance3(address, {}, db))
+            return str(db.store.balance(address))
 
         rpc_getreceivedbyaddress = rpc_getbalance
 
         def rpc_getbalances(self, db, p):
             address = p[0]
-            confirmed = essentials.ledger_balance3(address, {}, db)
+            confirmed = db.store.balance(address)
             pending = self._mempool_credit(address)
             return {"mine": {"trusted": str(confirmed), "untrusted_pending": str(pending)}}
 
@@ -492,10 +456,9 @@ def _make_handler(node):
         def _mempool_credit(self, address):
             if mp.MEMPOOL is None:
                 return 0.0
-            rows = mp.MEMPOOL.fetchall(
-                "SELECT amount FROM transactions WHERE recipient = ?", (address,)) or []
+            rows = [r for r in mp.MEMPOOL.by_address(address, valid_only=False) if r[2] == address]
             try:
-                return float(sum(float(r[0]) for r in rows))
+                return float(sum(float(r[3]) for r in rows))
             except Exception:
                 return 0.0
 

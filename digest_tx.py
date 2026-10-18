@@ -50,7 +50,7 @@ class Transaction:
         self.received_timestamp = '%.2f' % self.q_received_timestamp
         self.received_address = str(transaction[1])[:56]
         self.received_recipient = str(transaction[2])[:56]
-        # HARDFORK (doc/16): consensus boundary — the signature/hash are computed over the legacy
+        # HARDFORK: consensus boundary — the signature/hash are computed over the legacy
         # '%.8f' decimal-string amount (and the '%.2f' timestamp above), so even integer storage must
         # reconstruct these strings here. transaction[3] is the received wire amount (always decimal),
         # so this stays until the hard fork signs/hashes native integer units and these conversions go.
@@ -200,6 +200,4 @@ class Block:
         self.block_count = 0
         self.transaction_list_converted = []
         self.mining_reward = None
-        self.mirror_hash = None
         self.start_time_block = quantize_two(time.time())
-        self.tokens_operation_present = False

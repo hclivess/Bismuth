@@ -71,14 +71,7 @@ def _port_open():
 def start_node(fresh=False):
     global _proc, _log_fh
     if fresh:
-        for name in ("static/regmode.db", "static/index_reg.db",
-                     "static/regmode.db-shm", "static/regmode.db-wal"):
-            try:
-                os.remove(os.path.join(ROOT, name))
-            except OSError:
-                pass
-        for d in ("static/blockstore-regmode.db", "static/balanceindex-regmode.db",
-                  "static/tokenindex-regmode.db"):
+        for d in ("static/blockstore-regmode.db", "static/tokenindex-regmode.db"):
             shutil.rmtree(os.path.join(ROOT, d), ignore_errors=True)
         try:
             os.remove(SIDECAR)

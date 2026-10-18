@@ -16,7 +16,6 @@ import json
 import os
 import shutil
 import socket
-import sqlite3
 import subprocess
 import sys
 import time
@@ -42,9 +41,10 @@ def _pin_decimal_amounts():
 
 
 def _node(tmp):
+    import block_store
     return types.SimpleNamespace(
-        hyper_path=str(tmp / "hyper.db"), ledger_path=str(tmp / "ledger.db"),
-        index_db=str(tmp / "index.db"), sync_from_genesis=True,
+        ledger_path=str(tmp / "ledger.db"), sync_from_genesis=True, is_mainnet=False,
+        ledger=block_store.BlockStore(str(tmp / "blockstore-ledger.db"), map_size=1 << 26),
         logger=types.SimpleNamespace(app_log=types.SimpleNamespace(warning=lambda m: None)))
 
 
@@ -52,46 +52,50 @@ def _node(tmp):
 def test_seed_genesis_creates_canonical_genesis(tmp_path):
     import chain_ops
     n = _node(tmp_path)
-    chain_ops.seed_genesis(n)
-    for path in (n.ledger_path, n.hyper_path):
-        con = sqlite3.connect(path)
-        rows = con.execute("SELECT block_height, address, recipient, block_hash FROM transactions").fetchall()
-        tip = con.execute("SELECT MAX(block_height) FROM transactions").fetchone()[0]
-        con.close()
-        assert tip == 1, "%s should hold only the genesis block" % path
-        h, addr, rcpt, bh = rows[0]
+    try:
+        chain_ops.seed_genesis(n)
+        assert n.ledger.tip() == 1, "the ledger should hold only the genesis block"
+        rows = n.ledger.get_block(1)
+        assert len(rows) == 1
+        h, addr, rcpt, bh = rows[0][0], rows[0][2], rows[0][3], rows[0][7]
         assert (h, addr, rcpt, bh) == (1, "genesis", GENESIS_ADDR, GENESIS_HASH)
-    assert os.path.exists(n.index_db)
+        assert n.ledger.block_hash(1) == GENESIS_HASH
+        chain_ops.seed_genesis(n)                               # idempotent
+        assert n.ledger.tip() == 1 and n.ledger.tx_count() == 1
+    finally:
+        n.ledger.close()
 
 
 def test_seed_genesis_does_not_clobber_populated_ledger(tmp_path):
     import chain_ops
     n = _node(tmp_path)
-    con = sqlite3.connect(n.ledger_path)
-    con.execute("CREATE TABLE transactions (block_height INTEGER, timestamp, address, recipient, amount, "
-                "signature, public_key, block_hash, fee, reward, operation, openfield)")
-    con.execute("INSERT INTO transactions (block_height, block_hash) VALUES (500, 'existing')")
-    con.commit(); con.close()
-    chain_ops.seed_genesis(n)                                   # must NOT wipe the populated ledger
-    con = sqlite3.connect(n.ledger_path)
-    tip = con.execute("SELECT MAX(block_height) FROM transactions").fetchone()[0]
-    con.close()
-    assert tip == 500, "seed_genesis clobbered a populated ledger"
+    try:
+        n.ledger.commit_block(500, "existing", [("500", "1500000000.00", "a", "b", "0", "sig", "pk", "existing",
+                                                 "0", "1", "0", "")])
+        chain_ops.seed_genesis(n)                               # must NOT touch the populated ledger
+        assert n.ledger.tip() == 500, "seed_genesis clobbered a populated ledger"
+        assert n.ledger.get_block(1) is None
+    finally:
+        n.ledger.close()
 
 
 def test_bootstrap_guard_seeds_instead_of_downloading(tmp_path, monkeypatch):
-    """With sync_from_genesis set, bootstrap() seeds genesis and never downloads."""
+    """With sync_from_genesis set, bootstrap() never fetches a peer snapshot (the node seeds genesis)."""
     import chain_ops
-    called = {"download": 0}
-    monkeypatch.setattr(chain_ops, "download_file",
-                        lambda *a, **k: called.__setitem__("download", called["download"] + 1))
-    n = _node(tmp_path); n.bootstrap_file = ""; n.bootstrap_url = "http://example/ledger.tar.gz"
-    chain_ops.bootstrap(n)
-    assert called["download"] == 0, "bootstrap downloaded a snapshot despite sync_from_genesis"
-    con = sqlite3.connect(n.ledger_path)
-    bh = con.execute("SELECT block_hash FROM transactions WHERE block_height=1").fetchone()[0]
-    con.close()
-    assert bh == GENESIS_HASH
+    import snapshot_p2p
+    called = {"fetch": 0}
+    monkeypatch.setattr(snapshot_p2p, "candidates", lambda node: [("127.0.0.1", 1)])
+    monkeypatch.setattr(snapshot_p2p, "fetch_db_from_peers",
+                        lambda *a, **k: called.__setitem__("fetch", called["fetch"] + 1))
+    n = _node(tmp_path)
+    try:
+        n.bootstrap_p2p = True
+        assert chain_ops.bootstrap(n) is False
+        assert called["fetch"] == 0, "bootstrap fetched a snapshot despite sync_from_genesis"
+        chain_ops.seed_genesis(n)
+        assert n.ledger.block_hash(1) == GENESIS_HASH
+    finally:
+        n.ledger.close()
 
 
 # ============================================================ END-TO-END (regnet) ====
@@ -116,9 +120,7 @@ def _start(datadir, sock_port, rest_port, extra_env):
     env["BISMUTH_REGNET_PORT"] = str(sock_port)
     env["BISMUTH_REST_API_PORT"] = str(rest_port)
     env["BISMUTH_REGNET_DB"] = os.path.join(datadir, "regmode.db")
-    env["BISMUTH_REGNET_INDEX"] = os.path.join(datadir, "index_reg.db")
     env["BISMUTH_REGNET_PEERS"] = os.path.join(datadir, "peers_reg.txt")
-    env["BISMUTH_MEMPOOL_PATH"] = os.path.join(datadir, "mempool.db")
     env.update(extra_env)
     log = open(os.path.join(datadir, "node.log"), "w")
     proc = subprocess.Popen([sys.executable, "node.py", "regnet2"], cwd=ROOT,
@@ -136,14 +138,14 @@ def _await(cond, deadline_s, poll=1.0):
 
 
 def _block_hash_at(ledger_path, height):
-    conn = sqlite3.connect("file:%s?mode=ro" % ledger_path, uri=True, timeout=20)
-    conn.text_factory = str
+    """Read a block hash from a RUNNING node's LMDB ledger (a read-only reader alongside its writer)."""
+    import block_store
+    import kvstore
+    s = block_store.BlockStore(kvstore.store_path(ledger_path, "blockstore"), readonly=True)
     try:
-        row = conn.execute("SELECT block_hash FROM transactions WHERE block_height=? LIMIT 1",
-                           (height,)).fetchone()
+        return s.block_hash(height)
     finally:
-        conn.close()
-    return row[0] if row else None
+        s.close()
 
 
 def _tail(path, n=40):

@@ -29,7 +29,7 @@ This is not a theoretical exercise. A node in this deployment recently experienc
 
 The lesson is twofold:
 
-1. **Rollbacks are a first-class attack and fragility surface.** Every reorg is a moment where the node mutates consensus-critical derived state (`difficulty()`, hyperblock indexes, balances). We must both *harden* the rollback path against self-corruption (Stage 2b below, independent of the accuser) and *detect* when a reorg is adversarial rather than an honest partition heal.
+1. **Rollbacks are a first-class attack and fragility surface.** Every reorg is a moment where the node mutates consensus-critical derived state (`difficulty()`, the ledger's indexes, balances). We must both *harden* the rollback path against self-corruption (Stage 2b below, independent of the accuser) and *detect* when a reorg is adversarial rather than an honest partition heal.
 2. **We have no attribution today.** When a competing chain forces a rollback, the node cannot tell "honest partition heal" from "attacker out-mining a shadow fork," and it cannot attribute a same-height double-block to the miner that produced it. The accuser adds that attribution where — and only where — it is cryptographically sound.
 
 ### 1.2 Why an accuser at all, in a no-stake PoW chain
@@ -289,7 +289,7 @@ On observing a same-miner same-height two-distinct-block event (a *heuristic*, n
 Activates only when all three exist: (a) the §5.2 coinbase-signature-binds-block-hash consensus change, (b) the `staking.py` slashable bond, (c) `node.last_block >= node.fork_height`.
 
 - **Carrier:** a normal tx with `operation == "accuser:equivocation"` and `openfield` = the serialized `EquivocationProof`. Permissionless.
-- **Validation** (`digest_tx.py` / `digest.py`, gated on `node.fork_height`): re-run `verify_equivocation` (now genuinely binding); confirm the offense height is within the slashing window (above the last checkpoint, within `max_slashing_period`); confirm **not already accused**, deduped by `(miner_address, height)` in an **LMDB side-index** (per the no-SQLite storage directive).
+- **Validation** (`digest_tx.py` / `digest.py`, gated on `node.fork_height`): re-run `verify_equivocation` (now genuinely binding); confirm the offense height is within the slashing window (above the last checkpoint, within `max_slashing_period`); confirm **not already accused**, deduped by `(miner_address, height)` in an **LMDB side-index** (the node's only storage engine).
 - **Slashing effect** at `apply_rewards()` (`digest.py`): forfeit a protocol-constant fraction of the equivocator's staked bond.
   > **[REVIEW: H3] — HIGH.** The original "redirect part to the accuser, burn the rest" enables (a) **self-denounce farming**: a miner about to be slashed self-accuses via sockpuppet to recover the reward fraction `R` (pure upside against a profitable double-spend), and (b) **denunciation front-running / MEV**: anyone watching the mempool re-submits a pending accusation with higher fee to steal `R`, which also *delays* honest reporting. **Resulting changes:**
   > - **Pay the reward to the *block producer who includes* the proof, not the tx sender** — neutralizes sender front-running (miners capture it; that is acceptable and even desirable for inclusion incentive).

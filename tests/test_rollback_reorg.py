@@ -1,35 +1,25 @@
 """
 End-to-end reorg test.
 
-A real chain rollback must roll back the ledger AND every integrated auxiliary store (currently the
-LMDB block store) **in sync**, through the single `chain_ops._rollback_aux_stores` path. Driven by the
-regnet-only `regtest_rollback` command (a rollback command must never be reachable on a live chain).
-
-This closes the gap the live outage exposed: nothing previously drove a node through a reorg and
-asserted all stores stayed consistent.
+A real chain rollback must roll back the LMDB ledger — blocks AND every index inside it (hash index,
+difficulty, balances, signatures) — in ONE transaction (``chain_ops.rollback``). Driven by the regnet-only
+`regtest_rollback` command (a rollback command must never be reachable on a live chain).
 
 Run with: python3 -m pytest tests/test_rollback_reorg.py -v
 """
-import sqlite3
 from time import sleep
-
-import pytest
-
-pytest.importorskip("lmdb")
 
 import block_store
 
 STORE = "static/blockstore-regmode.db"
-LEDGER = "file:static/regmode.db?mode=ro"
 
 
 def _ledger_tip():
-    conn = sqlite3.connect(LEDGER, uri=True, timeout=20)
-    conn.text_factory = str
+    bs = block_store.BlockStore(STORE, readonly=True)
     try:
-        return conn.execute("SELECT max(block_height) FROM transactions WHERE block_height>0").fetchone()[0]
+        return bs.tip()
     finally:
-        conn.close()
+        bs.close()
 
 
 def test_reorg_rolls_back_ledger_and_stores_in_sync(client):
@@ -44,18 +34,12 @@ def test_reorg_rolls_back_ledger_and_stores_in_sync(client):
 
     bs = block_store.BlockStore(STORE, readonly=True)
     try:
-        assert bs.tip() == target - 1                  # block store rolled back IN SYNC with the ledger
-        conn = sqlite3.connect(LEDGER, uri=True, timeout=20)
-        conn.text_factory = str
-        try:
-            lhash = conn.execute("SELECT block_hash FROM transactions WHERE block_height=? AND reward!=0",
-                                 (target - 1,)).fetchone()[0]
-            assert bs.block_hash(target - 1) == lhash  # store still matches the ledger at the new tip
-            assert bs.get_block(target) is None        # rolled-off blocks gone from the store
-            assert conn.execute("SELECT count(*) FROM transactions WHERE block_height>=?",
-                                (target,)).fetchone()[0] == 0   # ...and from the ledger
-        finally:
-            conn.close()
+        assert bs.tip() == target - 1                  # every index rolled back with the blocks
+        assert bs.last_difficulty()[0] == target - 1   # difficulty rows of the rolled-off blocks are gone
+        lhash = bs.block_hash(target - 1)
+        assert lhash and bs.height_by_hash(lhash) == target - 1
+        assert bs.get_block(target) is None            # rolled-off blocks gone
+        assert list(bs.blocks_in_range(target, target + 10)) == []
     finally:
         bs.close()
 

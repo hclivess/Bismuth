@@ -165,6 +165,28 @@ if [[ ! -f config.txt ]]; then
   fi
 fi
 
+# ---- 4b. existing ledger: schema check ---------------------------------------
+# The ledger is one LMDB environment (block_store.SCHEMA). A store from before the LMDB-only ledger must be
+# upgraded once (scripts/upgrade_ledger.py) with the node stopped; the node itself refuses an old schema.
+LEDGER_DIR="static/blockstore-ledger.db"
+[[ -n "$NODE_ARGS" ]] && LEDGER_DIR="static/blockstore-regmode.db"
+if [[ -f "$LEDGER_DIR/data.mdb" ]]; then
+  SCHEMA_STATE="$("$PYTHON" - "$LEDGER_DIR" <<'PYSCHEMA' 2>/dev/null || echo "unreadable"
+import sys
+import block_store
+s = block_store.BlockStore(sys.argv[1], readonly=True)
+print("ok" if s.tip() is None or s.schema() == block_store.SCHEMA else "old schema %s" % s.schema())
+PYSCHEMA
+)"
+  case "$SCHEMA_STATE" in
+    ok) log "ledger $LEDGER_DIR: current schema" ;;
+    *)  warn "ledger $LEDGER_DIR: $SCHEMA_STATE — upgrade it before starting the node:"
+        warn "  systemctl stop $SERVICE_NAME; $PYTHON scripts/upgrade_ledger.py $LEDGER_DIR --anchor http://<synced REST node>:5659" ;;
+  esac
+else
+  log "no ledger yet — the node bootstraps one on first start (peer snapshot, else sync from genesis)"
+fi
+
 # ---- 5. systemd unit -------------------------------------------------------
 UNIT="/etc/systemd/system/${SERVICE_NAME}.service"
 log "writing $UNIT"
@@ -185,11 +207,8 @@ ${IGNORE_CUSTOM}
 ExecStart=${PYTHON} node.py ${NODE_ARGS}
 Restart=on-failure
 RestartSec=10
-# 78 = chain_ops.LEDGER_LOST_EXIT_CODE: SQLite ledger gone but the block store holds the chain -> the node
-# refuses to auto-bootstrap; restarting would only repeat that, so don't.
-RestartPreventExitStatus=78
 # Graceful shutdown: SIGTERM -> node._graceful_stop finishes the in-flight block + drains the db lock,
-# so ledger.db/hyper.db stay consistent (no cross-integrity rollback on the next boot). Give it room.
+# so the LMDB ledger commit completes cleanly. Give it room.
 KillSignal=SIGTERM
 TimeoutStopSec=180
 StandardOutput=journal

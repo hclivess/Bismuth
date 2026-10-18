@@ -60,9 +60,7 @@ def _start_node(datadir, sock_port, rest_port, extra_env):
     env["BISMUTH_REGNET_PORT"] = str(sock_port)
     env["BISMUTH_REST_API_PORT"] = str(rest_port)
     env["BISMUTH_REGNET_DB"] = os.path.join(datadir, "regmode.db")
-    env["BISMUTH_REGNET_INDEX"] = os.path.join(datadir, "index_reg.db")
     env["BISMUTH_REGNET_PEERS"] = os.path.join(datadir, "peers_reg.txt")
-    env["BISMUTH_MEMPOOL_PATH"] = os.path.join(datadir, "mempool.db")
     env.update(extra_env)
     log = open(os.path.join(datadir, "node.log"), "w")
     proc = subprocess.Popen([sys.executable, "node.py", "regnet2"], cwd=ROOT,

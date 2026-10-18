@@ -59,7 +59,7 @@ ALL_CHECKS = frozenset({SIGNATURE, OVERSPEND, DUPLICATE, POW, TIMESTAMP})
 #
 # Populate from the confirmed coin-rescue / hard-fork-edge heights. Use
 # tools/find_validation_exceptions.py against a ledger COPY or a peer's REST API
-# to enumerate candidates — NEVER scan the live static/ledger.db. Example shape:
+# to enumerate candidates — NEVER scan the live ledger env (static/blockstore-ledger.db). Example shape:
 #
 #   700000: {"checks": {OVERSPEND}, "reason": "hard-fork @700000 reward edge",
 #            "signatures": None},

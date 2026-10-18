@@ -5,12 +5,12 @@ consensus boundary (bismuth_serialize.block_hash) and compare to the stored hash
 Two modes:
   * as-stored          -> chain-integrity check (the serialization reproduces the stored hashes);
   * integer round-trip -> recompute with each amount passed through amounts.to_units/from_units,
-                          proving the planned integer-amount storage migration (doc/16 phase 2) does
+                          proving the planned integer-amount storage migration (doc/05) does
                           NOT change any block hash. This is the safety gate for that migration:
                           run it before and after, and require zero mismatches.
 
-Run on a ledger file:
-    python3 replay_verify.py [static/ledger.db]
+Run on a ledger (LMDB store directory, optional height range):
+    python3 replay_verify.py [static/blockstore-ledger.db] [start] [end]
 Exit code is non-zero if any block hash does not reproduce.
 """
 import bismuth_serialize
@@ -71,16 +71,16 @@ def verify_blocks(rows, integer_roundtrip=False, amounts_are_units=False, fork_h
 
 
 def _main():
-    import sqlite3
     import sys
-    path = sys.argv[1] if len(sys.argv) > 1 else "static/ledger.db"
-    conn = sqlite3.connect(path)
-    cur = conn.cursor()
-    cur.execute("SELECT block_height,timestamp,address,recipient,amount,signature,public_key,"
-                "block_hash,fee,reward,operation,openfield FROM transactions "
-                "WHERE block_height > 0 ORDER BY block_height ASC, rowid ASC")
-    rows = cur.fetchall()
-    conn.close()
+    import block_store
+    import kvstore
+    path = sys.argv[1] if len(sys.argv) > 1 else kvstore.store_path("static/ledger.db", "blockstore")
+    start = int(sys.argv[2]) if len(sys.argv) > 2 else 1
+    end = int(sys.argv[3]) if len(sys.argv) > 3 else None
+    store = block_store.BlockStore(path, readonly=True)
+    end = store.tip() if end is None else end
+    rows = [r for _h, block in store.blocks_in_range(start, end) for r in block]
+    store.close()
     verifiable = max(0, len({r[H] for r in rows}) - 1)
     ok = True
     for label, mode in (("as-stored", False), ("integer-roundtrip", True)):

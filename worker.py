@@ -137,7 +137,7 @@ def worker(host, port, node):
         node.logger.app_log.info(f"Current active pool: {node.peers.connection_pool}")
 
     if not node.peers.is_banned(host) and node.peers.version_allowed(host, node.version_allow) and not node.IS_STOPPING:
-        db_handler_instance = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram, node.ledger_ram_file, logger)
+        db_handler_instance = dbhandler.DbHandler.for_node(node)
 
     while not node.peers.is_banned(host) and node.peers.version_allowed(host, node.version_allow) and not node.IS_STOPPING:
         try:
@@ -192,10 +192,7 @@ def worker(host, port, node):
 
                         if not client_block:
                             node.logger.app_log.warning(f"Outbound: Block {data[:8]} of {peer_ip} not found")
-                            if node.full_ledger:
-                                send(s, "blocknf")
-                            else:
-                                send(s, "blocknfhb")
+                            send(s, "blocknf")
                             send(s, data)
 
                             if node.peers.warning(s, peer_ip, "Forked", 1):
@@ -346,7 +343,7 @@ def worker(host, port, node):
                     # like the inbound handler (node.py). size_bypass is only for trusted local
                     # submissions (node.py local paths, rest_api). Passing True here let any peer flood
                     # past the fee-tiered congestion control.
-                    node.logger.app_log.info(mp.MEMPOOL.merge(segments, peer_ip, db_handler_instance.c, False))
+                    node.logger.app_log.info(mp.MEMPOOL.merge(segments, peer_ip, db_handler_instance, False))
 
                     # receive theirs
                     # Tell the mempool we just send our pool to a peer

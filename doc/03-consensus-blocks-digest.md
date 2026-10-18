@@ -2,7 +2,8 @@
 
 The consensus core is `digest.py`. `digest_block(node, data, sdef, peer_ip, db_handler)` accepts a
 list of blocks (each a list of raw transaction tuples) and validates+commits them atomically.
-`fork.py` holds hardfork heights; `genesis.py` bootstraps the chain. This document is the
+`fork.py` holds hardfork heights; `ledger_genesis.py` holds the genesis block and the fixed mainnet
+balance allocations. This document is the
 authoritative reference for validation rules — do not change behavior here without the
 characterization tests (see [14](14-known-issues-and-improvements.md)) passing identically.
 
@@ -36,8 +37,8 @@ characterization tests (see [14](14-known-issues-and-improvements.md)) passing i
       replay-checked, and its `operation`/`openfield` are optional free-form miner data.**
    4. **Block timestamp ordering** — coinbase timestamp must be strictly greater than
       `node.last_block_timestamp`.
-   5. **Duplicate-signature check** — no signature may already exist in the on-disk or RAM ledger,
-      and there are no intra-block duplicates. (Post-fork the coinbase's `signature` slot holds the PoW
+   5. **Duplicate-signature check** — no signature may already exist in the ledger (the `sig`
+      index, `BlockStore.signature_exists`), and there are no intra-block duplicates. (Post-fork the coinbase's `signature` slot holds the PoW
       nonce, not a signature, and is exempt from this replay check — see [doc/41](41-hf2-coinbase-free-fields.md).)
    6. **Difficulty** — `difficulty(node, db_handler)` returns the 8-tuple; stored in `node.difficulty`.
    7. **Block hash** — `sha224(str(transaction_list_converted) + last_block_hash)`.
@@ -51,7 +52,8 @@ characterization tests (see [14](14-known-issues-and-improvements.md)) passing i
    10. **Balances & fees** — for every non-coinbase tx: enforce the per-block tx-age window, sum the
        sender's debits+fees across the block, compute the fee, and require
        `balance >= amount` and `balance - block_debit - block_fees >= 0`
-       (via `essentials.ledger_balance3`, cached per address). Remove each confirmed signature from
+       (the sender's balance read O(1) from the ledger's `bal` index, `BlockStore.balance`, cached per
+       address). Remove each confirmed signature from
        the mempool.
    11. **Update tip** — set `node.last_block` / `node.last_block_hash` (then write).
    12. **Plugin hooks** — fire `block` / `fullblock`.
@@ -63,16 +65,16 @@ characterization tests (see [14](14-known-issues-and-improvements.md)) passing i
        - **Shielded value** (`digest.py` ~588): `shieldedv1.validate_block(...)` consensus-validates the
          block's `shield:` txs (key-image double-spend, value conservation, ownership proofs); failure
          raises. Parsed ops are stashed and applied to the LMDB sidecar only after `to_db` succeeds.
-   14. **Write** — `db_handler.to_db(block, diff_save, block_transactions)` (one batched commit).
-   15. **Mirror hash** — `blake2b(latest-block rows, digest_size=20)`.
-   16. **Dev/HN rewards** — only when `height % 10 == 0` and `height < 4,380,000`:
-       `db_handler.dev_reward(...)` and `db_handler.hn_reward(...)` (negative "mirror" block heights).
-   17. **Token update** — if the block carried `token:issue`/`token:transfer`, run
-       `tokens.tokens_update()`.
+   14. **Commit** — `db_handler.commit_block(height, block_hash, rows, diff_save)`: the rows, the
+       difficulty record and every ledger index (signature, address history, balances, txid, pubkey
+       registry) in ONE LMDB write transaction (`BlockStore.commit_block`).
+   15. **Plugin state** — the `tokens_aliases` plugin projects `token:`/`alias=` ops into its own LMDB
+       index from the block hook ([27](27-plugins.md)).
 4. **Checkpoint** — `checkpoint_set(node)` advances `node.checkpoint` (the rollback floor).
-5. **Cleanup (`finally`)** — `db_handler.db_to_drive()` flushes; release `db_lock`; fire `digestblock`.
+5. **Cleanup (`finally`)** — release `db_lock`; fire `digestblock`.
 
-On any exception, the chain tip is restored from the database, the peer earns a warning (and is
+On any exception, nothing of the failing block is in the ledger (its commit is all-or-nothing), the
+chain tip is restored from the ledger, the peer earns a warning (and is
 banned past threshold), and `ValueError("Chain: digestion aborted")` propagates.
 
 ## Transaction validation rules
@@ -112,12 +114,14 @@ The coinbase `reward` column stores `mining_reward + sum(fees in block)` — all
 `base` is the static `BASE_FEE = 0.01` pre-fork (and whenever no `base_fee` is passed). **Post-fork**
 the caller passes the **dynamic base fee** (`fee_dynamics.base_fee`): `0.01 × clamp(avg(recent block
 weights)/TARGET_WEIGHT, 0.5, 10)`. The congestion signal is per-block **WEIGHT/`TARGET_WEIGHT` (30)**
-read from the LMDB block store (`block_store.recent_block_weights`) — NOT a SQLite tx-count. Post-fork
+read from the ledger (`block_store.recent_block_weights`). Post-fork
 also adds two execution surcharges (only when `vm_surcharge=True`): **+0.01** (`fee_dynamics.VM_SURCHARGE`)
 for `operation` starting `vm:`, and **+1** for `operation` starting `shield:` (doc/22 EC-validation cost).
 
-**Dev / HN rewards**: applied every 10th block until height 4,380,000, written as negative-height
-"mirror" rows by `db_handler.dev_reward` / `hn_reward`.
+**Dev / HN rewards**: the Development Reward and Hypernode Payouts were minted every 10th block until
+height 4,380,000 and have concluded. Their totals are fixed balance allocations carried by the mainnet
+ledger (`ledger_genesis.MAINNET_ALLOCATIONS`, stored in the ledger's meta `alloc` and folded into the
+balance reads) — no block rows.
 
 ## Hardforks (`fork.py`)
 
@@ -154,10 +158,11 @@ and one activation height — never add a second fork knob.
 `regnet.REGNET_DIFF` tuple immediately when `node.is_regnet` (`difficulty.py:75`), so the LWMA/legacy
 controllers are bypassed entirely.
 
-## Ledger schema (created by `genesis.py`)
+## Ledger rows
 
-`transactions(block_height INTEGER, timestamp, address, recipient, amount, signature, public_key,
-block_hash, fee, reward, operation, openfield)` — 12 columns. Amounts/timestamps are stored as text.
-Negative `block_height` rows are dev/HN "mirror" reward rows; `address='Hyperblock'` rows are
-balance-consolidation rows produced by hyperblock pruning. A `misc(block_height, difficulty)` table
-(created by the DB layer) stores per-block difficulty. See [05](05-database-and-ledger.md).
+A transaction is the 12-field row `(block_height, timestamp, address, recipient, amount, signature,
+public_key, block_hash, fee, reward, operation, openfield)`, stored per block in the LMDB ledger's
+`blocks` sub-db and returned with its column types restored (`block_store.typed_row`: height integer,
+timestamp/amount/fee/reward numeric, the rest text). Every height is a real block (≥ 1, genesis from
+`ledger_genesis`); the per-block difficulty lives in the `diff` sub-db. See
+[05](05-database-and-ledger.md).

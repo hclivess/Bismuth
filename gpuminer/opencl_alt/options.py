@@ -39,14 +39,6 @@ class Get:
                 self.purge_conf = int(line.lstrip('purge='))
             if "pause=" in line:
                 self.pause_conf = line.lstrip('pause=')
-            if "ledger_path=" in line:
-                self.ledger_path_conf = line.lstrip('ledger_path=')
-            if "hyper_path=" in line:
-                self.hyper_path_conf = line.lstrip('hyper_path=')
-            if "hyper_recompress=" in line:
-                self.hyper_recompress_conf = int(line.lstrip('hyper_recompress='))
-            if "full_ledger=" in line:
-                self.full_ledger_conf = int(line.lstrip('full_ledger='))
             if "ban_threshold=" in line:
                 self.ban_threshold = int(line.lstrip('ban_threshold='))
             if "tor=" in line:
@@ -67,8 +59,6 @@ class Get:
                 self.pool_conf = int(line.lstrip('mining_pool='))
             if "pool_address=" in line:
                 self.pool_address_conf = line.lstrip('pool_address=')
-            if "ram=" in line:
-                self.ram_conf = int(line.lstrip('ram='))
             if "opencl_hash_count=" in line:
                 self.opencl_hash_count_conf = int(line.lstrip('opencl_hash_count='))
             if "opencl_timeout=" in line:

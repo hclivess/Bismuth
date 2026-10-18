@@ -127,10 +127,11 @@ code change via an external JSON file:
 
 ## Discovering the heights
 
-> **Never scan the live `static/ledger.db`** — it is the running node's 23 GB
-> production ledger and a full scan I/O-starves it. Work on a copy:
-> `sqlite3 static/ledger.db ".backup /tmp/ledger_copy.db"` (consistent while the
-> node runs), or point the tools at a peer.
+> **Never scan the live ledger env (`static/blockstore-ledger.db`)** — it is the
+> running node's production ledger and a full scan I/O-starves it. Work on a copy
+> (an LMDB MVCC snapshot, consistent while the node runs):
+> `python3 -c "import block_store as b; b.BlockStore('static/blockstore-ledger.db', readonly=True).store.copy_to('/tmp/ledger_copy')"`,
+> or point the tools at a peer.
 
 Two methods, complementary:
 
@@ -142,8 +143,8 @@ Two methods, complementary:
    failures. It **refuses** to open the live prod ledger.
 
    ```
-   sqlite3 static/ledger.db ".backup /tmp/ledger_copy.db"
-   python3 tools/find_validation_exceptions.py --ledger /tmp/ledger_copy.db \
+   python3 -c "import block_store as b; b.BlockStore('static/blockstore-ledger.db', readonly=True).store.copy_to('/tmp/ledger_copy')"
+   python3 tools/find_validation_exceptions.py --ledger /tmp/ledger_copy \
        --check-signatures --out exceptions.json
    ```
 
@@ -165,8 +166,10 @@ checkpoint, not a big registry: **every from-genesis blocker is in the early
 chain, below the 4,000,000 trust horizon.**
 
 * **Overspend — none.** Exactly two addresses have a negative net balance, and
-  both are the synthetic *placeholder senders* on the mirror-reward rows
-  (`"Development Reward"`, `"Hypernode Payouts"`), not real spendable addresses.
+  both were the synthetic *placeholder senders* of the old locally-minted reward
+  rows (`"Development Reward"`, `"Hypernode Payouts"`), not real spendable
+  addresses. Those rows no longer exist: their totals are fixed balance
+  allocations (`ledger_genesis.MAINNET_ALLOCATIONS`, doc/05).
   No real transaction ever overspends; a faithful replay never trips it.
 * **Duplicate — one.** Height **708335** re-includes 10 transactions already in
   708334 (a reorg artifact at the ~700k hard fork). Below the horizon → covered

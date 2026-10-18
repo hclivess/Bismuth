@@ -1,6 +1,6 @@
 """
 Canonical conversion between Bismuth's legacy decimal-string amounts and integer atomic units
-(1 BIS = 100_000_000 units, i.e. 8 decimals). Foundation for the storage modernization (doc/16, phase 2).
+(1 BIS = 100_000_000 units, i.e. 8 decimals). Foundation for the storage modernization (doc/05).
 
 Consensus serialization (transaction signing / block hashing) stays on the legacy ``'%.8f'`` string
 form, frozen in ``bismuth_serialize.py``. This module is the boundary the *storage* layer will use to
@@ -16,7 +16,7 @@ DECIMALS = 8
 SATOSHIS_PER_BIS = 10 ** DECIMALS  # 100_000_000
 
 # Set once at node startup from config.ledger_integer_amounts. When True, the ledger stores
-# amount/fee/reward as integer atomic units (doc/16 phase 2 cutover); default False = legacy decimals.
+# amount/fee/reward as integer atomic units (doc/05); default False = legacy decimals.
 LEDGER_INTEGER = False
 
 

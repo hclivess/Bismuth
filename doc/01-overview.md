@@ -16,15 +16,15 @@ Distinguishing design choices:
 - **Transaction id (`txid`).** *Pre-fork* the txid is the first 56 chars of the signature. *Post-fork*
   the canonical txid is a **content hash** — `blake2b-256` over the frozen 6-field buffer
   (`timestamp,address,recipient,amount,operation,openfield`, the same pre-image the signature is
-  computed on), rendered as 64 lowercase hex chars. It is computed **on read**
-  (`essentials.format_raw_tx`, amount via `amounts.ledger_value`, so it is storage-mode agnostic) —
-  there is **no `txid` DB column and no migration**. Lookup is **shape-dispatched**: a 64-char
-  lowercase-hex query resolves the content txid by scanning post-fork rows, while anything else falls
-  back to the legacy signature-prefix `LIKE` match. Pre-fork rows are byte-identical and keep their
-  `signature[:56]` ids.
-- **SQLite everywhere.** The ledger, the pruned "hyperblock" copy, the secondary index, and the
-  mempool are all SQLite databases. Amounts are stored as text and manipulated as `Decimal`
-  quantized to 8 places (see [05](05-database-and-ledger.md)).
+  computed on), rendered as 64 lowercase hex chars (`essentials.format_raw_tx` /
+  `block_store.txid_of`, amount via `amounts.ledger_value`, so it is storage-mode agnostic). The ledger
+  indexes it in its `txid` sub-db at commit. Lookup is **shape-dispatched**: a 64-char lowercase-hex
+  query resolves the content txid through that index, anything else goes through the `sig`
+  (signature[:56]) index. Pre-fork rows are byte-identical and keep their `signature[:56]` ids.
+- **One LMDB ledger.** The whole chain and every index the node reads (difficulty, signatures, address
+  history, balances, txids, pubkey registry) live in one LMDB environment; each block commits — and
+  each reorg rolls back — in a single transaction. The mempool is in memory (see
+  [05](05-database-and-ledger.md), [07](07-mempool.md)).
 - **Memory-hard PoW ("Heavy3")** over a deterministic 1 GiB lookup file, with a PID-style difficulty
   controller targeting a 60-second block time (see [04](04-pow-and-difficulty.md)).
 - **RSA-4096 signatures** by default, abstracted through `polysign` (which also offers a menu of
@@ -40,11 +40,14 @@ Distinguishing design choices:
 
 ## Networks
 
-| Network | Purpose | Port | Ledger file | Notes |
+| Network | Purpose | Port | `ledger_path` → LMDB ledger | Notes |
 |---|---|---|---|---|
-| **mainnet** | production | 5658 | `static/ledger.db` | protocol `mainnet0023` |
-| **testnet** | public test chain | 2829 | `static/ledger_test.db` | |
-| **regnet** | local regression testing | 3030 | `static/regmode.db` | fixed difficulty, blocks minted on demand via `regtest_generate` |
+| **mainnet** | production | 5658 | `static/ledger.db` → `static/blockstore-ledger.db` | protocol `mainnet0023` |
+| **testnet** | public test chain | 2829 | `static/ledger_test.db` → `static/blockstore-ledger_test.db` | |
+| **regnet** | local regression testing | 3030 | `static/regmode.db` → `static/blockstore-regmode.db` | fixed difficulty, blocks minted on demand via `regtest_generate` |
+
+`ledger_path` names the ledger; the LMDB environment itself is `blockstore-<ledger name>` beside it
+(`kvstore.store_path`), so every network has its own store.
 
 The genesis/foundation address is `4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed`.
 
@@ -58,7 +61,7 @@ The genesis/foundation address is `4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7
    exchanges (API)       │        │                         │     ├ mining_heavy3 (PoW)     │    validate, PoW,
                          │        │                         │     ├ difficulty (retarget)   │    rewards, write
                          │        │                         │     ├ polysign (signatures)   │
-                         │        │                         │     └ DbHandler (SQLite x4)   │
+                         │        │                         │     └ DbHandler (LMDB ledger) │
                          │        ▼                         ▼                              │
                          │  ConnectionManager ──► Peers.client_loop ──► worker() threads ──┼──► outbound sync
                          │                                  │                              │    to peers
@@ -70,7 +73,7 @@ Data flow for a new block:
 1. A miner (or peer) sends a `block` (or `blocksfnd` during sync).
 2. The handler calls `digest_block()` which takes `node.db_lock`, validates every transaction
    (signatures, balances, double-spends), verifies the PoW against the current difficulty, computes
-   the reward, writes the block to SQLite, removes confirmed txs from the mempool, and updates the
+   the reward, commits the block to the LMDB ledger in one transaction, removes confirmed txs from the mempool, and updates the
    in-memory chain tip.
 3. Outbound `worker()` threads relay the new tip to peers; consensus is the most-common block height
    among connected peers.
@@ -82,14 +85,14 @@ Data flow for a new block:
 | `node.py` | the node (entry point) |
 | `digest.py` | block & transaction validation / commit pipeline |
 | `mining_heavy3.py`, `mining.py`, `difficulty.py`, `hmac_drbg.py` | PoW + difficulty |
-| `dbhandler.py`, `db_hashes.py`, `ledger_queries.py`, `quantizer.py` | storage layer |
-| `mempool.py` | unconfirmed-transaction pool |
+| `block_store.py`, `dbhandler.py`, `kvstore.py`, `db_hashes.py`, `quantizer.py`, `ledger_genesis.py` | storage layer (LMDB ledger, its facade, genesis + allocations) |
+| `mempool.py` | unconfirmed-transaction pool (in memory) |
 | `connections.py`, `connectionmanager.py`, `peershandler.py`, `worker.py`, `rpcconnections.py` | networking |
 | `apihandler.py`, `commands.py` | API surface + CLI |
 | `essentials.py`, `simplecrypt.py`, `wallet_keys.py`, `polysign/` | crypto / wallets / signatures |
-| `tokensv2.py`, `aliases.py`, `aliasesv2.py`, `staking.py`, `plugins.py`, `regnet.py` | feature layers |
+| `plugins/tokens_aliases/`, `token_index.py`, `plugins.py`, `plugin_base.py`, `regnet.py` | feature layers |
 | `options.py`, `config.txt`, `mandatory_message.json`, `peers*.txt` | configuration / data |
-| `fork.py`, `genesis.py` | hardfork rules / chain bootstrap |
+| `fork.py`, `ledger_genesis.py`, `chain_ops.py`, `snapshot_p2p.py` | hardfork rules / chain bootstrap |
 | `libs/` | small data-holder classes (`Node`, `Logger`, `Keys`, `Client`) |
 | `tests/` | pytest suite + the dependency-light `regnet_smoke.py` |
 | `static/`, `graphics/`, `auto-install/` | tooling, assets, installer |

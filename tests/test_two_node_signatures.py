@@ -21,15 +21,12 @@ import hashlib
 import json
 import os
 import socket
-import sqlite3
 import subprocess
 import sys
 import time
 import urllib.request
 
 import pytest
-
-pytest.importorskip("lmdb")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -60,9 +57,7 @@ def _start_node(datadir, sock_port, rest_port, extra_env):
     env.update({
         "BISMUTH_REGNET_PORT": str(sock_port), "BISMUTH_REST_API_PORT": str(rest_port),
         "BISMUTH_REGNET_DB": os.path.join(datadir, "regmode.db"),
-        "BISMUTH_REGNET_INDEX": os.path.join(datadir, "index_reg.db"),
         "BISMUTH_REGNET_PEERS": os.path.join(datadir, "peers_reg.txt"),
-        "BISMUTH_MEMPOOL_PATH": os.path.join(datadir, "mempool.db"),
     })
     env.update(extra_env)
     log = open(os.path.join(datadir, "node.log"), "w")
@@ -81,14 +76,15 @@ def _await(cond, deadline_s, poll=1.0):
 
 
 def _block_hashes(ledger_path):
-    conn = sqlite3.connect("file:%s?mode=ro" % ledger_path, uri=True, timeout=20)
-    conn.text_factory = str
+    """{height: block_hash} for every block in a node's LMDB ledger (a read-only reader beside its writer)."""
+    import block_store
+    import kvstore
+    bs = block_store.BlockStore(kvstore.store_path(ledger_path, "blockstore"), readonly=True)
     try:
-        rows = conn.execute("SELECT block_height, block_hash FROM transactions "
-                            "WHERE block_height > 0 GROUP BY block_height ORDER BY block_height").fetchall()
+        tip = bs.tip() or 0
+        return {h: bs.block_hash(h) for h in range(1, tip + 1) if bs.block_hash(h) is not None}
     finally:
-        conn.close()
-    return {int(h): bh for (h, bh) in rows}
+        bs.close()
 
 
 def _seed(tag):

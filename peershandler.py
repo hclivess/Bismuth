@@ -15,7 +15,7 @@ import regnet
 # recombined below; this module keeps the __slots__ + __init__ + the net-type helpers and the
 # client_loop maintenance orchestrator.
 from peers_storage import PeersStorageMixin
-from peers_pool import PeersPoolMixin
+from peers_pool import PeersPoolMixin, own_addresses
 from peers_consensus import PeersConsensusMixin
 from peers_access import PeersAccessMixin
 from peers_reputation import PeersReputationMixin
@@ -216,7 +216,7 @@ class Peers(PeersStorageMixin, PeersPoolMixin, PeersConsensusMixin, PeersAccessM
         instantly, no probe (the connection handler must not block) — and the maintenance loop later probes
         it on the default port via promote_inbound_candidates(). Guarded: skip ourselves, banned, and peers
         we already know; bounded by INBOUND_CANDIDATES_MAX so an inbound flood can't grow it without limit."""
-        if not peer_ip or peer_ip in ("127.0.0.1", "localhost", getattr(self.config, "node_ip", None)):
+        if not peer_ip or peer_ip == getattr(self.config, "node_ip", None) or peer_ip in own_addresses():
             return
         with self.peers_lock:
             if (peer_ip in self.peer_dict or peer_ip in self.banlist

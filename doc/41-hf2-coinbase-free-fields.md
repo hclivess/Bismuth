@@ -122,7 +122,7 @@ trailing TLV `ATTEST_MARKER ‖ keyref ‖ sig` in the coinbase `openfield`. `tx
 This is what makes [doc/31](31-accuser.md)'s equivocation proof non-forgeable post-fork: the coinbase
 has no signature to bind (this doc removed it), so the binding admission moves to this separate,
 optional, key-attributable attestation — which exists *because* doc/41 freed the openfield. Unstaked
-PoW miners attach nothing. (Design only; gated on hf2 + `staking.py`, neither active yet.)
+PoW miners attach nothing. (Design only; gated on hf2 + a staking module, neither active yet.)
 
 ## Safety / invariants
 

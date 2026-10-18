@@ -97,16 +97,15 @@ the static `0.01`. Once per block (`digest.py:483-500`) `node.base_fee` is set t
 `fee_dynamics.base_fee(BASE_FEE, recent_loads, target=TARGET_WEIGHT)` (`fee_dynamics.py:39`): a
 window-averaged (`WINDOW=20`), clamped (`[MIN_MULT=0.5, MAX_MULT=10]×` the static fee) multiple of
 `0.01` that scales with recent **block WEIGHT** — `tx count + openfield-bytes // W_UNIT` (a
-gas/vbyte-style measure), **not** tx count alone. The weight window is read from the **LMDB block
-store** (`block_store.recent_block_weights`, `block_store.py:148`), **never SQLite** — there is no
-SQLite on any post-fork path. `digest` passes this `base_fee` (and `vm_surcharge=node.fee_post_fork`)
+gas/vbyte-style measure), **not** tx count alone. The weight window is read from the **LMDB
+ledger** (`block_store.recent_block_weights`). `digest` passes this `base_fee` (and `vm_surcharge=node.fee_post_fork`)
 into every `fee_calculate` call (`digest.py:207-209, 248-250`). With `vm_surcharge` on, `vm:` txs add
 `fee_dynamics.VM_SURCHARGE = 0.01` (gas). The `shield:` surcharge was **removed** when shielded was
 decoupled from hf2 — `shield:` txs now pay the **ordinary fee** (the +1 EC-heavy surcharge returns
 only if shielded is later scheduled, gated on `shielded_fork_height`) — `essentials.py:280-286`. Wallets read the live minimum from `/api/fee`
 (`base_fee`, plus `static_base_fee`, `post_fork`, `vm_surcharge`, `target_weight`, `window`, the mult
 clamps). The formula is a pure, deterministic function of the recent chain (no saved fee state across
-restarts), and the store is rolled back with the chain so the window is always canonical.
+restarts), and the ledger is rolled back with the chain so the window is always canonical.
 
 ## `simplecrypt.py`
 
@@ -115,20 +114,13 @@ iterations in the latest format), HMAC-SHA256 integrity, 32-byte salt. Wire form
 `[4-byte header][32-byte salt][ciphertext][32-byte HMAC]`. `encrypt(password, data)` /
 `decrypt(password, data)` are the API; used only by `keys_unlock`.
 
-## Aliases (`aliases.py` v1 / `aliasesv2.py` v2)
+## Aliases (the `tokens_aliases` plugin)
 
-Human-readable names indexed into `index.db`'s `aliases(block_height, address, alias)` table,
-first-come-first-served.
-
-| | v1 (`aliases.py`, active) | v2 (`aliasesv2.py`) |
-|---|---|---|
-| trigger | `openfield LIKE 'alias=%'` | `operation = 'alias:register'` |
-| alias value | openfield with `alias=` stripped | the openfield itself |
-| coinbase filter | none | `reward = 0` |
-
-The active version is selected by a comment toggle at the top of `node.py` (`import aliases` vs
-`import aliasesv2 as aliases`). During the revival, `aliases.py` was changed to reuse the shared
-lru-cached `essentials.replace_regex` instead of a private copy.
+Human-readable names, first-come-first-served, indexed by the always-on `tokens_aliases` plugin
+(`plugins/tokens_aliases/`, doc/27) into its own per-ledger LMDB store (`token_index.TokenIndex`:
+`alias_fwd` alias → address, `alias_rev` address → aliases, an `ajournal` undo log for reorgs). The
+legacy claim is `openfield = "alias=<name>"` (the alias is the openfield with `alias=` stripped, via the
+shared lru-cached `essentials.replace_regex`).
 
 ### Alias evolution ops (mutable ownership)
 

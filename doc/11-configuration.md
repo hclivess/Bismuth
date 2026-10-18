@@ -57,15 +57,11 @@ extra dependency (a tiny built-in TOML serializer covers the whole schema). Env-
 | `version` | str | protocol version (forced to `mainnet0023` on mainnet at startup, regardless of `config.txt`) |
 | `version_allow` | list | accepted peer protocol versions |
 | `thread_limit` | int | thread budget (inbound throttled at ~2/3; workers below 3×) |
-| `rebuild_db` | bool | **no-op** (the code path is commented out) |
 | `debug` | bool | re-raise exceptions in handlers |
 | `debug_level` | str | log level (`WARNING`, `DEBUG`, …) |
 | `purge` | bool | mempool purge flag |
 | `pause` | int | sleep interval used throughout the sync loops |
-| `ledger_path` / `hyper_path` | str | ledger.db / hyper.db paths |
-| `hyper_recompress` | bool | recompress hyperblocks at startup when heights agree |
-| `full_ledger` | bool | keep the full ledger (false → hyperblock-only) |
-| `ram` | bool | load the hyperblock ledger into RAM |
+| `ledger_path` | str | names the ledger (mainnet `static/ledger.db`); the LMDB environment is `blockstore-<name>` beside it (`static/blockstore-ledger.db`), and every per-ledger sidecar is namespaced by the same name |
 | `ban_threshold` | int | warning points before a peer is banned |
 | `nodes_ban_reset` | int | pool size under which the banlist auto-resets |
 | `tor` | bool | route outbound via SOCKS5; suppress the local server |
@@ -76,31 +72,29 @@ extra dependency (a tiny built-in TOML serializer covers the whole schema). Env-
 | `reveal_address` | bool | expose the wallet address in status replies |
 | `accept_peers` | bool | accept peer announcements |
 | `mempool_allowed` | list | **unused** — declared (`options.py:49`) but read by no module |
-| `mempool_ram` | bool | mempool in RAM vs on disk (default true) |
-| `mempool_path` | str | on-disk mempool path |
 | `terminal_output` | bool | echo logs to stdout |
 | `log_color` | bool | ANSI-coloured console/journald log by level (`log.ColoredFormatter`; honors `NO_COLOR`); file logs stay plain |
 | `mandatory_message` | list | exchange deposit address → required-memo note; the loader's type schema is `list` (`options.py:59`), but the built-in default and `mandatory_message.json` override (see below) are a **dict** — set it via the JSON file, not a `config.txt` line |
 | `egress` | bool | relay blocks to peers (false = receive-only) |
-| `trace_db_calls` | bool | log every SQL statement |
 | `heavy3_path` | str | path to `heavy3a.bin` |
-| `old_sqlite` | bool | disable the `substr` signature-prefix index optimisation |
 | `gui_scaling` | str | wallet-GUI hint (unused by the node) |
 
 After load, `genesis` is hardcoded to `4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed`.
 
-## Modernization keys (storage / consensus — doc/16–18)
+## Modernization keys (consensus / sync / API — doc/17–18)
 
 Declared in `options.py`, assigned onto `node.*` at startup. **Both halves are required**: a key that is
 declared in `options.py` but never assigned onto the node object is unreachable, because the consuming code
-reads `getattr(node, "<key>", <falsy default>)`. That was the state of `snapshot_serve`, `snapshot_path`,
+reads `getattr(node, "<key>", <falsy default>)`. That was the state of `snapshot_serve`,
 `bootstrap_p2p` and `bootstrap_p2p_peers` until 2026-08-11 — the whole doc/43 feature answered "snapshot
 serving disabled" no matter what the operator configured. When adding a flag, wire it in `node.py` and then
 **exercise the surface it gates**; a passing default is not evidence. All default to a safe value and, where
-consensus-affecting, are **inert until the hf2 fork activates**. (The three `rest_api_proxy_ports` /
-`rest_api_geo` / `txid_scan_limit` knobs below are the exception: they are *not* in the `options.py`
-schema — the REST layer reads them via `getattr(node, …, default)`, so they only take effect when set
-as a `node.*` attribute / config line.)
+consensus-affecting, are **inert until the hf2 fork activates**. (`rest_api_proxy_ports` is the
+exception: it is *not* in the `options.py` schema — the REST layer reads it via
+`getattr(node, …, default)`, so it only takes effect when set as a `node.*` attribute.)
+
+The ledger has **no storage knobs**: it is always the one LMDB environment (doc/05), the mempool is
+always in memory, and tokens/aliases are always indexed by the `tokens_aliases` plugin.
 
 | Key | Type | Meaning |
 |---|---|---|
@@ -109,25 +103,19 @@ as a `node.*` attribute / config line.)
 | `rollback_consensus_min_peers` | int | minimum peers in consensus before an auto-recovery rollback is allowed |
 | `rollback_consensus_min_reputable` | int | minimum **proven-reputation** peers required — anti-sybil gate so a fresh flood can't force a deep reorg |
 | `rollback_depth` | int | legacy fixed rollback anchor (superseded by `rollback_consensus`) |
-| `block_store` | bool | maintain the LMDB block-store shadow (doc/17 phase 7; write path live, reads still SQLite) |
-| `balance_index` | bool | maintain the O(1) balance index — DISPLAY read path (`/api/balance`); consensus still uses `ledger_balance3` |
-| `ledger_integer_amounts` | bool | store amounts as integer atomic units (doc/16); **not yet hyperblock-rollup safe — keep off on mainnet** |
+| `ledger_integer_amounts` | bool | store amounts as integer atomic units (`amounts.py`); default off on mainnet |
 | `fork_signal` | bool | emit the `hf2` coinbase signal when generating blocks (upgraded miners) — asserts readiness for the WHOLE bundle, including the blake2b Heavy3 (doc/18-D) |
 | `fork_window` / `fork_boundary` / `fork_bury` | int | hf2 activation parameters (signal window, round boundary, burial margin) — `/api/fork` reports status |
 | `mine` | bool | run the built-in solo miner (`miner.py`): real Heavy3, embeds mempool txs, writes the hf2 coinbase (doc/21) |
-| `bootstrap_url` / `bootstrap_file` | str | ledger-snapshot source for fast bootstrap (`chain_ops.bootstrap`) |
 | `rest_api` / `rest_api_port` | bool/int | the read-only REST API (doc/15) and its port; **on by default** (port 5659) — set `rest_api=False` to disable |
-| `snapshot_serve` | bool | expose `/api/snapshot[/info]`, generated **on demand, DB-direct** from the live LMDB block store (doc/43); **on by default** |
-| `bootstrap_p2p` | bool | a fresh node fetches a verified snapshot from **peers** before the central `bootstrap_url` (doc/43); **on by default** |
-| `snapshot_path` / `bootstrap_p2p_peers` | str/list | legacy pre-built tarball (fallback only) and an optional explicit `host:rest_port` source list |
+| `snapshot_serve` | bool | expose `/api/snapshot[/info]`, generated **on demand, DB-direct** from the live LMDB ledger (doc/43); **on by default** |
+| `bootstrap_p2p` | bool | a fresh node fetches a tip-verified DB-direct ledger snapshot from **peers** (doc/43), else seeds genesis and syncs; **on by default** |
+| `bootstrap_p2p_peers` | list | optional explicit `host:rest_port` snapshot sources |
+| `sync_from_genesis` | bool | on a fresh ledger, skip the snapshot: seed genesis (`ledger_genesis`) and sync from block 1 (doc/30) |
 | `rest_api_write` | bool | enable `POST /api/transaction` (tx submission over REST — the post-fork transport, doc/15); off by default so a read-only node stays read-only |
 | `rest_api_proxy` | bool | enable `GET /api/proxy` (default **ON**) — a read-only, SSRF-guarded same-origin relay so an https explorer can browse http nodes (doc/15) |
 | `rest_api_proxy_ports` | str/list | extra target ports the proxy may reach, beyond the built-in `80/443/5658/5659` + this node's `rest_api_port` (`rest_api.py:526`, `PROXY_DEFAULT_PORTS`); space/comma-separated. The allowlist stops the relay being used as an arbitrary-port scanner (audit M-1) |
-| `rest_api_geo` | bool | enable the geolocated peer map behind `/api/stats/geo` (default **ON**, `rest_stats.py:282`); set false to suppress the outbound geo lookup |
-| `txid_scan_limit` | int | max rows the bounded, recent-first content-txid (`/api/tx/<64-hex>`) scan will re-hash before erroring (default **250000**, `rest_api.py:1181`); deeper history is reachable with `?from_height` (audit H-4) |
-| `shield` | bool | opt-in shielded value (doc/22): builds/opens the shielded sidecar and indexes `shield:` txs when True. Consensus validation is **separately gated** on `shielded_fork_height` (default None everywhere) — the shielded stack is **STAGED/DEFERRED, no longer part of hf2** |
-| `shielded_fork_height` | int/None | activation height for shielded-value consensus validation (doc/22); **default None on all networks (mainnet/testnet/regnet)** — while None, `shield:` txs are ordinary txs and shielded validation never runs (no chain split). **NOT a miner-activated signal** — a plain config knob; set explicitly only on dev/regnet (regnet configs use 10) or a future scheduled fork |
-| `token_index` | bool | opt-in LMDB token/alias side-index (doc/26 stage 2, served by the `tokens_aliases` plugin — doc/27), replacing the SQLite `index.db` projection post-fork |
+| `rest_api_geo` | bool | enable the geolocated peer map behind `/api/stats/geo` (default **ON**); set false to suppress the outbound geo lookup |
 | `rpc_bitcoin` / `rpc_bitcoin_port`, `rpc_ethereum` / `rpc_ethereum_port` | bool/int | enable the external bitcoind-compatible (`:8332`) / `eth_*` (`:8545`) JSON-RPC adapters for exchange/explorer/web3 tooling (doc/17); both default off |
 
 Two modernized subsystems have **no config knob by design**: the **dynamic base fee** (`fee_dynamics.py`)
@@ -145,5 +133,5 @@ that lack the required memo. Override the built-in defaults by editing this file
 Single-line JSON `{ip: port}`: `peers.txt` (mainnet), `peers_test.txt` (testnet), `peers_reg.txt`
 (regnet, `{}`), plus `suggested_peers.txt` / `suggested_peers_test.txt` bootstrap lists.
 
-> Runtime artifacts are gitignored and must not be committed: `wallet.der`, `*.db`, `*.log`,
-> `config_custom.txt`, `heavy3a.bin`, `static/*.db*`.
+> Runtime artifacts are gitignored and must not be committed: `wallet.der`, the LMDB environments
+> (`static/blockstore-*`, `static/tokenindex-*`), `*.log`, `config_custom.txt`, `heavy3a.bin`.

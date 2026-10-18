@@ -35,12 +35,20 @@ def test_api_config(client):
 
 def test_api_getaddresssince(client):
     client.mine(1)
-    client.send(client.address, 1.0)
+    since = client.command("blocklastjson")["block_height"]
+    txid = client.send(client.address, 1.0)
     client.mine(10)
     sleep(0.5)
     last = client.command("blocklastjson")["block_height"]
-    data = client.command("api_getaddresssince", [last - 10, 8, client.address])
-    assert len(data["transactions"]) == 3  # reward + sent tx + another reward
+    data = client.command("api_getaddresssince", [since, 2, client.address])
+    assert data["last"] == last - 2
+    rows = data["transactions"]
+    # every block in (since, last-2] pays its reward to this (miner) address, plus the sent tx — wherever the
+    # miner included it (mempool timing shifts the exact height under load)
+    rewards = [r for r in rows if float(r[9]) != 0]
+    sent = [r for r in rows if r[5][:56] == txid]
+    assert sorted(r[0] for r in rewards) == list(range(since + 1, last - 1))
+    assert len(sent) == 1 and len(rows) == len(rewards) + 1
 
 
 def test_api_getblockssince(client):
@@ -55,8 +63,9 @@ def test_api_getblockssince(client):
     # the sent tx lands in whichever block includes it (mempool/mining timing shifts the exact height,
     # esp. under load), so assert the openfield is retrievable somewhere in the returned range — not at a
     # fixed index, which was a flaky assumption.
-    assert any(row[11] == data for row in blocks), "sent openfield %r not found in api_getblocksince range" % data
-    assert float(blocks[0][4]) == amount
+    sent = [row for row in blocks if row[11] == data]
+    assert sent, "sent openfield %r not found in api_getblocksince range" % data
+    assert float(sent[0][4]) == amount
 
 
 def test_add_validate(client):

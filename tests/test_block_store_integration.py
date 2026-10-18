@@ -1,61 +1,42 @@
 """
-Block-store INTEGRATION on regnet.
+LMDB ledger INTEGRATION on regnet.
 
-With block_store=True (tests/config_custom.txt) the digester shadow-writes every committed block into
-the LMDB store. This reads that live store — concurrently with the running node — and asserts it
-mirrors the chain: same tip, and the same block_hash + tx-count for every block. That the whole suite
-still passes with the store enabled is itself the proof the shadow write is additive (no effect on the
-block hash / validation / mining).
+The running node's ledger is ONE LMDB environment (static/blockstore-regmode.db). This opens it read-only
+— concurrently with the running node — and asserts the reader sees the node's chain and that the store is
+internally consistent: same tip as the node reports, every block has a hash that maps back to its height
+through the hash index, a coinbase, and the tx counter equals the rows actually stored.
 
 Run with: python3 -m pytest tests/test_block_store_integration.py -v
 """
-import sqlite3
 import time
-
-import pytest
-
-pytest.importorskip("lmdb")
 
 import block_store
 
 STORE = "static/blockstore-regmode.db"
 
 
-def test_store_mirrors_the_chain(client):
+def test_live_ledger_is_consistent_for_a_concurrent_reader(client):
     client.mine(4)
     time.sleep(0.6)
-    conn = sqlite3.connect("file:static/regmode.db?mode=ro", uri=True, timeout=20)
-    conn.text_factory = str
+    tip = client.block_height()
+    assert tip and tip > 1
     bs = block_store.BlockStore(STORE, readonly=True)
     try:
-        tip = conn.execute("SELECT max(block_height) FROM transactions WHERE block_height>0").fetchone()[0]
-        assert tip and tip > 1
-        # the shadow write lands just after the SQL commit; give it a moment to catch up. The budget is
-        # generous because under whole-suite load (and the heavier post-fork primary-mode digest: balance +
-        # txid index parity reads/writes per block) the async store mirror can lag a few seconds — it
-        # catches up, it does not drop blocks (proven by this test passing in isolation + the per-block poll).
-        deadline = time.time() + 25
+        deadline = time.time() + 10                  # the commit is atomic; allow for the tip moving on
         while (bs.tip() or 0) < tip and time.time() < deadline:
             time.sleep(0.2)
-        assert bs.tip() == tip, "store tip %s != ledger tip %s" % (bs.tip(), tip)
-
-        # every digested block (genesis/block 1 is created at init, not shadow-written) matches. POLL each
-        # block: the shadow-write lands AFTER the SQL commit and, after a deep reorg, blocks are re-written
-        # as the node re-mines — so an individual block can briefly lag (bs opens a fresh read txn per call,
-        # so it sees the catch-up). A genuinely-dropped block still fails after the deadline.
-        for h in range(2, tip + 1):
-            block_hash, count = conn.execute(
-                "SELECT block_hash, count(*) FROM transactions WHERE block_height=?", (h,)).fetchone()
+        assert bs.tip() >= tip, "reader tip %s < node tip %s" % (bs.tip(), tip)
+        assert bs.first() == 1                        # genesis is in the ledger
+        ntx = 0
+        for h, rows in bs.blocks_in_range(1, tip):
             bh = bs.block_hash(h)
-            _d = time.time() + 8
-            while bh != block_hash and time.time() < _d:
-                time.sleep(0.25)
-                bh = bs.block_hash(h)
-            assert bh == block_hash, (
-                "block %d hash mismatch: store=%s sqlite=%s tip=%s store_early=%s" % (
-                    h, bh, block_hash, bs.tip(),
-                    [(x, bs.block_hash(x) is not None) for x in range(1, min(tip + 1, 9))]))
-            assert len(bs.get_block(h)) == count, "block %d tx-count mismatch" % h
+            assert bh and bs.height_by_hash(bh) == h, "block %d hash index mismatch" % h
+            assert rows and all(r[block_store.H] == h for r in rows)
+            if h > 1:
+                assert bs.coinbase(h) is not None, "block %d has no coinbase" % h
+                assert bs.difficulty(h) is not None, "block %d has no recorded difficulty" % h
+            ntx += len(rows)
+        if bs.tip() == tip:
+            assert bs.tx_count() == ntx
     finally:
         bs.close()
-        conn.close()

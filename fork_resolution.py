@@ -449,7 +449,7 @@ def fetch_branch(link, ancestor, ancestor_hash, cap=FETCH_CAP_BLOCKS, budget_s=F
 
 
 def blocks_from_rows(rows):
-    """Group backed-up ledger rows (``SELECT *`` order: block_height, timestamp, address, recipient, amount,
+    """Group backed-up ledger rows (ledger row order: block_height, timestamp, address, recipient, amount,
     signature, public_key, block_hash, fee, reward, operation, openfield) into digester-ready blocks
     (ascending height, each a list of 8-field tx tuples in stored order)."""
     import amounts

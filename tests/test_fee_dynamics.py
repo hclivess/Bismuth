@@ -4,7 +4,7 @@ Post-fork dynamic base fee (fee_dynamics + block_store.recent_block_weights) —
 Congestion-responsive, smooth, clamped, deterministic: the fee rises under load and falls when idle, but
 can't spike past the clamps, and is a pure function of recent block WEIGHT (tx count + openfield bytes //
 W_UNIT) — so large RingCT/VM txs price in their real footprint, not just their count. The weight is read
-from the post-fork BLOCK STORE (LMDB), never SQLite.
+from the LMDB ledger (block_store).
 
 Run with: python3 -m pytest tests/test_fee_dynamics.py -v
 """
@@ -55,23 +55,23 @@ def _row(openfield):
 
 
 def test_recent_block_weights_from_block_store():
-    """The congestion signal is read from the post-fork BLOCK STORE (LMDB), not SQLite."""
-    pytest.importorskip("lmdb")
+    """The congestion signal is read from the LMDB ledger (block bodies)."""
     import block_store
-    bs = block_store.BlockStore(os.path.join(tempfile.mkdtemp(), "bstest"))
+    store_dir = tempfile.mkdtemp()
+    bs = block_store.BlockStore(os.path.join(store_dir, "bstest"))
     try:
-        # NB heights start at 2: block 1 (genesis) is created at ledger init and never enters the store,
-        # so the window floors at 2 (block_store.recent_block_weights) and a height-1 entry is never read.
-        bs.put_block(2, "h2", [_row(""), _row(""), _row("")])       # 3 tiny -> 3 + 0//1000   = 3
-        bs.put_block(3, "h3", [_row("x" * 4000), _row("")])         # 2 txs  -> 2 + 4000//1000 = 6
-        bs.put_block(4, "h4", [_row("y" * 100000)])                 # 1 big  -> 1 + 100000//1000 = 101
+        # block 1 is genesis: never digested, so the window floors at 2 (block_store.recent_block_weights)
+        bs.commit_block(1, "h1", [_row("")])
+        bs.commit_block(2, "h2", [_row(""), _row(""), _row("")])    # 3 tiny -> 3 + 0//1000   = 3
+        bs.commit_block(3, "h3", [_row("x" * 4000), _row("")])      # 2 txs  -> 2 + 4000//1000 = 6
+        bs.commit_block(4, "h4", [_row("y" * 100000)])              # 1 big  -> 1 + 100000//1000 = 101
         weights = bs.recent_block_weights(4, window=20, w_unit=fd.W_UNIT)
         assert weights == [3, 6, 101], weights
         # window caps the lookback; a tip cut drops the rolled-off block (store is rolled back with chain)
         assert bs.recent_block_weights(3, window=20, w_unit=fd.W_UNIT) == [3, 6]
         # genesis is never part of the window, even when the lookback would reach it
-        bs.put_block(1, "h1", [_row("")])
         assert bs.recent_block_weights(4, window=20, w_unit=fd.W_UNIT) == [3, 6, 101]
         assert fd.base_fee(BASE, weights) > BASE                    # avg(3,6,101)=36.7 > TARGET_WEIGHT 30
     finally:
         bs.close()
+        import shutil; shutil.rmtree(store_dir, ignore_errors=True)   # the LMDB store does not belong in /tmp after the test

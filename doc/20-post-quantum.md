@@ -130,12 +130,12 @@ honest consequences:
   larger on the wire. On a small network (~15 nodes) propagation latency and per-peer bandwidth matter
   for orphan rates; this is a real operational cost, not a rounding error.
 - **More storage.** The ledger grows much faster per tx. This compounds with — and strengthens the case
-  for — the storage rework already shipping (the **pubkey-deduped LMDB block store**, integer units;
-  see [`16-database-rework-plan.md`](16-database-rework-plan.md) and
+  for — the storage rework already shipping (the **pubkey-deduped LMDB ledger**, integer units;
+  see [`05-database-and-ledger.md`](05-database-and-ledger.md) and
   [`26-storage-postfork.md`](26-storage-postfork.md)). This **generic, storage-layer** dedup is the
   PQ-relevant one and it is **algorithm-agnostic**: a ~2 KB PQ pubkey is stored once and referenced no
-  matter which scheme signed it (the block store is already pubkey-deduped — `block_store.py`,
-  [26](26-storage-postfork.md) "Block store (LMDB), pubkey-deduped"). It is **not** the same thing as the
+  matter which scheme signed it (the ledger is already pubkey-deduped — `block_store.py` `pk`/`pkr` sub-dbs,
+  [05](05-database-and-ledger.md)). It is **not** the same thing as the
   `hf2` consensus-level "public key by reference" — that one is the **ecrecover pubkey-DROP**, which works
   **only for key-recoverable single-sig secp256k1** (`signerfactory.py:166-170,183-185`; an ECDSA pubkey
   is *recovered* from `(txid, sig)` and not carried at all). A lattice ML-DSA signature is **not**

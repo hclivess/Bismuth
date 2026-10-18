@@ -10,10 +10,9 @@ two independent regnet nodes on different ports + isolated data dirs (env-parame
 B starts at genesis with an empty ledger and is expected to reconstruct A's chain purely via
 api_sync_worker -> api_sync.sync_segment -> digest_block. Success criteria:
   * B's tip reaches A's tip,
-  * EVERY block hash 1..tip is identical between the two independent ledgers, and
-  * B did this with block_store + balance_index + txid_index in PRIMARY + parity_strict (from
-    config_custom.txt) — so the digester's parity asserts ran on every API-delivered block. Identical
-    hashes under strict parity => API sync is a faithful, consensus-identical transport.
+  * EVERY block hash 1..tip is identical between the two independent LMDB ledgers — every API-delivered
+    block went through the full digest validation, so identical hashes => API sync is a faithful,
+    consensus-identical transport.
 
 This is a heavier integration test that manages its own two node processes; run it on its own:
     python3 -m pytest tests/test_two_node_api_sync.py -v
@@ -22,15 +21,12 @@ import json
 import os
 import shutil
 import socket
-import sqlite3
 import subprocess
 import sys
 import time
 import urllib.request
 
 import pytest
-
-pytest.importorskip("lmdb")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -61,9 +57,7 @@ def _start_node(datadir, sock_port, rest_port, extra_env):
     env["BISMUTH_REGNET_PORT"] = str(sock_port)
     env["BISMUTH_REST_API_PORT"] = str(rest_port)
     env["BISMUTH_REGNET_DB"] = os.path.join(datadir, "regmode.db")
-    env["BISMUTH_REGNET_INDEX"] = os.path.join(datadir, "index_reg.db")
     env["BISMUTH_REGNET_PEERS"] = os.path.join(datadir, "peers_reg.txt")
-    env["BISMUTH_MEMPOOL_PATH"] = os.path.join(datadir, "mempool.db")
     env.update(extra_env)
     log = open(os.path.join(datadir, "node.log"), "w")
     proc = subprocess.Popen([sys.executable, "node.py", "regnet2"], cwd=ROOT,
@@ -81,15 +75,15 @@ def _await(cond, deadline_s, poll=1.0):
 
 
 def _block_hashes(ledger_path):
-    """{height: block_hash} for every positive-height block in a ledger (read-only)."""
-    conn = sqlite3.connect("file:%s?mode=ro" % ledger_path, uri=True, timeout=20)
-    conn.text_factory = str
+    """{height: block_hash} for every block in a node's LMDB ledger (a read-only reader beside its writer)."""
+    import block_store
+    import kvstore
+    bs = block_store.BlockStore(kvstore.store_path(ledger_path, "blockstore"), readonly=True)
     try:
-        rows = conn.execute("SELECT block_height, block_hash FROM transactions "
-                            "WHERE block_height > 0 GROUP BY block_height ORDER BY block_height").fetchall()
+        tip = bs.tip() or 0
+        return {h: bs.block_hash(h) for h in range(1, tip + 1) if bs.block_hash(h) is not None}
     finally:
-        conn.close()
-    return {int(h): bh for (h, bh) in rows}
+        bs.close()
 
 
 def _tail(path, n=25):
@@ -104,8 +98,8 @@ def _tail(path, n=25):
                     reason="heavy two-node harness (spins up 2 extra node processes); "
                            "run explicitly with BISMUTH_RUN_TWONODE=1")
 def test_two_node_api_sync(tmp_path):
-    # both nodes read ROOT/config_custom.txt (regnet flags: block_store/balance_index=primary/txid_index=
-    # primary/parity_strict/vm/shield/token_index). Prod ignores it (BISMUTH_IGNORE_CONFIG_CUSTOM=1).
+    # both nodes read ROOT/config_custom.txt (regnet flags: integer amounts, fork window, REST/RPC).
+    # Prod ignores it (BISMUTH_IGNORE_CONFIG_CUSTOM=1).
     if not os.path.exists(os.path.join(ROOT, "config_custom.txt")):
         shutil.copy(os.path.join(ROOT, "tests/config_custom.txt"), os.path.join(ROOT, "config_custom.txt"))
 

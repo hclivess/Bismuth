@@ -30,7 +30,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REST = "http://127.0.0.1:3031/api"
 
 # files the pool / node / Heavy3 generate in the repo root that the test must clean up afterwards
-_GEN_FILES = ["privkey.der", "pubkey.der", "shares.db", "archive.db", "pool.log",
+_GEN_FILES = ["privkey.der", "pubkey.der", "pool.log",
               "heavy3a.bin", "config_custom.txt", "node_pool_it.log"]
 
 
@@ -49,15 +49,8 @@ def _port_open(p):
 
 
 def _clean_state():
-    for name in ("static/regmode.db", "static/index_reg.db", "static/regmode.db-shm",
-                 "static/regmode.db-wal", "static/index_reg.db-shm", "static/index_reg.db-wal"):
-        try:
-            os.remove(os.path.join(ROOT, name))
-        except OSError:
-            pass
-    for d in ("static/blockstore-regmode.db", "static/balanceindex-regmode.db",
-              "static/txidindex-regmode.db", "static/pkregistry-regmode.db",
-              "static/tokenindex-regmode.db"):
+    # the regnet LMDB ledger env + the plugin's token/alias store
+    for d in ("static/blockstore-regmode.db", "static/tokenindex-regmode.db"):
         shutil.rmtree(os.path.join(ROOT, d), ignore_errors=True)
 
 
@@ -138,14 +131,8 @@ def test_pool_block_and_payout():
         assert c.balance(pool.address) > pool_bal_before, "compact coinbase did not credit the pool"
 
         # === 2. payout: RSA-signed tx with the live fee, confirmed on-chain ===
-        import sqlite3
-        shares = sqlite3.connect(os.path.join(ROOT, "shares.db"))
-        shares.text_factory = str
-        cur = shares.cursor()
-        cur.execute("INSERT INTO shares VALUES (?,?,?,?,?,?,?,?)",
-                    (MINER, 1, "%.2f" % (time.time() - 5), "0", 0, "w", 1, "w1"))
-        shares.commit()
-        shares.close()
+        pool.get_store().add_share({"address": MINER, "shares": 1, "timestamp": "%.2f" % (time.time() - 5),
+                                    "paid": "0", "rate": "0", "name": "w", "workers": "1", "subname": "w1"})
         miner_before = c.balance(MINER)
         pool.payout(0.00000001, 0, 0)                      # tiny threshold, no pool fee -> pay MINER
         # the mempool merge is async, so POLL: mine until the payout confirms (no fixed-sleep flake)
@@ -176,3 +163,4 @@ def test_pool_block_and_payout():
                 os.remove(os.path.join(ROOT, f))
             except OSError:
                 pass
+        shutil.rmtree(os.path.join(ROOT, "poolstore"), ignore_errors=True)   # the pool's LMDB store

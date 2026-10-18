@@ -1,44 +1,26 @@
-# c = hyperblock in ram OR hyperblock file when running only hyperblocks without ram mode on
-# h = ledger file or hyperblock clone in hyperblock mode
-# h2 = hyperblock file
-
-# never remove the str() conversion in data evaluation or database inserts or you will debug for 14 days as signed types mismatch
-# if you raise in the server thread, the server will die and node will stop
-# never use codecs, they are bugged and do not provide proper serialization
-# must unify node and client now that connections parameters are function parameters
-# if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
-# do not isolation_level=None/WAL hdd levels, it makes saving slow
-# issues with db? perhaps you missed a commit() or two
-
-
 """Bismuth full-node entry point and legacy P2P server.
 
 This is the executable launched to run a node. It wires together the whole
-process: it reads configuration (``options``), opens the ledger/hyperblock
-databases, starts the mempool, the mining/consensus worker threads
+process: it reads configuration (``options``), opens the LMDB ledger,
+starts the mempool, the mining/consensus worker threads
 (``connectionmanager`` -> ``worker``), the threaded legacy TCP P2P server
 (``ThreadedTCPServer`` / ``ThreadedTCPRequestHandler``, which speaks the
 socket protocol and serves/ingests blocks, balances, mempool and peer data
 via ``apihandler``), and -- unless ``rest_api`` is disabled -- the read-only
 REST API. It also installs graceful-shutdown handling so the node
-finishes any in-flight block write before exiting, keeping the ledger and
-hyperblock heights consistent. Block ingestion itself is delegated to
+finishes any in-flight block write before exiting. Block ingestion itself is delegated to
 ``digest.digest_block``; this module is the orchestration and networking shell
 around consensus.
 """
 
 
-VERSION = "4.6.0.5"
+VERSION = "4.7.0.0"
 
 import platform
-import shutil
 import signal
 import socketserver
 import threading
 from sys import version_info
-
-import aliases  # PREFORK_ALIASES
-# import aliasesv2 as aliases # POSTFORK_ALIASES
 
 # Bis specific modules
 import apihandler
@@ -67,9 +49,9 @@ import mining_heavy3
 import regnet
 import validation_exceptions
 from digest import digest_block
-from chain_ops import recompress_ledger, ledger_check_heights, blocknf, check_integrity, sequencing_check, reconcile_ledger_hyper, rollback, guard_lost_ledger
+from chain_ops import blocknf, rollback
 from balances import balanceget
-from node_init import setup_net_type, node_block_init, ram_init, initial_db_check, load_keys, add_indices
+from node_init import setup_net_type, node_block_init, load_keys, open_ledger
 from quantizer import quantize_eight, quantize_two
 from polysign.signerfactory import SignerFactory
 from libs import node, logger, keys, client
@@ -100,7 +82,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             node.logger.app_log.warning("Inbound: Rejected incoming cnx, node is stopping")
             return
 
-        db_handler_instance = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram, node.ledger_ram_file, node.logger, trace_db_calls=node.trace_db_calls)
+        db_handler_instance = dbhandler.DbHandler.for_node(node)
 
         client_instance = client.Client()
 
@@ -173,10 +155,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         send(self.request, "notok")
                         return
                     else:
-                        db_handler_instance.execute(db_handler_instance.c, "SELECT block_hash FROM transactions WHERE block_height= (select max(block_height) from transactions)")
-                        block_hash = db_handler_instance.c.fetchone()[0]
-                        # feed regnet with current thread db handle. refactor needed.
-                        regnet.conn, regnet.c, regnet.hdd, regnet.h, regnet.hdd2, regnet.h2, regnet.h = db_handler_instance.conn, db_handler_instance.c, db_handler_instance.hdd, db_handler_instance.h, db_handler_instance.hdd2, db_handler_instance.h2, db_handler_instance.h
+                        block_hash = db_handler_instance.last_block_hash()
                         regnet.command(self.request, data, block_hash, node, db_handler_instance)
                     # Set extra flag or the regtest_* command will thrown an exception
                     extra = True
@@ -200,12 +179,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # receive theirs
                     segments = receive(self.request)
-                    node.logger.app_log.info(mp.MEMPOOL.merge(segments, peer_ip, db_handler_instance.c, False))
+                    node.logger.app_log.info(mp.MEMPOOL.merge(segments, peer_ip, db_handler_instance, False))
                     #improvement possible - pass peer_ip from worker
 
                     # receive theirs
 
-                    # execute_param(m, ('SELECT timestamp,address,recipient,amount,signature,public_key,operation,openfield FROM transactions WHERE timeout < ? ORDER BY amount DESC;'), (int(time.time() - 5),))
                     if mp.MEMPOOL.sendable(peer_ip):
                         # Only send the diff
                         mempool_txs = mp.MEMPOOL.tx_to_send(peer_ip, segments)
@@ -333,10 +311,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             client_block = db_handler_instance.block_height_from_hash(data)
                             if client_block is None:
                                 node.logger.app_log.warning(f"Inbound: Block {data[:8]} of {peer_ip} not found")
-                                if node.full_ledger:
-                                    send(self.request, "blocknf")  # announce block hash was not found
-                                else:
-                                    send(self.request, "blocknfhb")  # announce we are on hyperblocks
+                                send(self.request, "blocknf")  # announce block hash was not found
                                 send(self.request, data)
 
                                 if node.peers.warning(self.request, peer_ip, "Forked", 2):
@@ -484,10 +459,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "blocklast":
                     # if (peer_ip in allowed or "any" in allowed):  # only sends the miner part of the block!
                     if node.peers.is_allowed(peer_ip, data):
-                        db_handler_instance.execute(db_handler_instance.c, "SELECT * FROM transactions "
-                                                                           "WHERE reward != 0 "
-                                                                           "ORDER BY block_height DESC LIMIT 1;")
-                        block_last = db_handler_instance.c.fetchall()[0]
+                        block_last = db_handler_instance.last_mining_tx()
 
                         send(self.request, amounts.display_row(block_last))
                     else:
@@ -496,9 +468,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "blocklastjson":
                     # if (peer_ip in allowed or "any" in allowed):  # only sends the miner part of the block!
                     if node.peers.is_allowed(peer_ip, data):
-                        db_handler_instance.execute(db_handler_instance.c,
-                                                    "SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
-                        block_last = db_handler_instance.c.fetchall()[0]
+                        block_last = db_handler_instance.last_mining_tx()
 
                         response = {"block_height": block_last[0],
                                     "timestamp": block_last[1],
@@ -522,11 +492,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
                         block_desired = receive(self.request)
 
-                        db_handler_instance.execute_param(db_handler_instance.h, "SELECT * FROM transactions WHERE block_height = ?;",
-                                                          (block_desired,))
-                        # display-edge (doc/16 phase 2): reconstruct legacy decimal amounts when the
+                        # display-edge (doc/05): reconstruct legacy decimal amounts when the
                         # ledger stores integer units (matches the blockgetjson sibling below).
-                        block_desired_result = [amounts.display_row(r) for r in db_handler_instance.h.fetchall()]
+                        block_desired_result = [amounts.display_row(r)
+                                                for r in (db_handler_instance.store.get_block(int(block_desired)) or [])]
 
                         send(self.request, block_desired_result)
                     else:
@@ -537,9 +506,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
                         block_desired = receive(self.request)
 
-                        db_handler_instance.execute_param(db_handler_instance.h, "SELECT * FROM transactions WHERE block_height = ?;",
-                                                          (block_desired,))
-                        block_desired_result = db_handler_instance.h.fetchall()
+                        block_desired_result = db_handler_instance.store.get_block(int(block_desired)) or []
 
                         response_list = []
                         for transaction in block_desired_result:
@@ -567,7 +534,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
                         mempool_insert = receive(self.request)
                         node.logger.app_log.warning("mpinsert command")
-                        mpinsert_result = mp.MEMPOOL.merge(mempool_insert, peer_ip, db_handler_instance.c, True, True)
+                        mpinsert_result = mp.MEMPOOL.merge(mempool_insert, peer_ip, db_handler_instance, True, True)
                         node.logger.app_log.warning(f"mpinsert result: {mpinsert_result}")
                         send(self.request, mpinsert_result)
                     else:
@@ -632,7 +599,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for balancegethyperjson command")
 
                 elif data == "mpgetjson" and node.peers.is_allowed(peer_ip, data):
-                    mempool_txs = mp.MEMPOOL.fetchall(mp.SQL_SELECT_TX_TO_SEND)
+                    mempool_txs = mp.MEMPOOL.transactions()
 
                     response_list = []
                     for transaction in mempool_txs:
@@ -654,7 +621,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     send(self.request, response_list)
 
                 elif data == "mpget" and node.peers.is_allowed(peer_ip, data):
-                    mempool_txs = mp.MEMPOOL.fetchall(mp.SQL_SELECT_TX_TO_SEND)
+                    mempool_txs = mp.MEMPOOL.transactions()
 
                     # node.logger.app_log.info("Inbound: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
@@ -691,10 +658,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
                         address_tx_list = receive(self.request)
-                        db_handler_instance.execute_param(db_handler_instance.h, (
-                            "SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC"),
-                                                          (address_tx_list, address_tx_list,))
-                        result = [amounts.display_row(r) for r in db_handler_instance.h.fetchall()]
+                        result = [amounts.display_row(r) for r in db_handler_instance.address_rows(address_tx_list)]
                         send(self.request, result)
                     else:
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for addlist command")
@@ -704,9 +668,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
                         list_limit = receive(self.request)
                         # print(address_tx_list_limit)
-                        db_handler_instance.execute_param(db_handler_instance.h, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT ?",
-                                                          (list_limit,))
-                        result = db_handler_instance.h.fetchall()
+                        result = db_handler_instance.latest_rows(list_limit)
 
                         response_list = []
                         for transaction in result:
@@ -733,9 +695,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
                         list_limit = receive(self.request)
                         # print(address_tx_list_limit)
-                        db_handler_instance.execute_param(db_handler_instance.h, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT ?",
-                                                          (list_limit,))
-                        result = [amounts.display_row(r) for r in db_handler_instance.h.fetchall()]
+                        result = [amounts.display_row(r) for r in db_handler_instance.latest_rows(list_limit)]
                         send(self.request, result)
                     else:
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for listlim command")
@@ -746,10 +706,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         address_tx_list_limit = receive(self.request)
 
                         # print(address_tx_list_limit)
-                        db_handler_instance.execute_param(db_handler_instance.h, (
-                            "SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC LIMIT ?"),
-                                                          (address_tx_list, address_tx_list, address_tx_list_limit,))
-                        result = [amounts.display_row(r) for r in db_handler_instance.h.fetchall()]
+                        result = [amounts.display_row(r)
+                                  for r in db_handler_instance.address_rows(address_tx_list, address_tx_list_limit)]
                         send(self.request, result)
                     else:
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for addlistlim command")
@@ -760,10 +718,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         address_tx_list_limit = receive(self.request)
 
                         # print(address_tx_list_limit)
-                        db_handler_instance.execute_param(db_handler_instance.h, (
-                            "SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC LIMIT ?"),
-                                                          (address_tx_list, address_tx_list, address_tx_list_limit,))
-                        result = db_handler_instance.h.fetchall()
+                        result = db_handler_instance.address_rows(address_tx_list, address_tx_list_limit)
 
                         response_list = []
                         for transaction in result:
@@ -792,10 +747,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         address_tx_list_limit = receive(self.request)
 
                         # print(address_tx_list_limit)
-                        db_handler_instance.execute_param(db_handler_instance.h, (
-                            "SELECT * FROM transactions WHERE (address = ? OR recipient = ?) AND block_height < 1 ORDER BY block_height ASC LIMIT ?"),
-                                                          (address_tx_list, address_tx_list, address_tx_list_limit,))
-                        result = [amounts.display_row(r) for r in db_handler_instance.h.fetchall()]
+                        result = []   # the ledger keeps no reward mirror rows
                         send(self.request, result)
                     else:
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for addlistlimmir command")
@@ -806,10 +758,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         address_tx_list_limit = receive(self.request)
 
                         # print(address_tx_list_limit)
-                        db_handler_instance.execute_param(db_handler_instance.h, (
-                            "SELECT * FROM transactions WHERE (address = ? OR recipient = ?) AND block_height < 1 ORDER BY block_height ASC LIMIT ?"),
-                                                          (address_tx_list, address_tx_list, address_tx_list_limit,))
-                        result = db_handler_instance.h.fetchall()
+                        result = []   # the ledger keeps no reward mirror rows
 
                         response_list = []
                         for transaction in result:
@@ -834,14 +783,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == "aliasget":  # all for a single address, no protection against overlapping
                     if node.peers.is_allowed(peer_ip, data):
-                        aliases.aliases_update(node, db_handler_instance)
-
                         alias_address = receive(self.request)
-                        # SEAM (doc/26 stage 2): read the LMDB side-index when enabled, else index.db.
-                        if node.token_index is not None:
-                            result = node.token_index.aliasget(alias_address)
-                        else:
-                            result = db_handler_instance.aliasget(alias_address)
+                        result = db_handler_instance.aliasget(alias_address)
 
                         send(self.request, result)
                     else:
@@ -849,12 +792,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == "aliasesget":  # only gets the first one, for multiple addresses
                     if node.peers.is_allowed(peer_ip, data):
-                        aliases.aliases_update(node, db_handler_instance)
                         aliases_request = receive(self.request)
-                        if node.token_index is not None:
-                            results = node.token_index.aliasesget(aliases_request)
-                        else:
-                            results = db_handler_instance.aliasesget(aliases_request)
+                        results = db_handler_instance.aliasesget(aliases_request)
                         send(self.request, results)
                     else:
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for aliasesget command")
@@ -866,32 +805,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
 
                         tokens_address = receive(self.request)
-                        # SEAM (doc/26 stage 2): the LMDB side-index when enabled, else the index.db SQL.
-                        if node.token_index is not None:
-                            ti = node.token_index
-                            tokens_list = [(token, str(ti.token_balance(token, tokens_address)))
-                                           for (token,) in ti.tokens_user(tokens_address)]
-                        else:
-                            tokens_user = db_handler_instance.tokens_user(tokens_address)
-
-                            tokens_list = []
-                            for token in tokens_user:
-                                token = token[0]
-                                db_handler_instance.execute_param(db_handler_instance.index_cursor,
-                                                                  "SELECT sum(amount) FROM tokens WHERE recipient = ? AND token = ?;",
-                                                                  (tokens_address,) + (token,))
-                                credit = db_handler_instance.index_cursor.fetchone()[0]
-                                db_handler_instance.execute_param(db_handler_instance.index_cursor,
-                                                                  "SELECT sum(amount) FROM tokens WHERE address = ? AND token = ?;",
-                                                                  (tokens_address,) + (token,))
-                                debit = db_handler_instance.index_cursor.fetchone()[0]
-
-                                debit = 0 if debit is None else debit
-                                credit = 0 if credit is None else credit
-
-                                balance = str(Decimal(credit) - Decimal(debit))
-
-                                tokens_list.append((token, balance))
+                        ti = node.token_index
+                        tokens_list = [] if ti is None else [
+                            (token, str(ti.token_balance(token, tokens_address)))
+                            for (token,) in ti.tokens_user(tokens_address)]
 
                         send(self.request, tokens_list)
                     else:
@@ -900,13 +817,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "addfromalias":
                     if node.peers.is_allowed(peer_ip, data):
 
-                        aliases.aliases_update(node, db_handler_instance)
-
                         alias_address = receive(self.request)
-                        if node.token_index is not None:
-                            address_fetch = node.token_index.addfromalias(alias_address)
-                        else:
-                            address_fetch = db_handler_instance.addfromalias(alias_address)
+                        address_fetch = db_handler_instance.addfromalias(alias_address)
                         node.logger.app_log.warning(f"Fetched the following alias address: {address_fetch}")
                         send(self.request, address_fetch)
 
@@ -927,14 +839,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
                         reg_string = receive(self.request)
 
-                        registered_pending = mp.MEMPOOL.fetchone(
-                            "SELECT timestamp FROM transactions WHERE openfield = ?;",
-                            ("alias=" + reg_string,))
+                        registered_pending = mp.MEMPOOL.find_openfield("alias=" + reg_string)
+                        ti = node.token_index
+                        registered_already = ti is not None and ti.has_alias(reg_string)
 
-                        db_handler_instance.execute_param(db_handler_instance.h, "SELECT timestamp FROM transactions WHERE openfield = ?;", ("alias=" + reg_string,) )
-                        registered_already = db_handler_instance.h.fetchone()
-
-                        if registered_already is None and registered_pending is None:
+                        if not registered_already and registered_pending is None:
                             send(self.request, "Alias free")
                         else:
                             send(self.request, "Alias registered")
@@ -987,7 +896,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                          str(remote_tx_pubkey_b64encoded), str(remote_tx_operation),
                                          str(remote_tx_openfield)))
 
-                        node.logger.app_log.info(mp.MEMPOOL.merge(mempool_data, peer_ip, db_handler_instance.c, True, True))
+                        node.logger.app_log.info(mp.MEMPOOL.merge(mempool_data, peer_ip, db_handler_instance, True, True))
 
                         send(self.request, str(remote_signature_enc))
                         # wipe variables
@@ -1224,36 +1133,25 @@ def verify(db_handler):
     # TODO: candidate for single user mode
     try:
         node.logger.app_log.warning("Blockchain verification started...")
-        # verify blockchain
-        db_handler.execute(db_handler.h, "SELECT Count(*) FROM transactions")
-        db_rows = db_handler.h.fetchone()[0]
-        node.logger.app_log.warning("Total steps: {}".format(db_rows))
+        store = db_handler.store
+        node.logger.app_log.warning("Total steps: {}".format(store.tx_count()))
 
         # verify genesis
-        try:
-            db_handler.execute(db_handler.h, "SELECT block_height, recipient FROM transactions WHERE block_height = 1")
-            result = db_handler.h.fetchall()[0]
-            block_height = result[0]
-            genesis = result[1]
-            node.logger.app_log.warning(f"Genesis: {genesis}")
-            if str(genesis) != node.genesis and int(
-                    block_height) == 0:
-                node.logger.app_log.warning("Invalid genesis address")
-                sys.exit(1)
-        except:
-            node.logger.app_log.warning("Hyperblock mode in use")
-        # verify genesis
+        genesis_rows = store.get_block(1) or []
+        if genesis_rows and str(genesis_rows[0][3]) != node.genesis:
+            node.logger.app_log.warning("Invalid genesis address")
+            sys.exit(1)
 
         invalid = 0
         fork_height = getattr(node, "fork_height", None)   # fork-aware verification (doc/29 §6 bug 1)
 
-        for row in db_handler.h.execute('SELECT * FROM transactions WHERE block_height > 0 and reward = 0 ORDER BY block_height'):  # native sql fx to keep compatibility
+        for row in (r for _h, rows in store.blocks_in_range(2, store.tip() or 0) for r in rows if r[9] == 0):
 
             db_block_height = str(row[0])
             db_timestamp = '%.2f' % (quantize_two(row[1]))
             db_address = str(row[2])[:56]
             db_recipient = str(row[3])[:56]
-            # HARDFORK (doc/16): rebuild the consensus signing buffer in the frozen legacy '%.8f' form.
+            # HARDFORK: rebuild the consensus signing buffer in the frozen legacy '%.8f' form.
             # In integer-storage mode row[4] is atomic units (e.g. 250000000), so it MUST go through
             # from_units -> '2.50000000'; quantize_eight(250000000) would yield '250000000.00000000' and
             # fail EVERY signature. The hard fork that signs native integers deletes this branch.
@@ -1304,9 +1202,7 @@ if __name__ == "__main__":
     node.keys = keys.Keys()
 
     # Graceful shutdown on SIGTERM/SIGINT: just raise the flag the main loop already honours — it waits for
-    # db_lock (so an in-flight block finishes writing to BOTH ledger.db and hyper.db), closes Heavy3 and
-    # exits. This stops `kill`/Ctrl-C from terminating mid-write and leaving the ledger/hyper heights split
-    # (which is what tripped the cross-integrity rollback on the last restart).
+    # db_lock (so an in-flight digest finishes), closes Heavy3 and exits.
     def _graceful_stop(signum, _frame):
         node.IS_STOPPING = True
     signal.signal(signal.SIGTERM, _graceful_stop)
@@ -1333,13 +1229,10 @@ if __name__ == "__main__":
     node.port = config.port
     node.verify = config.verify
     node.thread_limit = config.thread_limit
-    node.rebuild_db = config.rebuild_db
     node.debug = config.debug
     node.debug_level = config.debug_level
     node.pause = config.pause
     node.ledger_path = config.ledger_path
-    node.hyper_path = config.hyper_path
-    node.hyper_recompress = config.hyper_recompress
     # Tor (doc/38): config.tor is the tri-state mode string (off|external|managed). Keep node.tor as a
     # back-compat truthy bool (any active tor mode) so legacy `if node.tor:` readers still work; node.tor_mode
     # carries the actual mode. On a clearnet node (tor=off, incl. the live mainnet node) tor_manager stays
@@ -1360,7 +1253,6 @@ if __name__ == "__main__":
         import tor_manager
         node.tor_manager = tor_manager.TorManager(node)
         node.tor_manager.launch()   # graceful clearnet fallback, or fail-fast when tor_required=True
-    node.ram = config.ram
     node.version_allow = config.version_allow
     node.reveal_address = config.reveal_address
     node.terminal_output = config.terminal_output
@@ -1368,10 +1260,7 @@ if __name__ == "__main__":
     node.egress = config.egress
     node.genesis = config.genesis
     node.accept_peers = config.accept_peers
-    node.full_ledger = config.full_ledger
-    node.trace_db_calls = config.trace_db_calls
     node.heavy3_path = config.heavy3_path
-    node.old_sqlite = config.old_sqlite
     node.heavy = config.heavy
     node.rollback_depth = config.rollback_depth  # max blocks the node will roll back to rejoin a longer chain
     node.rest_api = config.rest_api              # opt-in modern parallel REST API (see doc/15)
@@ -1387,8 +1276,6 @@ if __name__ == "__main__":
     node.api_sync_enabled = os.environ.get("BISMUTH_API_SYNC", "").lower() in ("1", "true", "yes") \
         or getattr(config, "api_sync", False)
     node.api_sync_source = os.environ.get("BISMUTH_API_SYNC_SOURCE", "") or getattr(config, "api_sync_source", "")
-    node.autoheal = getattr(config, "autoheal", True)                       # live tip sequence/dupe self-heal (no restart)
-    node.autoheal_interval = int(os.environ.get("BISMUTH_AUTOHEAL_INTERVAL") or getattr(config, "autoheal_interval", 300))
     # doc/35 peer-difficulty divergence detector + guarded self-heal (#23). SAFE BY DEFAULT: detect + log only.
     # The prod node picks this up on its next restart; with these defaults it never pauses mining or rolls back.
     # pause/heal are OPT-IN. env-overridable so the regnet harness can flip them without a separate config file.
@@ -1430,21 +1317,17 @@ if __name__ == "__main__":
     # multi-node regnet harness (doc/47): regnet normally never dials and drops "hello"; with this env the
     # regnet node peers over the real socket protocol with the nodes seeded by BISMUTH_REGNET_PEERS_SEED
     node.regnet_peering = os.environ.get("BISMUTH_REGNET_PEERING", "").lower() in ("1", "true", "yes")
-    node.ledger_integer_amounts = config.ledger_integer_amounts   # doc/16 phase 2 cutover (default off)
+    node.ledger_integer_amounts = config.ledger_integer_amounts   # doc/05 (default off)
     amounts.LEDGER_INTEGER = node.ledger_integer_amounts          # module flag read by every ledger amount site
-    node.bootstrap_url = config.bootstrap_url     # configurable bootstrap source (the old fixed host can vanish)
-    node.bootstrap_file = config.bootstrap_file   # local bootstrap archive; if set/present, used instead of downloading
     # doc/43 snapshot serve + P2P bootstrap. These MUST be copied onto the node: rest_api and chain_ops
     # read them as getattr(node, ..., False/""), so while they were missing here the whole feature was
     # unreachable dead code — /api/snapshot answered "snapshot serving disabled" and the P2P fetch was
     # never attempted, no matter what the operator put in config.
     node.snapshot_serve = config.snapshot_serve          # serve /api/snapshot[/info] DB-direct, on demand
-    node.snapshot_path = config.snapshot_path            # legacy pre-built tarball (fallback only)
     node.bootstrap_p2p = config.bootstrap_p2p            # try peers (tip-hash checked) before bootstrap_url
     node.bootstrap_p2p_peers = config.bootstrap_p2p_peers  # optional explicit ["host:rest_port", ...] sources
-    node.block_store_enabled = config.block_store # opt-in LMDB block-body mirror (doc/17 phase 7)
-    node.block_store = None                        # the store object, created at startup if enabled
-    node.block_writer = None                       # the stage-4 write seam over block_store (doc/26); set with it
+    node.ledger = None                             # the LMDB ledger (block_store.BlockStore), opened at startup
+    node.block_store = None                        # same object as node.ledger
     node.fork_signal = config.fork_signal          # hf2: stamp the readiness signal when mining (doc/18).
     # Signalling hf2 asserts readiness for the WHOLE bundle, including the blake2b Heavy3 (doc/18-D).
     node.mine = config.mine                        # opt-in built-in solo miner (miner.py)
@@ -1462,21 +1345,10 @@ if __name__ == "__main__":
     node.rpc_bitcoin_port = config.rpc_bitcoin_port
     node.rpc_ethereum = config.rpc_ethereum          # opt-in eth_* compatibility shim (doc/17)
     node.rpc_ethereum_port = config.rpc_ethereum_port
-    node.balance_index_enabled = config.balance_index  # opt-in O(1) display-balance index (doc/17)
-    node.balance_index = None                          # the index object, built at startup if enabled
-    node.balance_index_consensus = getattr(config, "balance_index_consensus", "off")  # doc/26 stage 4: off|shadow|primary
-    node.txid_index_consensus = getattr(config, "txid_index_consensus", "off")  # doc/26 stage 4: off|shadow|primary (the dup-sig replay read off SQLite)
-    node.txid_index = None                             # the LMDB txid->height projection, built at startup when txid_index_consensus != off
-    # doc/40 pubkey-by-reference: "off" never builds/consults the registry; any non-off value ("shadow",
-    # "primary") builds it at startup and enforces it post-fork. There is no build-but-don't-enforce window
-    # for THIS rollout — pre-fork every tx carries its inline pubkey (registry is never the authority), and
-    # the fork height itself is the flip to mandatory resolution — so "shadow" is reserved and aliases primary.
-    node.pk_registry_consensus = getattr(config, "pk_registry_consensus", "off")
-    node.pk_registry = None                            # the LMDB address->pubkey registry, built at startup when pk_registry_consensus != off
-    node.parity_strict = getattr(config, "parity_strict", False)  # doc/26 stage 4: raise (not warn) on a parity mismatch
-    node.token_index = None                            # the LMDB token/alias side-index store; set by the
-    #                                                    tokens_aliases plugin at startup (doc/27) when the
-    #                                                    token_index flag is on, else None (legacy index.db).
+    node.token_index = None                            # the LMDB token/alias index; set by the tokens_aliases
+    #                                                    plugin at startup (doc/27)
+    node.txid_index = None                             # views over the ledger's txid / pubkey sub-dbs, set below
+    node.pk_registry = None
 
     node.logger.app_log = log.log("node.log", node.debug_level, node.terminal_output, node.log_color)
     node.logger.app_log.warning("Configuration settings loaded")
@@ -1488,24 +1360,6 @@ if __name__ == "__main__":
         os.rename("../wallet.der", "wallet.der")
     # upgrade wallet location after nuitka-required "files" folder introduction
 
-    # Lost-ledger guard: SQLite ledger deleted while the LMDB block store still holds the chain -> exit
-    # (status 78, systemd RestartPreventExitStatus) instead of re-downloading / re-seeding it. Must run
-    # before seed_genesis, the hyperblock clone and check_integrity -> bootstrap below.
-    guard_lost_ledger(node)
-
-    # doc/30: from-genesis sync — seed the canonical genesis block into a FRESH ledger before the
-    # hyperblock clone / integrity check run, so neither the clone (needs hyper.db to exist) nor
-    # check_integrity/initial_db_check trigger a snapshot bootstrap. No-op once the ledger has blocks.
-    if getattr(node, "sync_from_genesis", False):
-        from chain_ops import seed_genesis
-        seed_genesis(node)
-
-    if not node.full_ledger and os.path.exists(node.ledger_path) and node.is_mainnet:
-        os.remove(node.ledger_path)
-        node.logger.app_log.warning("Removed full ledger for hyperblock mode")
-    if not node.full_ledger:
-        node.logger.app_log.warning("Cloning hyperblocks to ledger file")
-        shutil.copy(node.hyper_path, node.ledger_path)  # hacked to remove all the endless checks
     try:
         # create a plugin manager, load all plugin modules and init
         node.plugin_manager = plugins.PluginManager(app_log=node.logger.app_log, config=config, init=True, node=node)
@@ -1532,49 +1386,29 @@ if __name__ == "__main__":
             # sys.exit()
 
             node.apihandler = apihandler.ApiHandler(node.logger.app_log, config, node=node)
-            mp.MEMPOOL = mp.Mempool(node.logger.app_log, config, node.db_lock, node.is_testnet, trace_db_calls=node.trace_db_calls, node=node)
+            mp.MEMPOOL = mp.Mempool(node.logger.app_log, config, node.db_lock, node.is_testnet, node=node)
 
-            check_integrity(node, node.hyper_path)
-            #PLACEHOLDER FOR FRESH HYPERBLOCK BUILDER
-
-            # if node.rebuild_db: #does nothing
-            #    db_maintenance(init_database)
-
-            # db_manager = db_looper.DbManager(node.logger.app_log)
-            # db_manager.start()
-
-            # Heal any ledger.db-vs-hyper.db tip split left by an unclean exit (OOM/power loss) BEFORE
-            # anything reads heights or recompresses. Done with private connections (no DbHandler cache),
-            # so it sees ground truth; if it trims, it does so while no other connection holds the files.
-            reconcile_ledger_hyper(node)
-
-            db_handler_initial = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram, node.ledger_ram_file, node.logger, trace_db_calls=node.trace_db_calls)
-
-            ledger_check_heights(node, db_handler_initial)
-
-
-            if node.recompress:
-                #todo: do not close database and move files, swap tables instead
-                db_handler_initial.close()
-                recompress_ledger(node)
-                db_handler_initial = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram, node.ledger_ram_file, node.logger, trace_db_calls=node.trace_db_calls)
+            # The LMDB ledger: ONE environment holding the chain and every index the node reads. Opened
+            # BEFORE the P2P listener / connection manager, so no block can be digested without it.
+            open_ledger(node)
+            import block_store
+            node.txid_index = block_store.TxidView(node.ledger)
+            node.pk_registry = block_store.PubkeyView(node.ledger)
+            db_handler_initial = dbhandler.DbHandler.for_node(node)
 
             # Modern plugins (doc/27): start the class-based plugins now that the net type + ledger path are
-            # finalized and the ledger is readable. The tokens_aliases plugin opens its isolated LMDB
-            # token/alias side-index and registers it as the `token_index` service; expose it as
-            # node.token_index so the read/rollback seams drive the plugin's store (and the core token/alias
-            # write paths defer to it). Done BEFORE node_block_init so the legacy alias indexing there sees
-            # node.token_index set and no-ops (no stray index.db writes when the plugin owns it).
+            # finalized and the ledger is readable. The tokens_aliases plugin opens its LMDB token/alias
+            # index and registers it as the `token_index` service; node.token_index drives its reads and
+            # its rollback on every reorg path.
             node.plugin_manager.start(node)
             node.token_index = node.plugin_manager.get_service("token_index")
 
             # doc/30 recovery: one-shot deep rollback. Drop a file `rollback_to` containing a height to
-            # force a clean rollback of the chain + ALL derived indexes (difficulty/misc, balances, token
-            # & alias indexes, VM state) to that tip, then resync from peers — rebuilds derived
-            # state corrupted by a past event (e.g. a difficulty drift the recursive controller locked in).
-            # Self-limiting: the trigger file is removed immediately, so it fires exactly once. Runs here,
-            # after token_index is live (for the index rollback) but before ram_init / node_block_init read
-            # the tip and before the balance/txid stores are built (they rebuild from the truncated ledger).
+            # force a clean rollback of the chain + every index (difficulty, balances, txids, token & alias
+            # index) to that tip, then resync from peers — rebuilds state corrupted by a past event (e.g. a
+            # difficulty drift the recursive controller locked in). Self-limiting: the trigger file is removed
+            # immediately, so it fires exactly once. Runs after token_index is live (for its rollback) and
+            # before node_block_init reads the tip.
             if os.path.exists("rollback_to"):
                 try:
                     _rbk_target = int(open("rollback_to").read().strip())
@@ -1584,17 +1418,10 @@ if __name__ == "__main__":
                 rollback(node, db_handler_initial, _rbk_target + 1)   # rollback_under drops >= target+1 -> new tip = target
                 node.logger.app_log.warning(f"Status: rolled back to {_rbk_target}; derived state will rebuild and the chain resync")
 
-            ram_init(node, db_handler_initial)
             node_block_init(node, db_handler_initial)
-            initial_db_check(node)
-
-            if not node.is_regnet:
-                sequencing_check(node, db_handler_initial)
 
             if node.verify:
                 verify(db_handler_initial)
-
-            add_indices(node, db_handler_initial)
 
             # TODO: until here, we are in single user mode.
             # All the above goes into a "bootup" function, with methods from single_user module only.
@@ -1612,40 +1439,6 @@ if __name__ == "__main__":
                 _bind_listener = True
             else:
                 _bind_listener = False
-
-            # LMDB block-body store (doc/17 phase 7, doc/26). MANDATORY CONSENSUS post-hf2: it is the source
-            # of the post-fork DYNAMIC-FEE weight window (fee_dynamics), and the base_fee is consensus (it
-            # sets the per-tx required fee and the coinbase reward), so every node must derive it from the
-            # SAME complete window. If the store were opt-in, a default node would fall back to the static fee
-            # while a store-on node used the dynamic fee — a chain split. The digester itself never backfills, so
-            # the window is built FORWARD as blocks are digested (scripts/rebuild_block_store.py fills in
-            # history out-of-band); opening the store UNCONDITIONALLY now (well
-            # before hf2 lock-in) lets every node accumulate a complete recent window before activation with no
-            # operator action. Inert pre-fork (the digest fee branch is fork-height-gated). The digest read is
-            # fail-closed (strict): a missing window height HALTS the node rather than diverging.
-            #
-            # ORDERING: this MUST come before the P2P listener / connection manager start below. The store
-            # is written forward by digest (there is no backfill), and digest SKIPS the write when
-            # block_writer is None -- so any block digested while the store was still closed is a
-            # PERMANENT HOLE in it, and a hole inside the post-fork weight window makes the strict fee read
-            # halt the node. Opening it late used to be masked by the shared store directory (a previous
-            # regnet run had already written those heights); with per-ledger stores the hole is real.
-            try:
-                import block_store
-                import kvstore as _kv
-                bs_path = _kv.store_path(node.ledger_path, "blockstore")
-                node.block_store = block_store.BlockStore(bs_path)
-                import storage_backend as _sb
-                node.block_writer = _sb.LmdbWriteBackend(node.block_store, node)   # stage-4 write seam (doc/26); node -> live fork_height gate (doc/40)
-                node.logger.app_log.warning(
-                    f"Status: block store opened at {bs_path} (tip {node.block_store.tip()}; "
-                    f"mandatory consensus post-hf2, inert pre-fork)")
-            except Exception as e:
-                # Pre-fork this is inert (fee is static); post-fork the digest fee read fails closed and halts
-                # rather than diverging. Surface loudly.
-                node.logger.app_log.error(f"Status: block store could not open: {e}")
-                node.block_store = None
-                node.block_writer = None
 
             if _bind_listener:
                 # Port 0 means to select an arbitrary unused port
@@ -1701,80 +1494,6 @@ if __name__ == "__main__":
                 except Exception as e:
                     node.logger.app_log.warning("Status: Ethereum RPC could not start: {}".format(e))
 
-            # optional maintained O(1) balance index (doc/17). Off unless balance_index=True. Rebuilt
-            # from the ledger at startup, maintained on commit, rolled back via chain_ops. DISPLAY path
-            # ONLY — the consensus overspend check stays on ledger_balance3, so a stale/wrong index can
-            # never enable spending (attack-vector safety).
-            if getattr(node, "balance_index_enabled", False):
-                try:
-                    import balance_index as _bi_mod
-                    import kvstore as _kv
-                    bi_path = _kv.store_path(node.ledger_path, "balanceindex")
-                    node.balance_index = _bi_mod.BalanceIndex(bi_path)
-                    _bidb = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
-                                                node.ledger_ram_file, node.logger,
-                                                trace_db_calls=node.trace_db_calls)
-                    try:
-                        n = node.balance_index.rebuild_from_cursor(_bidb.c)
-                        node.logger.app_log.warning("Status: balance index enabled, rebuilt {} addresses".format(n))
-                    finally:
-                        _bidb.close()
-                except Exception as e:
-                    node.logger.app_log.warning("Status: balance index could not start: {}".format(e))
-                    node.balance_index = None
-
-            # optional maintained txid -> height index (doc/26 stage 4). Off unless txid_index_consensus
-            # != "off". Backs the duplicate-signature replay check (digest.check_duplicate_signatures) with
-            # an O(1) content-txid lookup instead of the SQLite signature scan, and keys dedup on the txid
-            # (audit M-3/M-4). POST-FORK only; rebuilt from the ledger at startup (empty pre-fork), maintained
-            # on commit, rebuilt on a reorg. Like the balance index it never changes the dedup OUTCOME until
-            # the flag flips to "primary" -- in "shadow" it only cross-checks the SQLite verdict.
-            if getattr(node, "txid_index_consensus", "off") != "off":
-                try:
-                    import txid_index as _txi_mod
-                    import kvstore as _kv
-                    txi_path = _kv.store_path(node.ledger_path, "txidindex")
-                    node.txid_index = _txi_mod.TxidIndex(txi_path)
-                    _txidb = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
-                                                 node.ledger_ram_file, node.logger,
-                                                 trace_db_calls=node.trace_db_calls)
-                    try:
-                        n = node.txid_index.rebuild_from_cursor(_txidb.c, node.fork_height)
-                        node.logger.app_log.warning("Status: txid index ({}), rebuilt {} post-fork txids".format(
-                            node.txid_index_consensus, n))
-                    finally:
-                        _txidb.close()
-                except Exception as e:
-                    node.logger.app_log.warning("Status: txid index could not start: {}".format(e))
-                    node.txid_index = None
-
-            # hf2 pubkey-by-reference (doc/40): address -> public-key registry. Off unless
-            # pk_registry_consensus != "off". Lets post-fork RSA/ML-DSA/multisig repeat senders OMIT the
-            # key on the wire (resolved by address). POST-FORK only; rebuilt at startup + on every reorg
-            # from the FULL ledger cursor (db_handler.h, NOT the pruned hyper .c — first-registration of
-            # ancient addresses must survive pruning), maintained on commit.
-            if getattr(node, "pk_registry_consensus", "off") != "off":
-                try:
-                    import pubkey_registry as _pkr_mod
-                    import kvstore as _kv
-                    pkr_path = _kv.store_path(node.ledger_path, "pkregistry")
-                    node.pk_registry = _pkr_mod.PubkeyRegistry(pkr_path)
-                    _pkrb = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
-                                                node.ledger_ram_file, node.logger,
-                                                trace_db_calls=node.trace_db_calls)
-                    try:
-                        n = node.pk_registry.rebuild_from_cursor(_pkrb.h, node.fork_height)
-                        node.logger.app_log.warning("Status: pubkey registry ({}), rebuilt {} addresses".format(
-                            node.pk_registry_consensus, n))
-                    finally:
-                        _pkrb.close()
-                except Exception as e:
-                    node.logger.app_log.warning("Status: pubkey registry could not start: {}".format(e))
-                    node.pk_registry = None
-
-            # (The LMDB token/alias side-index is now owned by the tokens_aliases PLUGIN — opened in
-            # node.plugin_manager.start(node) above and exposed as node.token_index. doc/26 stage 2 + doc/27.)
-
         except Exception as e:
             node.logger.app_log.info(e)
             raise
@@ -1785,21 +1504,18 @@ if __name__ == "__main__":
 
     node.logger.app_log.warning("Status: Bismuth loop running.")
 
-    # Built-in solo miner (miner.py): opt-in via mine=True. Runs in its own thread with its own DB handle
-    # (SQLite handles are per-thread); it mines real Heavy3 blocks with mempool txs + the hf2 coinbase
+    # Built-in solo miner (miner.py): opt-in via mine=True. Runs in its own thread; it mines real Heavy3 blocks with mempool txs + the hf2 coinbase
     # and digests them, serialised with sync via db_lock. Inert unless mine=True.
     if getattr(node, "mine", False):
         def _solo_mine():
-            _mdb = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
-                                       node.ledger_ram_file, node.logger, trace_db_calls=node.trace_db_calls)
+            _mdb = dbhandler.DbHandler.for_node(node)
             import miner
             miner.mining_loop(node, _mdb)
         threading.Thread(target=_solo_mine, daemon=True, name="solo-miner").start()
 
     # API-sync consume loop (doc/17, the "API fork"): catch up the chain over a peer's REST API instead of
-    # the socket. Off unless api_sync=True + api_sync_source set. Own thread + DB handle, serialised with the
-    # rest via db_lock. Started here, after all stores are open and node.last_block is primed, so any block it
-    # ingests maintains the same projections (block_store / balance_index / txid_index) as socket-delivered.
+    # the socket. Off unless api_sync=True + api_sync_source set. Own thread, serialised with the rest via
+    # db_lock. Started here, after the ledger is open and node.last_block is primed.
     if getattr(node, "api_sync_enabled", False):
         try:
             import api_sync_worker
@@ -1807,51 +1523,15 @@ if __name__ == "__main__":
         except Exception as e:
             node.logger.app_log.warning(f"Status: API-sync worker could not start: {e}")
 
-    # Live self-heal (doc/14): periodically scan the recent tip for a sequence/dupe corruption and, if found,
-    # roll back to the clean prefix + resync WITHOUT a restart. The check is a cheap recent-tail scan; it
-    # only truncates on a genuine break (healthy chains have strictly-consecutive heights -> no-op). Runs in
-    # its own thread + DB handle, serialised with digestion via a non-blocking db_lock acquire (skips while a
-    # block is mid-digest). On by default; set autoheal=False to disable.
-    if getattr(node, "autoheal", True):
-        def _autoheal_loop():
-            import chain_ops as _chain_ops
-            try:
-                _hdb = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
-                                           node.ledger_ram_file, node.logger, trace_db_calls=node.trace_db_calls)
-            except Exception as e:
-                node.logger.app_log.warning(f"autoheal: could not open DB handle: {e}")
-                return
-            interval = max(30, int(getattr(node, "autoheal_interval", 300)))
-            while not node.IS_STOPPING:
-                time.sleep(interval)
-                if node.IS_STOPPING:
-                    break
-                if not node.db_lock.acquire(blocking=False):
-                    continue   # node is digesting a block right now; check next cycle
-                try:
-                    _chain_ops.autoheal_live(node, _hdb)
-                except Exception as e:
-                    node.logger.app_log.warning(f"autoheal loop: {e}")
-                finally:
-                    node.db_lock.release()
-        threading.Thread(target=_autoheal_loop, daemon=True, name="autoheal").start()
-
     # doc/35 (#23): peer-difficulty DIVERGENCE detector + opt-in guarded self-heal. Prevents a silent
     # recurrence of the difficulty-corruption incident (node mined at 84.48 while the network was ~89.8).
     # SAFE BY DEFAULT — with the shipped config the prod node only polls peers every 5 min and LOUD-logs on
     # confirmed divergence; it NEVER pauses mining or rolls back unless the operator opts in. OBSERVE-ONLY:
-    # reads the cached node.difficulty + an HTTP poll, NEVER scans the ledger. Own thread + DB handle (the DB
-    # handle is only used as the detect_difficulty_divergence signature parameter — the detector does not
-    # touch it; kept for template parity + future use). Modeled exactly on _autoheal_loop above.
+    # reads the cached node.difficulty + an HTTP poll, NEVER scans the ledger. Own thread.
     if getattr(node, "diff_divergence_detect", True):
         def _difficulty_divergence_loop():
             import chain_ops as _chain_ops
-            try:
-                _ddb = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
-                                           node.ledger_ram_file, node.logger, trace_db_calls=node.trace_db_calls)
-            except Exception as e:
-                node.logger.app_log.warning(f"diff-divergence: could not open DB handle: {e}")
-                _ddb = None
+            _ddb = dbhandler.DbHandler.for_node(node)
             interval = max(60, int(getattr(node, "diff_divergence_interval", 300)))
             # Positive startup confirmation (the detector is otherwise SILENT on a healthy CLEAN reading, so a
             # plain log can't distinguish "running + healthy" from "never started"). One line per boot.

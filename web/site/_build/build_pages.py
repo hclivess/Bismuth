@@ -231,9 +231,8 @@ sudo ./install_node.sh</code></pre>
           </ul>
         </div>
       </div>
-      <p class='sub' style='margin-top:16px'>Advanced: the fresh-sync bootstrap pulls
-        <a href='/ledger.tar.gz'>ledger.tar.gz</a> automatically; to seed from your own snapshot set
-        <code>bootstrap_file</code> / <code>bootstrap_url</code> in <code>config.toml</code>. All settings:
+      <p class='sub' style='margin-top:16px'>Advanced: a fresh node bootstraps its LMDB ledger straight
+        from a peer's live database (tip-hash verified), or syncs from genesis. All settings:
         <a href='https://github.com/hclivess/Bismuth/blob/main/doc/11-configuration.md'>doc/11</a>.</p>
     </section>
 

@@ -87,7 +87,7 @@ The pool↔miner protocol is **HTTP/JSON** (the pool runs a stdlib `http.server`
 3. The pool validates the share against the node's `mining_heavy3` (same algo the node consensus uses); if
    it meets the **network** difficulty it pulls the mempool from the node, builds + RSA-signs the coinbase,
    and submits the block to the node via **`POST /api/block`** (socket broadcast only as a fallback).
-4. Shares are recorded in `shares.db`; the autopayout thread pays out hourly per PPLNS, minus fees.
+4. Shares are recorded in the pool's LMDB store (`poolstore/`, `pool/pool_store.py`); the autopayout thread pays out hourly per PPLNS, minus fees.
 
 Everything the pool sends to the node is REST (status/difficulty/mempool/transaction/fork/block); it never
 opens a socket to the node and never reads the ledger directly.

@@ -4,7 +4,7 @@ Frozen consensus serialization for Bismuth.
 The byte forms used for transaction SIGNING and BLOCK HASHING are consensus-critical: change them and
 signatures / block hashes change, and the network forks. Historically these byte forms were spelled
 out inline in several places (digest.py, essentials.sign_rsa, mempool.merge). They are centralised
-here so the rest of the node — and any future storage / API rework (see doc/16) — can evolve without
+here so the rest of the node — and any future storage / API rework — can evolve without
 ever touching the consensus bytes.
 
 These functions reproduce the legacy forms EXACTLY and are locked by characterization vectors in
@@ -30,7 +30,7 @@ def signature_buffer(timestamp, address, recipient, amount, operation, openfield
 
 
 def tx_id(timestamp, address, recipient, amount, operation, openfield) -> str:
-    """Post-hf2 content-addressed transaction id (nado model, doc/16): BLAKE2b-256 (32 bytes) over the
+    """Post-hf2 content-addressed transaction id (nado model): BLAKE2b-256 (32 bytes) over the
     SAME frozen pre-image the signature is computed on (``signature_buffer``), hex-encoded -> 64 lowercase
     hex chars. Signature and public_key are excluded by construction, so the id is a stable, URL-safe
     commitment to the tx content (not a slice of the signature). blake2b is the hf2 hash choice (not

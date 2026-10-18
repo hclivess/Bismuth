@@ -7,9 +7,6 @@ Each file maybe a *module* (library of functions, to be included but not run) or
 See also the most useful files: https://github.com/EggPool/Bismuth/blob/patch-51/_MOST_USEFUL_FILES.md
 Some files have been moved to https://github.com/hclivess/BismuthProjects
 
-## aliases.py (*module*)
-Handles the aliases index (ie: labels for bismuth addresses)
-
 ## apihandler.py (*module*)
 Class to handle extra API commands, that are not part of the core nodes protocol.  
 Used by Json-RPC server and other third party interaction.  
@@ -21,6 +18,9 @@ To be used by GUI wallet.  Finds local user storage location.
 ## balance_nogui.py (*script*)
 Get balance from the command line.  
 Outdated, still uses privkey.der/pubkey.der instead or modern wallet.der
+
+## block_store.py (*module*)
+The ledger: one LMDB environment holding the blocks, the per-block difficulty and every index (signatures, address history, balances, txids, pubkey registry). A block commits, and a reorg rolls back, in one transaction.
 
 ## bisurl.py (*module*)
 bisurl encoding and decoding functions.  
@@ -45,7 +45,7 @@ Connection manager thread module. Reports status to output.
 Compiles executables for Windows. Nuitka is cross-platform, however.
 
 ## dbhandler.py (*module*)
-Standard database handler class for initiation and closing of database connections per thread, includes error handling.
+Thin thread-safe facade over the shared LMDB ledger (`block_store.py`): the read helpers the node calls, the block commit and the reorg rollback.
 
 ## difficulty.py (*module*)
 Difficulty calculation.
@@ -59,10 +59,6 @@ Common helpers. Some DB related, mainly crypto helpers and common abstract opera
 ## fork.py (*module*)
 Rules for upcoming hardforks should be stored here.
 
-## genesis.py (*script*)
-Do not use.  
-Helper script to create a new genesis block, from an empty chain. Not maintained.
-
 ## hmac_drbg.py (*module*)
 HMAC_DRBG (sha512) helper class, used by the "heavy3" PoW algorithm.
 
@@ -75,8 +71,8 @@ Sample script to generate a new address.
 ## keys.py (*module*)
 Helpers to generate and read wallet.der (privkey, pubkey, address)
 
-## ledger_explorer.py (*script*)
-Early version of a block explorer. Not maintained.
+## ledger_genesis.py (*module*)
+The canonical genesis block seeded into a fresh ledger, and the fixed mainnet balance allocations (concluded Dev / Hypernode reward totals).
 
 ## log.py (*module*)
 Logging - console, file - helpers.
@@ -85,7 +81,7 @@ Logging - console, file - helpers.
 Benchmark Helper for wallet.
 
 ## mempool.py (*module*)
-Mempool module for Bismuth nodes
+Mempool module for Bismuth nodes — the pending-transaction pool, held in memory.
 
 ## mining.py (*module*)
 Legacy mining algo: block validity check.
@@ -117,12 +113,6 @@ Helper. Recovers pubkey and address from privkey alone.
 ## regnet.py (*module*)
 Regnet mode for bismuth testing.
 
-## attic/rewards_reindex.py  (*script, retired*)
-System script to reindex dev rewards, manual block level input. Do not use. Retired to `attic/`.
-
-## attic/rewards_test.py  (*script, retired*)
-Tests if there is a dev reward every 10 blocks. Do not use. Retired to `attic/`.
-
 ## rollback.py (*module*)
 Helper. rollbacks indexes on block rollback.
 
@@ -139,12 +129,6 @@ Windows installer generator for Inno Setup when compiled with nuitka.
 
 ## simplecrypt.py (*module*)
 Helper. Handles wallet encryption/decryption with password.
-
-## staking.py (*module*)
-Helper. Proof of concept for offline staking.
-
-## tokensv2.py (*module*)
-Tokens functions.
 
 ## wallet.py  (*script*)
 Bundled/Legacy GUI Wallet.

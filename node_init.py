@@ -1,29 +1,20 @@
 """
-Node bootstrap / initialization helpers lifted out of ``node.py``'s ``__main__`` wiring: net-type
-setup, RAM-ledger load, the initial DB/schema check, key loading, the ram/height priming and the
-index/migration step. Each already operated on the global ``node`` singleton, so it takes ``node``
-explicitly now (pure relocation by dependency injection — bodies are byte-identical to the originals
-apart from the added param). ``bootstrap`` comes from ``chain_ops`` and ``sql_trace_callback`` from
-``dbhandler``; the consensus chain ``verify`` deliberately stays in ``node.py``.
+Node bootstrap / initialization helpers lifted out of ``node.py``'s ``__main__`` wiring: net-type setup,
+opening (and, on a fresh install, bootstrapping) the LMDB ledger, key loading and the tip priming. Each
+takes ``node`` explicitly; the consensus chain ``verify`` stays in ``node.py``.
 """
-import functools
-import glob
 import os
-import sqlite3
 import sys
-import tarfile
 
-import aliases
-import db_migrations
-import dbhandler
+import block_store
 import essentials
+import kvstore
 import mining_heavy3
 import regnet
-from chain_ops import bootstrap
-from dbhandler import sql_trace_callback
+from chain_ops import bootstrap, seed_genesis
 from difficulty import difficulty
 from digest import digest_block
-from essentials import checkpoint_set, download_file
+from essentials import checkpoint_set
 
 
 def just_int_from(s):
@@ -56,8 +47,6 @@ def setup_net_type(node):
 
     # default mainnet config
     node.peerfile = "peers.txt"
-    node.ledger_ram_file = "file:ledger?mode=memory&cache=shared"
-    node.index_db = "static/index.db"
 
     if node.is_mainnet:
         # Allow only 21 and up. mainnet0023 signals the modern capabilities (REST API + negotiated
@@ -84,57 +73,16 @@ def setup_net_type(node):
 
     if "testnet" in node.version or node.is_testnet:
         node.port = 2829
-        node.hyper_path = "static/hyper_test.db"
         node.ledger_path = "static/ledger_test.db"
-
-        node.ledger_ram_file = "file:ledger_testnet?mode=memory&cache=shared"
-        #node.hyper_recompress = False
         node.peerfile = "peers_test.txt"
-        node.index_db = "static/index_test.db"
         if not 'testnet' in node.version:
             node.logger.app_log.error("Bad testnet version, check config.txt")
             sys.exit()
 
-        redownload_test = input("Status: Welcome to the testnet. Redownload test ledger? y/n")
-        if redownload_test == "y":
-            types = ['static/ledger_test.db-wal', 'static/ledger_test.db-shm', 'static/index_test.db', 'static/hyper_test.db-wal', 'static/hyper_test.db-shm']
-            for type in types:
-                for file in glob.glob(type):
-                    os.remove(file)
-                    print(file, "deleted")
-            download_file("https://bismuth.cz/test.tar.gz", "static/test.tar.gz")
-            with tarfile.open("static/test.tar.gz") as tar:
-                def is_within_directory(directory, target):
-                    
-                    abs_directory = os.path.abspath(directory)
-                    abs_target = os.path.abspath(target)
-                
-                    prefix = os.path.commonprefix([abs_directory, abs_target])
-                    
-                    return prefix == abs_directory
-                
-                def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
-                
-                    for member in tar.getmembers():
-                        member_path = os.path.join(path, member.name)
-                        if not is_within_directory(path, member_path):
-                            raise Exception("Attempted Path Traversal in Tar File")
-                
-                    tar.extractall(path, members, numeric_owner=numeric_owner) 
-                    
-                
-                safe_extract(tar, "static/")
-        else:
-            print("Not redownloading test db")
-
     if "regnet" in node.version or node.is_regnet:
         node.port = regnet.REGNET_PORT
-        node.hyper_path = regnet.REGNET_DB
         node.ledger_path = regnet.REGNET_DB
-        node.ledger_ram_file = "file:ledger_regnet?mode=memory&cache=shared"
-        node.hyper_recompress = False
         node.peerfile = regnet.REGNET_PEERS
-        node.index_db = regnet.REGNET_INDEX
         if not 'regnet' in node.version:
             node.logger.app_log.error("Bad regnet version, check config.txt")
             sys.exit()
@@ -161,9 +109,8 @@ def setup_net_type(node):
         if node.fork_height is not None:
             node.logger.app_log.warning(
                 f"Status: hf2 activation height {node.fork_height} replayed from the lock-in sidecar")
-        # Authoritative operator/snapshot PIN (doc/17). A node bootstrapped from a hyperblock snapshot has
-        # NEITHER the lock-in sidecar NOR the pruned signalling coinbases, so the on-chain re-derivation can
-        # silently return None and leave the node validating a POST-fork chain under PRE-fork rules — a hard
+        # Authoritative operator/snapshot PIN (doc/17). A node bootstrapped from a ledger snapshot has no
+        # lock-in sidecar, so until its first digest re-derives the height the on-chain detection can return None and leave the node validating a POST-fork chain under PRE-fork rules — a hard
         # split. This pin (BISMUTH_HF2_FORK_HEIGHT env / node.hf2_fork_height config) lets the height be
         # supplied explicitly for exactly that case. It is cross-checked against the sidecar: a DISAGREEMENT
         # is a guaranteed chain split, so we HALT loudly rather than pick one. When only the pin is present it
@@ -189,101 +136,39 @@ def setup_net_type(node):
         node.fork_height = None
 
 
+def open_ledger(node):
+    """Open the node's LMDB ledger (``<ledger_path>`` -> ``blockstore-<name>``). A fresh install first tries
+    a DB-direct peer snapshot (doc/43), else seeds the genesis block and syncs from peers. Sets
+    ``node.ledger`` (and ``node.block_store``, the same object)."""
+    path = kvstore.store_path(node.ledger_path, "blockstore")
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    if not os.path.exists(os.path.join(path, "data.mdb")) and not node.is_regnet:
+        bootstrap(node)
+    node.ledger = block_store.open_ledger(path)
+    node.block_store = node.ledger
+    schema = node.ledger.schema()
+    if node.ledger.tip() is not None and schema != block_store.SCHEMA:
+        node.logger.app_log.critical(
+            f"Status: the ledger at {path} has schema {schema}, this node needs {block_store.SCHEMA}: "
+            f"run scripts/upgrade_ledger.py {path} with the node stopped")
+        sys.exit(1)
+    seed_genesis(node)
+    import ledger_genesis
+    if node.ledger.tip() is not None and node.ledger.allocations() != ledger_genesis.allocations(node):
+        node.ledger.set_allocations(ledger_genesis.allocations(node))
+        node.logger.app_log.warning("Status: applied the fixed ledger allocations")
+    node.logger.app_log.warning(f"Status: ledger open at {path} (tip {node.ledger.tip()}, "
+                                f"{node.ledger.tx_count()} txs)")
+
+
 def node_block_init(node, database):
-    # TODO: candidate for single user mode
     node.hdd_block = database.block_height_max()
     node.difficulty = difficulty(node, database)  # check diff for miner
-
-    node.last_block = node.hdd_block  # ram equals drive at this point
-
+    node.last_block = node.hdd_block
     node.last_block_hash = database.last_block_hash()
-    node.hdd_hash = node.last_block_hash # ram equals drive at this point
-
+    node.hdd_hash = node.last_block_hash
     node.last_block_timestamp = database.last_block_timestamp()
-
     checkpoint_set(node)
-
-    node.logger.app_log.warning("Status: Indexing aliases")
-
-    # When the tokens_aliases plugin owns the index (node.token_index set, doc/27), this no-ops — the
-    # plugin already backfilled tokens AND aliases from the ledger in plugin_manager.start(). On the legacy
-    # path it indexes aliases into index.db as before.
-    aliases.aliases_update(node, database)
-
-
-def ram_init(node, database):
-    # TODO: candidate for single user mode
-    try:
-        if node.ram:
-            node.logger.app_log.warning("Status: Moving database to RAM")
-
-            if node.py_version >= 370:
-                temp_target = sqlite3.connect(node.ledger_ram_file, uri=True, isolation_level=None, timeout=1)
-                if node.trace_db_calls:
-                    temp_target.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"TEMP-TARGET"))
-
-                temp_source = sqlite3.connect(node.hyper_path, uri=True, isolation_level=None, timeout=1)
-                if node.trace_db_calls:
-                    temp_source.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"TEMP-SOURCE"))
-                temp_source.backup(temp_target)
-                temp_source.close()
-
-            else:
-                source_db = sqlite3.connect(node.hyper_path, timeout=1)
-                if node.trace_db_calls:
-                    source_db.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"SOURCE-DB"))
-                database.to_ram = sqlite3.connect(node.ledger_ram_file, uri=True, timeout=1, isolation_level=None)
-                if node.trace_db_calls:
-                    database.to_ram.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"DATABASE-TO-RAM"))
-                database.to_ram.text_factory = str
-                database.tr = database.to_ram.cursor()
-
-                query = "".join(line for line in source_db.iterdump())
-                database.to_ram.executescript(query)
-                source_db.close()
-
-            node.logger.app_log.warning("Status: Hyperblock ledger moved to RAM")
-
-            #source = sqlite3.connect('existing_db.db')
-            #dest = sqlite3.connect(':memory:')
-            #source.backup(dest)
-
-    except Exception as e:
-        node.logger.app_log.warning(e)
-        raise
-
-
-def initial_db_check(node):
-    """
-    Initial bootstrap check and chain validity control
-    """
-    # TODO: candidate for single user mode
-    # force bootstrap via adding an empty "fresh_sync" file in the dir.
-    if os.path.exists("fresh_sync") and node.is_mainnet:
-        node.logger.app_log.warning("Status: Fresh sync required, bootstrapping from the website")
-        os.remove("fresh_sync")
-        bootstrap(node)
-    # UPDATE mainnet DB if required
-    if node.is_mainnet:
-        upgrade = sqlite3.connect(node.ledger_path)
-        if node.trace_db_calls:
-            upgrade.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"INITIAL_DB_CHECK"))
-        u = upgrade.cursor()
-        try:
-            u.execute("PRAGMA table_info(transactions);")
-            # HARDFORK / cleanup (doc/16): brittle schema sniff — a hardcoded column index [10]
-            # (operation) plus a string-equality type check. The integer-storage migration declares
-            # explicit column types (amount/fee/reward INTEGER, timestamp/text TEXT), so this ad-hoc
-            # probe should become a real schema-version check (PRAGMA user_version; see db_migrations.py).
-            result = u.fetchall()[10][2]
-            if result != "TEXT":
-                raise ValueError("Database column type outdated for Command field")
-            upgrade.close()
-        except Exception as e:
-            print(e)
-            upgrade.close()
-            print("Database needs upgrading, bootstrapping...")
-            bootstrap(node)
 
 
 def load_keys(node):
@@ -301,16 +186,3 @@ def load_keys(node):
         regnet.KEY = node.keys.key
 
     node.logger.app_log.warning(f"Status: Local address: {node.keys.address}")
-
-
-def add_indices(node, db_handler: dbhandler.DbHandler):
-    # Versioned, idempotent schema migrations (db_migrations.py, see doc/16). v1 creates exactly the
-    # indexes this function historically created -- the TXID4 partial-signature index (skipped when
-    # old_sqlite) and the misc block-height index -- now tracked via PRAGMA user_version on each DB.
-    node.logger.app_log.warning("Applying schema migrations / creating indices")
-    if node.old_sqlite:
-        node.logger.app_log.warning("old_sqlite is True, skipping the signature-prefix index; lookups will be slower.")
-    migrations = db_migrations.ledger_migrations(old_sqlite=node.old_sqlite)
-    for cursor in (db_handler.h, db_handler.h2, db_handler.c):
-        db_migrations.run(cursor, migrations, app_log=node.logger.app_log)
-    node.logger.app_log.warning("Finished schema migrations")

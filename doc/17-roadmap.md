@@ -1,7 +1,7 @@
 # 17 — Roadmap
 
-> The plan for modernizing the Bismuth node. This is the high-level companion to the database deep-dive
-> in [`16-database-rework-plan.md`](16-database-rework-plan.md); read that for the storage details.
+> The plan for modernizing the Bismuth node. Storage details: [`05-database-and-ledger.md`](05-database-and-ledger.md)
+> (the LMDB ledger) and [`26-storage-postfork.md`](26-storage-postfork.md) (the migration record).
 
 ## Guiding principles
 
@@ -22,15 +22,16 @@
 
 - **Consensus-serialization freeze.** `bismuth_serialize.py` holds the frozen signing/block-hash byte
   forms; `digest`, `mempool` and signing all route through it. Locked by `tests/test_characterization.py`.
-- **Schema versioning & migrations.** `db_migrations.py` applies ordered, idempotent migrations tracked
-  by `PRAGMA user_version`.
+- **Ledger schema versioning.** The LMDB ledger records its schema in `meta`; the node refuses an older
+  schema and names the upgrade (`scripts/upgrade_ledger.py`: difficulty replay anchored on peers, then
+  `BlockStore.reindex`).
 - **Integer atomic-unit storage (phase 2).** `amounts.py` provides the exact decimal↔integer-units
-  converter; `replay_verify.py` proves integer round-tripping changes no block hash; `migrate_amounts.py`
-  is the offline column migration. The live cutover is **enabled on regnet** behind the
+  converter; `replay_verify.py` proves integer round-tripping changes no block hash. The live cutover is **enabled on regnet** behind the
   `ledger_integer_amounts` flag (default **off**, so mainnet is untouched). Display/consensus edges all
   reconstruct the legacy decimal strings at the boundary.
-- **Balance cache (phase 4, safe slice).** `balance_cache.py` memoizes the authoritative balance per
-  `(address, height)`; auto-invalidates on height change.
+- **O(1) balances (phase 4).** The ledger's `bal` sub-db keeps per-address credited / rewards / debited
+  / fees in integer units, maintained inside each block commit and reversed by rollback; consensus, the
+  mempool and every API read it.
 - **Modern HTTP layer.**
   - Read-only **REST API** (`rest_api.py`): status, blocks (single / since / range), balance,
     transaction, address history, mempool, peers; a self-describing welcome index.
@@ -42,18 +43,17 @@
     zero hard native deps); `?compress=none|gzip|br` override for explicit plaintext/codec.
   - **Version bump** `mainnet0023` as the modern-capabilities signal (not a consensus change —
     nothing in `digest`/`bismuth_serialize` gates on the version string).
-- **Bootstrap resilience (operational hardening).** `chain_ops.bootstrap` no longer depends on a single
-  hardcoded download host (which can and did vanish). It prefers a locally-provided ledger archive
-  (`bootstrap_file` config, or an archive dropped at `<ledger_path>.tar.gz`), downloads from a
-  configurable `bootstrap_url` only as a fallback, extracts into the ledger's own directory, and
-  surfaces failures loudly instead of swallowing them in a bare `except`. Covered by
-  `tests/test_bootstrap_local.py` (no network, no node subprocess).
+- **Decentralized bootstrap.** `chain_ops.bootstrap` depends on no download host: a fresh node streams a
+  DB-direct LMDB snapshot from a peer (`/api/snapshot`, `env.copyfd`), verifies its tip height + hash,
+  and the digester re-validates forward; with no snapshot available it seeds genesis
+  (`ledger_genesis`) and syncs (doc/43). Covered by `tests/test_bootstrap_local.py` and
+  `tests/test_snapshot_db_direct.py`.
 - **Legacy wire-compatibility verified live.** `legacy_sync_probe.py` (read-only) confirms this codebase
   still speaks the legacy socket protocol to the current mainnet: version handshake → `ok`, compatible
   peer versions (`mainnet0021/0022`), peer-list exchange (≈500 peers) and block-height negotiation all
   succeed against live peers (tip **4,845,284**). Note: legacy peers reject ancient checkpoints
   (`blocknf`/rollback), so a from-genesis forward sync is not served — a bootstrap snapshot is required,
-  which is exactly what the resilience work above makes dependable.
+  which is exactly what the peer bootstrap above provides.
 - **Non-RSA signer deps are mandatory for a node (the real sync-blocker).** mainnet carries ECDSA and
   ED25519 transactions, so a node missing `coincurve`/`ed25519` rejects **every** such block
   (`ModuleNotFoundError` in `polysign/signer_*`) and silently stalls at the first one. This — not "slow
@@ -71,11 +71,6 @@
   now logs the real failure site + cause (this is what exposed the ed25519 sync-blocker). With these +
   the dependency fix, **a fresh node bootstraps and syncs to the mainnet tip end-to-end** (verified live:
   4.72M snapshot → **4,845,489 tip**, clean, no rejections).
-- **Bootstrap is hosted again.** `https://bismuth.cz/ledger.tar.gz` — the node's historical default
-  `bootstrap_url`, on a rebuilt host (nginx + Let's Encrypt) — now serves a fresh **at-tip** snapshot
-  (ledger + hyper + index, ~5.9 GB, resumable byte-range), produced from the live node with zero downtime
-  via SQLite online backup (`_mkbootstrap.sh`). So the dead-host failure is resolved in practice, not
-  only in code.
 
 ## ◑ In progress / next
 
@@ -98,32 +93,23 @@
     socket path uses (transport-only swap; consensus validation identical). The two-node harness now
     exists — `tests/test_two_node_api_sync.py` (regnet paths/port env-parameterized so N nodes co-exist):
     node B starts at genesis and reconstructs node A's entire chain **over REST alone**, block-for-block
-    identical, under `block_store` + `balance_index=primary` + `txid_index=primary` + `parity_strict`. So
+    identical, ledger indexes included. So
     one node ingesting another's blocks over the API is validated end-to-end.
   - ◻ **Remaining: mainnet rollout.** **Reality check (measured on mainnet 2026-06):** no live peer is
     REST-capable yet (legacy peers expose only the socket port), so on mainnet this still only lets THIS
     node *serve* fast sync; live catch-up stays on the legacy socket protocol (≈0.8 blocks/s) until peers
     upgrade and `api_sync` is turned on against a REST-capable source.
-- **Incremental balance index (phase 4 deep).** A maintained O(1) credit/debit index, updated on
-  apply/rollback, that bit-matches the authoritative computation. Depends on integer storage.
-- **Explicit reward & pruning model (phase 5).** Replace negative-height "mirror" reward rows and
-  synthetic `address='Hyperblock'` rows with real, queryable structures; convert `recompress_ledger`
-  and the hypernode/`ledger_queries` paths to integer units (currently left legacy, tagged `# HARDFORK`).
-  - ✅ **Reward sidechain foundation** (`reward_chain.py`): the dev-fund + hypernode-payout rewards are
-    minted LOCALLY at commit (`dbhandler_write.dev_reward`/`hn_reward`) as negative-height rows in the
-    main ledger — they are **not synced**. `RewardChain` lifts them into a separate store keyed by the
-    POSITIVE block height, preserving each row's exact balance effect (minting source debited, recipient
-    credited). `tests/test_reward_chain.py` proves `(main positive ledger) + (reward sidechain)` equals
-    today's full-ledger balances for **every** address, on synthetic and real regnet data — so the move
-    is **balance-preserving and replay-identical** (synced bodies/hashes unchanged → no consensus
-    change). ◻ Remaining: wire the digester to write rewards here instead of negative rows, and the
-    balance path (incl. the balance index) to read them, behind a config flag, replay-validated.
+- ✅ **Explicit reward model (phase 5).** The dev-fund + hypernode-payout rewards, once minted locally
+  every 10th block as unsynced negative-height rows, concluded at block 4,380,000. Their totals are now
+  fixed balance allocations (`ledger_genesis.MAINNET_ALLOCATIONS`, meta `alloc`) — no synthetic rows,
+  both addresses' balances equal the network's, and every affected block is anchored by the block-hash
+  checkpoints.
 
 ## 🗺️ Planned
 
 - **Consensus hard fork (the SINGLE hf2 fork).** Change the consensus serialization itself to sign/hash
   **native integer units + a binary/struct tx encoding**, deleting the `'%.8f'`/`'%.2f'` string
-  reconstructions (every site is tagged `# HARDFORK (doc/16)` — `grep -rn "HARDFORK (doc/16)"`). Adopt a
+  reconstructions (every site is tagged `# HARDFORK` in the code — `grep -rn "# HARDFORK"`). Adopt a
   bounded, content-derived **txid** (nado-style: `blake2b(tx_content)`, the signature signs the txid) to
   replace the ad-hoc `signature[:56]` slice. After the fork, storage/boundary/APIs are integer
   end-to-end. **This serialization rework folds into the ONE hf2 fork — not a second fork signal:** every
@@ -158,8 +144,8 @@
     full key need never be repeated (a per-address key table); (b) store keys/signatures as **raw bytes**
     rather than base64 (~25 % smaller for RSA, and far smaller for the 32–33-byte ECDSA/ED25519 keys and
     64-byte sigs); (c) keep only the content-hash txid + signature on-chain. The same dedup can be done
-    **pre-fork, locally** in the LMDB block store (transparent, lossless — the measured 4.3 GB→ below
-    SQLite); the fork makes it canonical and network-wide.
+    **pre-fork, locally** in the LMDB ledger (transparent, lossless — the measured 4.3 GB → 1.73 GB per 1M
+    blocks); the fork makes it canonical and network-wide.
   - **Coinbase compaction (spec'd in doc/29 §2.4).** The coinbase (miner reward) is ingested as a *full*
     signed transaction — a 1068-byte RSA public key + 684-byte signature like any tx, plus (a Bismuth
     quirk) the PoW **nonce in its openfield** (which the hf2 readiness signal currently rides in).
@@ -273,53 +259,21 @@
   3. If economic + rate limits prove insufficient, a structural fix (small **PoW-per-tx**, or a real
      fee market) is a hard-fork consideration. Consensus tx-validity stays unchanged; only *local
      admission* tightens.
-- **Scalable storage architecture (phase 7) — the path to a *fully scalable* DB.** Benchmarked on the
-  live mainnet ledger (**22 GB, block 4.85M, 7.13M txs**): indexed point lookups (block by height / by
-  hash) are sub-second, but a **per-address balance aggregate is a full-table scan that did not finish
-  within 200 s** — that is the scalability wall, and `ledger.db` also grows without bound. The target,
-  built **behind the frozen serialization boundary so block hashes stay byte-identical — replay-validated,
-  no hard fork**:
-  1. **Immutable block bodies → an append-only KV store (LMDB).** ✅ **Foundation implemented**
-     (`block_store.py`): an LMDB `BlockStore` with two sub-dbs — `blocks` (big-endian uint64 height →
-     msgpack `{hash, txs}`) and `hashes` (block_hash → height) — giving O(1) tip, numeric-ordered range
-     scans, `height_by_hash`, and height-based `rollback` (with hash-index cleanup). Each stored tx
-     drops the redundant block_height (it is the key); `get_block` re-prepends it, so callers get the
-     exact 12-field ledger rows back — a **lossless mirror**, proven by `build_from_sqlite` +
-     `verify_against_sqlite` and `tests/test_block_store.py`. Storage only, behind the frozen boundary.
-     **Validated at scale** (`_lmdb_demo.py`): 995,531 real mainnet blocks (1.15M txs) built in 89 s
-     (~11k blk/s), byte-identical to the ledger, and every signed tx re-verified through the store (0
-     failures). With **public-key dedup** (each distinct key stored once, keyed by a blake2b hash since
-     a 1068-byte key exceeds LMDB's 511-byte key limit, referenced by a small id), the footprint dropped
-     from 4.3 GB to **1.73 GB** for those 1M blocks — **~2x smaller than SQLite** (~3.5 GB for the same
-     txs) and still byte-for-byte lossless. So the store now wins on size *and* architecturally — O(1)
-     keyed access, append-only (no VACUUM/fragmentation), and (step 2) maintained balances instead of
-     the >200 s full scan. (Signature raw-bytes packing is deferred — some sigs aren't valid base64; the
-     canonical sig/pubkey encoding belongs to the hard fork.)
-     Chosen **LMDB over RocksDB:** a single mmap'd file, no background compaction, copy-on-write MVCC
-     reads alongside a single writer — a near-perfect fit for an append-heavy, read-heavy, immutable
-     workload, and a trivial embedded dependency (`pip install lmdb msgpack`). ✅ **Shadow-write
-     integration done** (behind the `block_store` flag, default off): the digester mirrors each
-     committed block into the store (additive, best-effort, AFTER the normal commit) with a matching
-     rollback hook. The whole regnet suite runs with it ON — including `test_replay` (byte-identical
-     chain), `test_characterization`, and the consensus invariants — proving it is additive and
-     **mining-invariant** (the block hash / validation path is untouched). ◻ Remaining: switch READS
-     to the store (sync serving + queries) behind the flag, then make it primary.
-  2. **Maintained incremental indexes for queryable state.** ✅ **Balance index implemented**
-     (`balance_index.py`): a per-address running `(credit, debit)` total in integer units (LMDB),
-     `apply_rows`/`rollback_rows`/`rebuild_from_ledger`, turning the >200 s full-scan balance into an
-     O(1) lookup. It **bit-matches `ledger_balance3` for every address** on real regnet data
-     (`tests/test_balance_index.py`) — including the negative-height dev-reward / hypernode-payout
-     "mirror" rows the node mints locally at commit (so the rebuild scans the WHOLE ledger, no height
-     filter). Needs integer-amount storage to bit-match exactly. ◻ Remaining: `txid → location` +
-     address-history indexes, and wiring the apply/rollback into the digester behind a flag. (When
-     phase 5 retires the mirror-row hack, rewards apply from real columns instead.)
-  3. **Integer atomic-unit amounts (phase 2) enabled** — compact exact integers instead of the current
-     `REAL` floats / `'%.8f'` strings. Already replay-proven; currently default-off.
-  4. **Bounded node footprint via a formalised pruning model (phase 5)** so a node need not retain the
-     entire body history.
-  Staged, config-flagged, default-off, each step independently replay-validated. SQLite stays for the
-  queryable indexes; LMDB takes the heavy immutable bodies — **fully scalable without touching
-  consensus.**
+- ✅ **Scalable storage — the LMDB ledger (phase 7, complete).** Measured on the live mainnet ledger
+  (22 GB, block 4.85M, 7.13M txs) the relational per-address balance aggregate was a full scan that did
+  not finish within 200 s — the scalability wall. The ledger is now ONE LMDB environment
+  (`block_store.py`, doc/05): height-keyed block bodies with public-key dedup (each distinct key stored
+  once, keyed by blake2b since a 1068-byte key exceeds LMDB's 511-byte key limit), the per-block
+  difficulty record, and maintained indexes — signature, address history, per-address balances in
+  integer units, content txid, pubkey registry — all written by `commit_block` in one transaction and
+  reversed by `rollback` in one transaction. Mainnet's whole chain is **9.7 GB** (−58%; only 5,586
+  distinct public keys across 6.4M txs), byte-verified, every block hash replay-identical. The balance is
+  an O(1) read; the negative-height reward rows are replaced by fixed allocations
+  (`ledger_genesis.MAINNET_ALLOCATIONS`). Chosen **LMDB over RocksDB:** a single mmap'd file, no
+  background compaction, copy-on-write MVCC reads alongside a single writer — a near-perfect fit for an
+  append-heavy, read-heavy, immutable workload, and a trivial embedded dependency
+  (`pip install lmdb msgpack`). Older stores upgrade with `scripts/upgrade_ledger.py`. Remaining in this
+  area: a formalised pruning model so a node need not retain the entire body history.
 - **Repository reorganization & modularization.** Retire dead files (✅ done — moved to `attic/` by
   import-graph analysis) and break up the over-long modules behind **behavior-preserving, test-green**
   extractions. `node.py` (~2.2k lines, with a ~1080-line socket-command `handle()`) is the prime
@@ -328,17 +282,12 @@
   explicitly, so they extract by dependency injection). Cuts done so far: the 837-line `apihandler.py`
   god-class split into domain mixins (`apihandler_blocks`/`_address`/`_tx`) recombined via
   `class ApiHandler(BlockApiMixin, …)`, leaving a 115-line dispatcher core (its pure block→JSON
-  formatters had already moved to `block_format.py`); the 498-line `dbhandler.py` (a survivor — storage)
-  likewise split into `DbQueriesMixin` (`dbhandler_queries`) + `DbWriteMixin` (`dbhandler_write`),
-  leaving a 166-line connection/plumbing core that keeps the canonical `sql_trace_callback`; the 714-line
-  `mempool.py` (also a survivor) split into `mempool_sql.py` (SQL + tuning constants), a
-  `MempoolQueriesMixin` (`mempool_queries`) for read/reporting/maintenance, and a 499-line core that
-  keeps DB plumbing + the consensus `merge`; and the chain-maintenance cluster
-  (`rollback`, `recompress_ledger`, `ledger_check_heights`, `blocknf`, plus the boot/validation
-  `bootstrap`, `check_integrity`, `sequencing_check`) lifted out of `node.py` into `chain_ops.py` by
-  DI, with `blocknf` re-exported so `worker.py` is unaffected; the mempool-aware `balanceget` moved to
-  `balances.py`; and the bootstrap/init helpers (`setup_net_type`, `node_block_init`, `ram_init`,
-  `initial_db_check`, `load_keys`, `add_indices`) lifted into `node_init.py` by DI (the consensus chain
+  formatters had already moved to `block_format.py`); `dbhandler.py` reduced to a ~180-line facade over
+  the LMDB ledger and `mempool.py` to an in-memory pool once the relational ledger was retired; the
+  chain-maintenance cluster (`rollback`, `blocknf`, plus `bootstrap` / `seed_genesis`) lifted out of
+  `node.py` into `chain_ops.py` by DI, with `blocknf` re-exported so `worker.py` is unaffected; the
+  mempool-aware `balanceget` moved to `balances.py`; and the bootstrap/init helpers (`setup_net_type`,
+  `open_ledger`, `node_block_init`, `load_keys`) lifted into `node_init.py` by DI (the consensus chain
   `verify` deliberately stays); and the wallet/key-management cluster (`sign_rsa` + the `keys_*`
   load/save/unlock functions) lifted out of the 415-line `essentials.py` into `wallet_helpers.py`
   (re-bound on `essentials` for back-compat, so every `essentials.keys_load` / `from essentials import …`

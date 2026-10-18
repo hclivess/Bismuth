@@ -1,136 +1,138 @@
 # 05 — Database & ledger
 
-All persistent state is SQLite. Every connection thread builds its own `DbHandler`
-(`dbhandler.py`), which opens four connections.
+The whole ledger is **one LMDB environment**. `block_store.BlockStore` owns it; `dbhandler.DbHandler` is
+the thin facade the node calls. Every block — its transaction rows, its difficulty and every derived
+index entry — is written in **one LMDB write transaction**, and a reorg is **one** transaction. There is
+no second file to keep in step, no commit marker and no reconcile pass: a crash leaves the ledger at a
+clean block boundary.
 
-## The four databases
+## Location
 
-| Logical | Attr / cursor | Default path (mainnet) | Role |
-|---|---|---|---|
-| full ledger | `hdd` / `h` | `static/ledger.db` | every transaction ever committed |
-| hyperblocks | `hdd2` / `h2` | `static/hyper.db` | pruned/compressed ledger (working set) |
-| working copy | `conn` / `c` | RAM URI, else `hyper.db` | the DB digest writes to; flushed to `h`/`h2` |
-| index | `index` / `index_cursor` | `static/index.db` | aliases / tokens / staking secondary indexes |
-| mempool | (own class) | `mempool.db` or RAM | unconfirmed txs — see [07](07-mempool.md) |
+The config key `ledger_path` (mainnet default `static/ledger.db`) *names* the ledger; the LMDB env lives
+next to it as `blockstore-<ledger file name>` (`kvstore.store_path`), e.g.
 
-Comment from the source: `c` = hyperblock-in-RAM (or the hyperblock file when running hyperblocks
-without RAM mode); `h` = ledger file (or a hyperblock clone in hyperblock mode); `h2` = hyperblock
-file.
+| network | `ledger_path` | LMDB env |
+|---|---|---|
+| mainnet | `static/ledger.db` | `static/blockstore-ledger.db/` (`data.mdb`, `lock.mdb`) |
+| testnet | `static/ledger_test.db` | `static/blockstore-ledger_test.db/` |
+| regnet | `static/regmode.db` | `static/blockstore-regmode.db/` |
 
-## Schemas
+Per-ledger naming keeps networks from ever sharing a store. The env is opened **once per process**
+(`block_store.open_ledger(path)` returns the shared handle); `node.ledger` and `node.block_store` are the
+same object. Map size defaults to 64 GiB (sparse; LMDB only consumes what it writes). The mainnet chain is
+~9.7 GB in this format.
 
-`ledger.db` / `hyper.db`:
+## Sub-databases
 
-```sql
-transactions(block_height INTEGER, timestamp, address, recipient, amount, signature,
-             public_key, block_hash, fee, reward, operation, openfield)   -- 12 cols
-misc(block_height INTEGER, difficulty)
+All integer keys are big-endian, so LMDB's ordered keys give O(1) tips and ordered range scans. `s64` is
+a height offset by 2**63.
+
+| sub-db | key → value | purpose |
+|---|---|---|
+| `blocks` | u64 height → msgpack `{"h": block_hash, "t": [tx, …]}` | block bodies. Pre-fork: 11-field lists (row minus height). Post-fork: one `txrec` true-bytes blob per tx plus the per-block address dictionary `"a"` ([40](40-storage-truebytes.md)) |
+| `hashes` | raw block-hash bytes → u64 height | hash → height lookup |
+| `pk` / `pkr` | blake2b-32(pubkey) → id, id → pubkey | public-key dedup: each RSA key is stored once, rows carry its id |
+| `diff` | u64 height → difficulty text | the difficulty each block's PoW was checked against |
+| `sig` | `signature[:56] ‖ 0x00 ‖ s64 height ‖ u16 idx` → "" | legacy txid / signature lookups, duplicate-replay check |
+| `addr` | `role ‖ u8 len ‖ address ‖ s64 height ‖ u16 idx` → "" | address history (role 0 sender, 1 recipient) |
+| `bal` | address → 4 × i128 LE | credited amount, rewards, debited amount, fees — integer atomic units |
+| `txid` | raw content txid → u64 height | post-fork content-txid index ([29](29-hf2-serialization-v2.md)) |
+| `pkref` | address → u64 first-seen height ‖ pubkey | post-fork pubkey-by-reference registry ([40](40-storage-truebytes.md)) |
+| `meta` | `schema`, `txcount`, `alloc` | schema version, transaction count, fixed balance allocations |
+
+A balance is `credited + rewards − debited − fees`, read in O(1) from `bal` (`balance_units`,
+`balance`). Coinbase maturity ([42](42-coinbase-maturity.md)) subtracts the recent rewards walked from
+the `addr` index (`reward_units_since`).
+
+## Rows and column types
+
+A ledger row is the classic 12-field tuple:
+
+```
+block_height, timestamp, address, recipient, amount, signature,
+public_key, block_hash, fee, reward, operation, openfield
 ```
 
-`index.db`:
+Readers always receive rows with the ledger column types restored by `block_store.typed_row`:
+`block_height` integer; `timestamp` / `amount` / `fee` / `reward` numeric (well-formed integer → `int`,
+real → `float`); everything else text. The digester writes string fields; the typed form is what
+consensus difficulty, sync serving and the APIs consume, whatever form a row was stored in. With
+`ledger_integer_amounts` the monetary fields are stored as integer atomic units (1 BIS = 10**8);
+`block_store.units` converts either storage mode to exact units.
 
-```sql
-aliases(block_height INTEGER, address, alias)
-tokens(block_height INTEGER, timestamp, token, address, recipient, txid, amount INTEGER)
-staking(block_height INTEGER, timestamp, address, balance)   -- only if staking is used
-```
+## Write path
 
-Conventions: negative `block_height` rows are dev/HN "mirror" reward rows; `address='Hyperblock'`
-rows are balance-consolidation rows from pruning. Amounts/timestamps are text, quantized via
-`quantizer` (below). Most balance queries must account for mirror rows (`block_height <= ?` plus the
-negative range, or `abs(block_height)`).
+- **`commit_block(height, block_hash, rows, difficulty, fork_height)`** — `height` must be tip + 1. In one
+  transaction: body + `hashes`, `diff`, `sig`/`addr` entries, balance deltas folded into `bal`, post-fork
+  `txid` and first-seen `pkref`, and the `txcount` bump. `DbHandler.commit_block` is the digester's call.
+- **`rollback(to_height, fork_height)`** — drops every block above `to_height` with all its index
+  entries and reverses its balance deltas, in one transaction, and returns the removed rows (ascending,
+  typed) for the mempool. `DbHandler.rollback_under(h)` drops `h` and above.
+- **`reindex()`** — rebuilds every derived index from `blocks` (recovery / upgrade); the live node
+  maintains them incrementally.
 
-### Canonical txid (no schema change)
+## Fixed allocations (`meta` "alloc")
 
-Post-fork the canonical transaction id is a blake2b-256 **content hash** computed **on read** by
-`essentials.format_raw_tx` (blake2b-256 of the frozen pre-image consensus signs — timestamp / address
-/ recipient / amount / operation / openfield, with the amount taken via `amounts.ledger_value` so it
-is storage-mode agnostic). This is **not** persisted: there is no `txid` column on `transactions` and
-no migration adds one — `format_raw_tx` reconstructs it for rows at/after `fork_height` and falls back
-to the legacy `signature[:56]` slice for pre-fork rows (and whenever no `fork_height` is supplied), so
-historical txs keep their original ids byte-for-byte. Lookup by id is **shape-dispatched** (e.g.
-`rest_api._transaction`): a 64-char lowercase-hex query is treated as a content txid and resolved by
-scanning post-fork rows (`format_raw_tx(row).txid == query`); anything else uses the legacy
-signature-prefix `LIKE` match.
+`ledger_genesis.MAINNET_ALLOCATIONS` holds two balance credits that no block row carries: the concluded
+**Development Reward** and **Hypernode Payouts** totals. Until block 4,380,000 those rewards were minted
+locally every 10th block as synthetic rows; the rows are gone and their totals are fixed allocations in
+integer units, so both addresses' balances equal the network's. `set_allocations` stores them under
+`meta` "alloc" and credits the difference to `bal` in the same transaction; `reindex` re-applies them.
+Every block they cover is anchored by the block-hash checkpoints (`validation_exceptions`). Testnet and
+regnet carry none.
 
-## `DbHandler` (selected methods)
+## Opening, bootstrap and upgrade (`node_init.open_ledger`)
 
-Constructor: `DbHandler(index_db, ledger_path, hyper_path, ram, ledger_ram_file, logger,
-trace_db_calls=False)`. It applies PRAGMAs to **every** connection (`_optimize_connections`,
-`dbhandler.py`): WAL + `synchronous` (**FULL** on the authoritative `ledger.db`/`hdd` so an
-acknowledged block survives a power cut, **NORMAL** on index/hyper/working — still tear-proof under
-WAL, and they reconcile DOWN to the ledger on restart), plus `cache_size=-64000`,
-`temp_store=MEMORY`, `mmap_size=512 MiB`, `case_sensitive_like=1`. It keeps small per-handler caches
-(pubkey/alias/address/height).
+1. **Fresh install** (no `data.mdb`, not regnet): unless `sync_from_genesis` is set, `chain_ops.bootstrap`
+   streams a DB-direct LMDB snapshot of a peer's ledger ([43](43-p2p-snapshot.md)), verifying tip
+   height + tip block hash; the digester still re-validates everything it syncs forward.
+2. Open the env. If it has blocks and `meta` "schema" ≠ `block_store.SCHEMA`, the node logs the exact
+   command and **refuses to start**:
+   `python3 scripts/upgrade_ledger.py static/blockstore-ledger.db --anchor http://<rest-node>:5659`.
+3. An empty ledger is seeded with the canonical genesis block (`ledger_genesis.rows()`,
+   `chain_ops.seed_genesis`) and the chain is synced from peers ([30](30-genesis-sync-exceptions.md)).
+4. The fixed allocations are applied if they differ from `ledger_genesis.allocations(node)`.
+
+**`scripts/upgrade_ledger.py`** brings an older LMDB block store (blocks only) to the current schema
+with the node stopped: it replays the difficulty history forward with `difficulty.retarget` from block
+timestamps, anchored on the exact difficulties peers publish at `GET /api/stats/difficulty` (re-anchoring
+at each, reporting exact matches vs mismatches), then runs `BlockStore.reindex` and stamps the schema.
+Idempotent.
+
+## `DbHandler`
+
+`DbHandler(store, logger, node)` / `DbHandler.for_node(node)` wraps the process-wide store, so
+constructing one per thread is free. It keeps the semantic helpers the node has always called:
 
 | Group | Methods |
 |---|---|
-| tip / reads | `last_block_hash`, `last_block_timestamp`, `block_max_ram`, `block_height_max[_diff][_hyper]`, `block_height_from_hash`, `blocksync` |
-| balances / lookups | `pubkeyget`, `difflast`, `annget`, `annverget` |
-| index | `addfromalias`, `aliasget`, `aliasesget`, `tokens_user` |
-| writes | `to_db` (batched block insert), `dev_reward`, `hn_reward`, `db_to_drive` (flush RAM→disk) |
-| rollback | `backup_higher`, `rollback_under`, `rollback_to` (deprecated → `rollback_under`), `tokens_rollback`, `aliases_rollback` |
-| low-level | `commit`, `execute`, `execute_param`, `fetchall`, `fetchone`, `ensure_indexes`, `clear_caches`, `close` |
+| tip | `block_height_max`, `block_height_max_diff`, `last_block_hash`, `last_block_timestamp`, `last_mining_tx`, `block_max_ram`, `difflast` |
+| lookups | `block_height_from_hash`, `pubkeyget`, `annget`, `annverget`, `blocksync` (8-field sync form, ~500 KB cap), `latest_rows`, `address_rows`, `balance_get` |
+| tokens / aliases | `addfromalias`, `aliasget`, `aliasesget`, `tokens_user`, `tokens_rollback`, `aliases_rollback` — delegated to the `tokens_aliases` plugin's LMDB index ([27](27-plugins.md)) |
+| writes | `commit_block`, `rollback_under` (`backup_higher` alias), `clear_caches` |
 
-Retry semantics differ by helper: `execute`/`execute_param` retry on generic errors but **abort** on
-`InterfaceError`/`IntegrityError` (`_ABORT_ON`); `commit` retries forever. The previously near-duplicate
-retry loops have been consolidated into a single `db_helpers.retry_db(operation, *, abort_on, delay,
-max_tries, ...)` helper, which `DbHandler`, `mempool`, `essentials.execute_param_c`, `ledger_queries`
-and `staking` now all call (each passing its own `abort_on`/`max_tries`) — see
-[14](14-known-issues-and-improvements.md).
+Concurrency is LMDB's: any number of MVCC read snapshots, one writer. Readers in another process (e.g.
+`replay_verify.py`) see a consistent view while the node writes.
 
-## Modes
+## Mempool
 
-- **RAM mode** (`ram=True`): `conn` is `file:ledger?mode=memory&cache=shared`; `ram_init()` streams
-  `hyper.db` into it at startup. New blocks accumulate in RAM and `db_to_drive()` flushes to `h`/`h2`.
-- **full vs hyperblock** (`full_ledger`): if false, `ledger.db` is deleted and replaced with a clone
-  of `hyper.db` at startup (the node keeps only hyperblocks).
-- **trace_db_calls**: logs every SQL statement via a per-connection trace callback (tagged
-  INDEX/HDD/HDD2/CONN).
+The mempool is in memory ([07](07-mempool.md)): an insertion-ordered dict keyed by signature with each
+entry's merge time. It is not persisted; the digester re-validates every transaction it includes.
 
-## Hyperblock pruning (`recompress_ledger`, in `chain_ops.py`)
+## Other LMDB stores
 
-Blocks older than `depth` (default 15,000 from the tip) are replaced by one synthetic
-`address='Hyperblock'` row per address that carries the address's end balance, then the original
-rows and their `misc` entries are deleted and the DB is VACUUMed. `ledger_check_heights()` (also in
-`chain_ops.py`) decides at startup whether to recompress (when `hyper_recompress=True` and the
-ledger/hyper/misc/diff heights all agree — a cross-integrity check) or to roll all DBs back to the
-minimum consistent height.
+- `tokenindex-<ledger>` — the `tokens_aliases` plugin's token/alias index (`token_index.py`), rolled back
+  with the ledger ([27](27-plugins.md)).
+- `kvstore.py` — the small store interface both are opened through ([36](36-kvstore-engine-seam.md)).
 
 ## `quantizer.py`
 
-`quantize_two` / `quantize_eight` / `quantize_ten` round a value to 2 / 8 / 10 decimal places using
-`Decimal.quantize` (falsy input → the zero Decimal). **8 dp is the monetary precision** — all BIS
-amounts pass through `quantize_eight` before storage/comparison, which is why amounts are stored as
-text rather than floats.
+`quantize_two` / `quantize_eight` / `quantize_ten` round to 2 / 8 / 10 decimal places with
+`Decimal.quantize` (falsy input → zero). **8 dp is the monetary precision.**
 
-## Other storage files
+## Other files
 
 - `db_hashes.py` — a static dict of 67 known-good `"<height>-<timestamp>" → sha1` pairs from early
-  mainnet (blocks 27,258–109,035), a corruption/fork reference. Not a hash function.
-- `ledger_queries.py` (`LedgerQueries`) — classmethod query helpers (balances, block-by-timestamp,
-  hypernode register scans) used by plugins/hypernodes; takes a raw connection, not a `DbHandler`.
-- `ledger_explorer.py` — an early standalone Tornado block explorer (port 5492); unmaintained.
-
-## LMDB stores (post-fork, replacing the SQLite trio)
-
-The storage rearchitecture (doc/26) retires the SQLite ledger/hyper/index trio in favour of embedded,
-memory-mapped **LMDB** key/value stores. These are byte-for-byte derivable from / equivalent to the
-SQLite rows and land behind config flags (replay-validated); the digester wires them in optionally
-(`getattr(node, …)` in `digest.py`):
-
-- `block_store.py` (`BlockStore`) — append-only block-body store: `blocks` (BE-uint64 height →
-  msgpack `{h, t:[tx,…]}`) + `hashes` (block_hash → height) sub-DBs. Stored tx rows are byte-identical
-  to the 12-field SQLite ledger rows (it sits behind the frozen serialization boundary). Also the
-  source the dynamic base fee reads block weight from (`recent_block_weights`, `digest.py`/`fee_dynamics.py`).
-- `balance_index.py` (`BalanceIndex`) — maintained O(1) per-address balance (integer atomic units),
-  updated on apply / reversed on rollback; bit-identical to the `ledger_balance3` full-table aggregate
-  in integer-amount mode. Cross-checked against the authoritative query in `digest.py` (LOG-ONLY,
-  display-only).
-- `token_index.py` (`TokenIndex`) — the post-fork LMDB successor to `index.db` (tokens + aliases):
-  materialized `tokreg`/`cred`/`deb`/`addrtok`/alias maps with height-ordered keys for range-delete
-  rollback; preserves the legacy overspend asymmetry exactly. NO SQLite post-fork (also doc/27 plugin).
-- `shieldedv1.py` (`ShieldedState`) — per-ledger shielded sidecar (doc/22), namespaced
-  `shielded-<ledger>`: `notes`/`notes_h` (decoy/scan note set), `kimg`/`kimg_h` (**key-image**
-  spent-set — not a per-note nullifiers table), `flows`, `meta` sub-DBs. `validate_block` runs before
-  the commit; `apply_block` writes the sidecar after `to_db`.
+  mainnet (blocks 27,258–109,035), a corruption/fork reference.
+- `replay_verify.py` — read-only checker that recomputes every block hash from the stored rows through
+  `bismuth_serialize` (default env `static/blockstore-ledger.db`).

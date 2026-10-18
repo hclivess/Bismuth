@@ -106,6 +106,7 @@ class PluginManager:
                     logger=self.app_log,
                     data_dir=os.path.join(data_root, pname),
                     ledger_path=ledger_path,
+                    ledger=getattr(node, 'ledger', None),
                     config=self.config,
                     is_regnet=getattr(node, 'is_regnet', False),
                     is_testnet=getattr(node, 'is_testnet', False),

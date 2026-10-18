@@ -1,299 +1,240 @@
 """
-Mempool module for Bismuth nodes
+Mempool module for Bismuth nodes — the pending-transaction pool, held in memory.
+
+Transactions are kept in an insertion-ordered dict keyed by signature, each with the time it was merged
+(``mergedts``) so peers are only sent what is new to them. Nothing here is consensus: the digester
+re-validates every transaction it includes. Thread safe (``self.lock`` guards every mutation).
 """
 
-import functools
-# import base64
-# import hashlib
+import block_store
 import os
-import sqlite3
 import sys
 import threading
 import time
+from decimal import Decimal
 
 from polysign.signerfactory import SignerFactory
 
-import amounts
-import bismuth_serialize
-import db_helpers
 import essentials
 from quantizer import quantize_two, quantize_eight
 
-# from Cryptodome.Hash import SHA
-# from Cryptodome.PublicKey import RSA
-# from Cryptodome.Signature import PKCS1_v1_5
+__version__ = "0.1.0"
 
-__version__ = "0.0.7e"
+DECIMAL0 = Decimal(0)
 
-"""
-0.0.5g - Add default param to mergedts for compatibility
-0.0.5f - Using polysign
-0.0.5e - add mergedts timestamp to tx for better handling of late txs
-         quicker unfreeze
-         less strict freezing
-0.0.6b - Raise freeze tolerance to > 15 minutes old txs.
-0.0.6c - Return last exception to client in all cases
-0.0.7a - Add support for mandatory message addresses
-0.0.7b - Reduce age of valid txns to 2 hours
-0.0.7c - Remove unnecessary Decimal
-0.0.7e - exclude too old txs from mempool balance, simplify mempool merge.
-"""
+# If set to true, will always send empty Tx to other peers (but will accept theirs)
+# Only to be used for debug/testing purposes
+DEBUG_DO_NOT_SEND_TX = False
 
-from mempool_sql import *  # noqa: F401,F403  -- re-export SQL_* + tuning constants (external mp.X access)
-from mempool_queries import MempoolQueriesMixin
+# Tx age limit (in seconds)
+REFUSE_OLDER_THAN = 60 * 60 * 2  # 2 hours
+
+# How long for freeze nodes that send late enough tx we already have in ledger
+FREEZE_MIN = 5
 
 MEMPOOL = None
 
-
-def sql_trace_callback(log, id, statement):
-    line = f"SQL[{id}] {statement}"
-    log.warning(line)
+# A pooled tx: the 8 wire fields + the merge time
+_TS, _ADDR, _RECIP, _AMOUNT, _SIG, _PUB, _OP, _OF, _MERGED = range(9)
 
 
-
-class Mempool(MempoolQueriesMixin):
+class Mempool:
     """The mempool manager. Thread safe"""
 
-    def __init__(self, app_log, config=None, db_lock=None, testnet=False, trace_db_calls=True, node=None):
-        try:
-            self.app_log = app_log
-            # Live authoritative source for the hf2 mirror fields (fork_height / pk_registry / base_fee /
-            # fee_post_fork). The digester also pushes these into self.* each block, but that leaves a stale
-            # window from process start until the first digest — on a restart on an ALREADY post-fork chain,
-            # admission would run PRE-fork rules and either admit poison txs or reject valid post-fork txs.
-            # Reading through node closes that window. None (tests) => fall back to the self.* mirror.
-            self.node = node
-            self.config = config
-            self.db_lock = db_lock
-            self.ram = self.config.mempool_ram
-            if self.config.version == 'regnet':
-                self.app_log.warning("Regtest mode, ram mempool")
-                self.ram = True
-
-            self.lock = threading.Lock()
-            self.peers_lock = threading.Lock()
-            # ip: last time sent
-            self.peers_sent = dict()
-            self.db = None
-            self.cursor = None
-            self.trace_db_calls = trace_db_calls
-            # hf2: the digester mirrors node.fork_height here each pass so mempool admission can bind a
-            # tx's signing scheme to its DESTINATION block height. None = pre-fork / not yet locked in.
-            self.fork_height = None
-            # hf2 pubkey-by-reference (doc/40): the digester mirrors node.pk_registry here so mempool can
-            # resolve a by-reference tx's omitted pubkey by address (same authority the digester uses).
-            self.pk_registry = None
-            # hf2 dynamic fees (fee_dynamics, doc/17): the digester mirrors node.base_fee (demand-scaled) and
-            # node.fee_post_fork (the VM-surcharge flag) here so mempool ADMISSION computes the SAME fee
-            # consensus will require. Without this, admission used the static BASE_FEE with no VM surcharge,
-            # so an under-funded tx passed admission but was rejected at block apply — a validate/apply desync
-            # that stalls solo/regnet block production (the poison tx is re-tried every mine). Pre-fork these
-            # are the static defaults, so admission is byte-identical below the fork.
-            self.base_fee = None
-            self.fee_post_fork = False
-
-            self.testnet = testnet
-
-            if self.testnet:
-                app_log.warning("Starting mempool in testnet mode")
-                self.mempool_path = "mempool_testnet.db"
-                self.mempool_ram_file = "file:mempool_testnet?mode=memory&cache=shared"
-            else:
-                self.mempool_ram_file = "file:mempool?mode=memory&cache=shared"
-                # env override so co-located instances (the two-node harness) don't share one mempool.db
-                self.mempool_path = os.environ.get("BISMUTH_MEMPOOL_PATH") or self.config.mempool_path
-
-            self.check()
-
-        except Exception as e:
-            self.app_log.error("Error creating mempool: {}".format(e))
-            raise
+    def __init__(self, app_log, config=None, db_lock=None, testnet=False, node=None):
+        self.app_log = app_log
+        # Live authoritative source for the hf2 mirror fields (fork_height / pk_registry / base_fee /
+        # fee_post_fork). The digester also pushes these into self.* each block; reading through node closes
+        # the window between process start and the first digest. None (tests) => the self.* mirror.
+        self.node = node
+        self.config = config
+        self.db_lock = db_lock
+        self.lock = threading.Lock()
+        self.peers_lock = threading.Lock()
+        # ip: last time sent
+        self.peers_sent = dict()
+        self.fork_height = None
+        self.pk_registry = None
+        self.base_fee = None
+        self.fee_post_fork = False
+        self.testnet = testnet
+        self._txs = {}          # signature -> 9-tuple
+        app_log.warning("Status: In memory mempool created")
 
     def _hf(self, name):
-        """Live read of an hf2 mirror field: prefer node's authoritative value, fall back to the
-        digester-pushed self.* mirror when no node reference is available (unit tests)."""
         if self.node is not None:
             return getattr(self.node, name, getattr(self, name))
         return getattr(self, name)
 
-    def check(self):
-        """
-        Checks if mempool exists, create if not.
-        :return:
-        """
-        self.app_log.warning("Mempool Check")
+    def _ledger(self, ledger):
+        """The ledger store from whatever the caller handed us (a DbHandler, the store, or None -> node)."""
+        if ledger is None and self.node is not None:
+            ledger = getattr(self.node, "ledger", None)
+        return block_store.as_ledger(ledger)
+
+    # ------------------------------------------------------------------ reads
+    def transactions(self, since=None):
+        """All pooled txs as 9-tuples (8 wire fields + mergedts), largest amount first. ``since``: only txs
+        merged after that time."""
         with self.lock:
-            if self.ram:
-                self.db = sqlite3.connect(self.mempool_ram_file,
-                                          uri=True, timeout=1, isolation_level=None,
-                                          check_same_thread=False)
-                if self.trace_db_calls:
-                    self.db.set_trace_callback(functools.partial(sql_trace_callback,self.app_log,"MEMPOOL-RAM"))
-                self._set_crash_safe_pragmas("MEMPOOL-RAM")
-                self.db.execute("PRAGMA page_size = 4096;")
-                self.db.text_factory = str
-                self.cursor = self.db.cursor()
-                self.cursor.execute(SQL_CREATE)
-                self.db.commit()
-                self.app_log.warning("Status: In memory mempool file created")
-            else:
-                self.db = sqlite3.connect(self.mempool_path, timeout=1,
-                                          check_same_thread=False)
-                if self.trace_db_calls:
-                    self.db.set_trace_callback(functools.partial(sql_trace_callback,self.app_log,"MEMPOOL"))
-                # On-disk mempool: WAL + synchronous=NORMAL so a kill mid-write rolls back to the last
-                # committed txn instead of corrupting mempool.db (a corrupt mempool used to force the
-                # recreate-from-scratch path below on the next boot). The mempool is non-consensus, so
-                # NORMAL is enough; losing un-checkpointed mempool rows on a crash is harmless.
-                self._set_crash_safe_pragmas("MEMPOOL")
-                self.db.text_factory = str
-                self.cursor = self.db.cursor()
+            rows = list(self._txs.values())
+        if since is not None:
+            rows = [r for r in rows if r[_MERGED] > since]
+        return sorted(rows, key=lambda r: float(r[_AMOUNT]), reverse=True)
 
-                # check if mempool needs recreating
-                self.cursor.execute("PRAGMA table_info('transactions')")
-                res = self.cursor.fetchall()
-                # print(res)
-                if len(res) != 9:
-                    self.db.close()
-                    os.remove(self.mempool_path)
-                    self.db = sqlite3.connect(self.mempool_path, timeout=1,
-                                              check_same_thread=False)
-                    if self.trace_db_calls:
-                        self.db.set_trace_callback(functools.partial(sql_trace_callback,self.app_log,"MEMPOOL"))
-                    self._set_crash_safe_pragmas("MEMPOOL")
-                    self.db.text_factory = str
-                    self.cursor = self.db.cursor()
-                    self.execute(SQL_CREATE)
-                    self.commit()
-                    self.app_log.warning("Status: Recreated mempool file")
+    def wire_transactions(self):
+        """All pooled txs in the 8-field wire form, in pool order."""
+        with self.lock:
+            return [r[:8] for r in self._txs.values()]
 
-    def _set_crash_safe_pragmas(self, name):
-        """WAL + synchronous=NORMAL on the current self.db, with a read-back so we log loudly if WAL
-        did not stick. Durability only — never changes what is stored. (In-memory dbs report 'memory'
-        for journal_mode and that is fine; the WAL request is harmless there and keeps one code path.)"""
+    def get(self, signature):
+        with self.lock:
+            return self._txs.get(signature)
+
+    def find_openfield(self, openfield):
+        """The timestamp of a pooled tx carrying exactly ``openfield``, or None."""
+        with self.lock:
+            for r in self._txs.values():
+                if r[_OF] == openfield:
+                    return r[_TS]
+        return None
+
+    def by_address(self, address, valid_only=True):
+        cutoff = time.time() - REFUSE_OLDER_THAN
+        with self.lock:
+            return [r for r in self._txs.values()
+                    if (r[_ADDR] == address or r[_RECIP] == address)
+                    and (not valid_only or float(r[_TS]) > cutoff)]
+
+    def mp_get(self, balance_address):
+        """(amount, openfield, operation) of the address's pending sends younger than the age limit."""
+        cutoff = time.time() - REFUSE_OLDER_THAN
+        with self.lock:
+            return [(r[_AMOUNT], r[_OF], r[_OP]) for r in self._txs.values()
+                    if r[_ADDR] == balance_address and float(r[_TS]) > cutoff]
+
+    def sig_check(self, signature):
+        with self.lock:
+            return signature in self._txs
+
+    def count(self):
+        with self.lock:
+            return len(self._txs)
+
+    def status(self):
+        """Stats on the current mempool: (tx#, openfield len, distinct sender#, distinct recipient#)."""
         try:
-            row = self.db.execute("PRAGMA journal_mode = WAL;").fetchone()
-            mode = (row[0] if row else "").lower()
-            if mode not in ("wal", "memory"):
-                self.app_log.warning(
-                    f"DB durability: {name} did NOT enter WAL mode (got '{mode}'); a kill mid-write "
-                    f"may corrupt the mempool and force a recreate on next boot.")
-            self.db.execute("PRAGMA synchronous = NORMAL;")
-        except Exception as e:
-            self.app_log.warning(f"Could not set crash-safe pragmas on {name}: {e}")
-
-    def execute(self, sql, param=None, cursor=None):
-        """
-        Safely execute the request
-        :param sql:
-        :param param:
-        :param cursor: optional. will use the locked shared cursor if None
-        :return:
-        """
-        if not cursor:
-            cursor = self.cursor
-        op = (lambda: cursor.execute(sql, param)) if param else (lambda: cursor.execute(sql))
-        db_helpers.retry_db(op, delay=0.1, log=self.app_log, describe=str(sql)[:100])
-
-    def commit(self):
-        """
-        Safe commit
-        :return:
-        """
-        # no lock on execute and commit. locks are on full atomic operations only
-        db_helpers.retry_db(self.db.commit, delay=0.1, log=self.app_log, describe="commit")
-
-    def fetchone(self, sql, param=None, write=False):
-        """
-        Fetchs one and Returns data
-        :param sql:
-        :param param:
-        :param write: if the requests involves write, set to True to request a Lock
-        :return:
-        """
-        if write:
+            limit = time.time()
+            with self.peers_lock:
+                peers_snapshot = dict(self.peers_sent)
+            frozen = [peer for peer in peers_snapshot if peers_snapshot[peer] > limit]
+            self.app_log.warning("Status: MEMPOOL Frozen = {}".format(", ".join(frozen)))
+            limit = limit - 15 * 60
+            with self.peers_lock:
+                self.peers_sent = {peer: self.peers_sent[peer] for peer in self.peers_sent if
+                                   self.peers_sent[peer] > limit}
+            self.app_log.warning(
+                "Status: MEMPOOL Live = {}".format(", ".join(set(peers_snapshot.keys()) - set(frozen))))
             with self.lock:
-                self.execute(sql, param)
-                return self.cursor.fetchone()
-        else:
-            cursor = self.db.cursor()
-            self.execute(sql, param, cursor)
-            return cursor.fetchone()
+                rows = list(self._txs.values())
+            count = len(rows)
+            open_len = sum(len(r[_OF]) for r in rows) if rows else None
+            senders = len({r[_ADDR] for r in rows})
+            recipients = len({r[_RECIP] for r in rows})
+            self.app_log.warning(
+                "Status: MEMPOOL {} Txs from {} senders to {} distinct recipients. Openfield len {}".
+                format(count, senders, recipients, open_len))
+            return count, open_len, senders, recipients
+        except Exception:
+            return (0, 0, 0, 0)
 
-    def fetchall(self, sql, param=None, write=False):
-        """
-        Fetchs all and Returns data
-        :param sql:
-        :param param:
-        :param write: if the requests involves write, set to True to request a Lock
-        :return:
-        """
-        if write:
-            with self.lock:
-                self.execute(sql, param)
-                return self.cursor.fetchall()
-        else:
-            cursor = self.db.cursor()
-            self.execute(sql, param, cursor)
-            return cursor.fetchall()
-
-    def vacuum(self):
-        """
-        Maintenance
-        :return:
-        """
+    def size(self):
+        """Current size of the (still valid) mempool in MB."""
+        cutoff = time.time() - REFUSE_OLDER_THAN
         with self.lock:
-            self.execute("VACUUM")
+            valid = [r[:8] for r in self._txs.values() if float(r[_TS]) > cutoff]
+        return sys.getsizeof(str(valid)) / 1000000.0
+
+    # ------------------------------------------------------------------ maintenance
+    def purge(self):
+        """Drop txs older than the age limit."""
+        cutoff = time.time() - REFUSE_OLDER_THAN
+        with self.lock:
+            self.app_log.warning("Purging mempool")
+            for sig in [s for s, r in self._txs.items() if float(r[_TS]) <= cutoff]:
+                del self._txs[sig]
+
+    def clear(self):
+        with self.lock:
+            self._txs.clear()
+
+    def delete_transaction(self, signature):
+        with self.lock:
+            self._txs.pop(signature, None)
 
     def close(self):
-        if self.db:
-            self.db.close()
+        pass
+
+    # ------------------------------------------------------------------ peers
+    def sent(self, peer_ip):
+        """Record the time of the last mempool send to this peer."""
+        when = time.time()
+        with self.peers_lock:
+            if self.peers_sent.get(peer_ip, 0) <= when:
+                self.peers_sent[peer_ip] = when
+
+    def sendable(self, peer_ip):
+        """Is the mempool sendable to this peer (sent more than 30 s ago)?"""
+        if peer_ip not in self.peers_sent:
+            return True
+        return self.peers_sent[peer_ip] < time.time() - 30
+
+    def tx_to_send(self, peer_ip, peer_txs=None):
+        """The txs to send to a peer: everything merged since we last sent to it, minus what it sent us."""
+        if DEBUG_DO_NOT_SEND_TX:
+            print("I have {} txs for {} but won't send".format(self.count(), peer_ip))
+            return []
+        if peer_ip not in self.peers_sent:
+            raw = self.transactions()
+        else:
+            # add some margin to account for tx in the future, 5 sec
+            raw = self.transactions(since=self.peers_sent[peer_ip] - 5)
+        if peer_txs:
+            peers_sig = {tx[4] for tx in peer_txs}
+            return [tx for tx in raw if tx[4] not in peers_sig]
+        return raw
 
     def space_left_for_tx(self, transaction, mempool_size):
-        """
-        Tells if we should let a specific tx in, depending on space left and its characteristics.
-        :param transaction:
-        :param mempool_size:
-        :return:
+        """Tells if we should let a specific tx in, depending on space left and its characteristics.
 
         Anti-spam (doc/17): as the pool fills, admission tightens to higher-FEE txs. Priority is the
         tx's actual deterministic fee — the one thing a spammer cannot inflate without paying it —
-        NOT the nominal `amount` (a self-send inflates that for free) and NOT a per-address allow-list
-        (addresses are free to mint, so it was Sybil-trivial). The hard protections — every tx pays a
-        fee out of a *funded* balance, and total pool size is bounded — live in `merge`; this routine
-        only orders admission under congestion. transaction[6]=operation, transaction[7]=openfield.
+        NOT the nominal `amount` and NOT a per-address allow-list. transaction[6]=operation, [7]=openfield.
         """
-        # Plenty of room: accept anything.
         if mempool_size < 0.3:
             return True
-        # Past 0.3 MB, scarcer space costs more fee. fee_calculate is deterministic (base + openfield
-        # length + token/alias surcharges), so this cannot be gamed without actually paying it.
         fee = float(essentials.fee_calculate(transaction[7], transaction[6]))
         if mempool_size < 0.4:
-            # data / token / alias txs — anything paying above the bare base fee
             return fee > float(essentials.BASE_FEE)
         if mempool_size < 0.5:
-            # alias-register / token-issue economic tier and up (fee >= 1 BIS)
             return fee >= 1.0
         if mempool_size < 0.6:
-            # token-issue tier — the highest deterministic fee (fee >= 10 BIS)
             return fee >= 10.0
-        # Sorry, no space left for this tx type.
         return False
 
-    def merge(self, data: list, peer_ip: str, c, size_bypass: bool=False, wait: bool=False, revert: bool =False) -> list:
+    # ------------------------------------------------------------------ merge
+    def merge(self, data: list, peer_ip: str, ledger=None, size_bypass: bool = False, wait: bool = False,
+              revert: bool = False) -> list:
         """
         Checks and merge the tx list in our mempool
         :param data:
         :param peer_ip:
-        :param c:
+        :param ledger: the ledger (DbHandler / BlockStore); None -> node.ledger
         :param size_bypass: if True, will merge whatever the mempool size is
         :param wait: if True, will wait until the main db_lock is free. if False, will just drop.
-        :param revert: if True, we are reverting tx from digest_block, so main lock is on. Don't bother, process without lock.
+        :param revert: if True, we are reverting tx from digest_block, so main lock is on.
         :return:
         """
-        global REFUSE_OLDER_THAN
-        # Easy cases of empty or invalid data
         if not data:
             return ["Mempool from {} was empty".format(peer_ip)]
         mempool_result = []
@@ -304,8 +245,7 @@ class Mempool(MempoolQueriesMixin):
                 self.app_log.warning("Mempool ignoring merge from frozen {}".format(peer_ip))
                 mempool_result.append("Mempool ignoring merge from frozen {}".format(peer_ip))
                 return mempool_result
-        except:
-            # unknown peer
+        except KeyError:
             pass
         if not essentials.is_sequence(data):
             if peer_ip != '127.0.0.1':
@@ -316,271 +256,163 @@ class Mempool(MempoolQueriesMixin):
             return mempool_result
 
         if not revert:
-            while self.db_lock.locked():
+            while self.db_lock is not None and self.db_lock.locked():
                 # prevent transactions which are just being digested from being added to mempool
                 if not wait:
-                    # not reverting, but not waiting, bye
-                    # By default, we don't wait.
                     mempool_result.append("Locked ledger, dropping txs")
                     return mempool_result
                 self.app_log.warning("Waiting for block digestion to finish before merging mempool")
                 time.sleep(1)
-        # if reverting, don't bother with main lock, go on.
-        # Let's really dig
+
+        store = self._ledger(ledger)
         mempool_result.append("Mempool merging started from {}".format(peer_ip))
-        # Single time reference here for the whole merge.
         time_now = time.time()
-        # calculate current mempool size before adding txs
         mempool_size = self.size()
 
-        # TODO: we check main ledger db is not locked before beginning, but we don't lock? ok, see comment in node.py. since it's called from a lock, it would deadlock.
-        # merge mempool
-        # while self.lock.locked():
-        #    time.sleep(1)
         with self.lock:
             try:
                 block_list = data
-                if not isinstance(block_list[0], list):  # convert to list of lists if only one tx and not handled
+                if not isinstance(block_list[0], list):  # a single tx
                     block_list = [block_list]
 
                 for transaction in block_list:
-                    if size_bypass or self.space_left_for_tx(transaction, mempool_size):
-                        # all transactions in the mempool need to be cycled to check for special cases,
-                        # therefore no while/break loop here
-                        try:
-                            mempool_timestamp = '%.2f' % (quantize_two(transaction[0]))
-                            mempool_timestamp_float = float(transaction[0])  # limit Decimal where not needed
-                        except Exception as e:
-                            mempool_result.append("Mempool: Invalid timestamp {}".format(transaction[0]))
-                            continue
-                        if not essentials.address_validate(transaction[1]):
-                            mempool_result.append("Mempool: Invalid address {}".format(transaction[1]))
-                            continue
-                        # We could now ignore the truncates here, I left them for explicit reminder of the various fields max lengths.
-                        mempool_address = str(transaction[1])[:56]
-                        if not essentials.address_validate(transaction[2]):
-                            mempool_result.append("Mempool: Invalid recipient {}".format(transaction[2]))
-                            continue
-                        mempool_recipient = str(transaction[2])[:56]
-                        try:
-                            # HARDFORK (doc/16): consensus boundary — mempool re-derives the legacy
-                            # '%.8f' decimal-string amount to verify the signature over the exact signed
-                            # bytes. transaction[3] is the received wire amount (decimal); stays until the
-                            # hard fork signs native integer units.
-                            mempool_amount = '%.8f' % (quantize_eight(transaction[3]))  # convert scientific notation
-                            mempool_amount_float = float(transaction[3])
-                        except Exception as e:
-                            mempool_result.append("Mempool: Invalid amount {}".format(transaction[3]))
-                            continue
-                        if len(transaction[4]) > essentials.MAX_TX_SIGNATURE_LEN:
-                            mempool_result.append("Mempool: Invalid signature len{}".format(len(transaction[4])))
-                            continue
-                        mempool_signature_enc = str(transaction[4])[:essentials.MAX_TX_SIGNATURE_LEN]
-                        if len(transaction[5]) > essentials.MAX_TX_PUBKEY_LEN:
-                            mempool_result.append("Mempool: Invalid pubkey len{}".format(len(transaction[5])))
-                            continue
-                        mempool_public_key_b64encoded = str(transaction[5])[:essentials.MAX_TX_PUBKEY_LEN]
-                        if "b'" == mempool_public_key_b64encoded[:2]:
-                            # Binary content instead of str - leftover from legacy code?
-                            mempool_public_key_b64encoded = transaction[5][2:essentials.MAX_TX_PUBKEY_LEN + 2]
-                        # hf2: the 30-char operation / 100000-byte openfield caps and the mandatory-message
-                        # rule are a PRE-FORK admission policy. Post-fork (doc/41, generalized from the
-                        # coinbase to every tx) operation and openfield are free-form, optional and uncapped,
-                        # so the DESTINATION block height (tip+1) decides whether the caps apply. The flag is
-                        # resolved here once and reused for the signing-scheme check below.
-                        mempool_post_fork = False
-                        _fork_height = self._hf('fork_height')
-                        if _fork_height is not None:
-                            essentials.execute_param_c(c, "SELECT block_height FROM transactions WHERE 1 ORDER by block_height DESC limit ?",
-                                                       (1,), self.app_log)
-                            _tip_row = c.fetchone()
-                            _tip = _tip_row[0] if _tip_row and _tip_row[0] is not None else 0
-                            mempool_post_fork = (_tip + 1) >= _fork_height
-
-                        if mempool_post_fork:
-                            mempool_operation = str(transaction[6])
-                            mempool_openfield = str(transaction[7])
-                        else:
-                            if len(transaction[6]) > 30:
-                                mempool_result.append("Mempool: Invalid operation len{}".format(len(transaction[6])))
-                                continue
-                            mempool_operation = str(transaction[6])[:30]
-                            if len(transaction[7]) > 100000:
-                                mempool_result.append("Mempool: Invalid openfield len{}".format(len(transaction[7])))
-                                continue
-                            mempool_openfield = str(transaction[7])[:100000]
-
-                            if len(mempool_openfield) <= 4:
-                                # no or short message for a mandatory message
-                                if mempool_recipient in self.config.mandatory_message.keys():
-                                    mempool_result.append("Mempool: Missing message - {}".format(self.config.mandatory_message[mempool_recipient]))
-                                    continue
-
-                        # Begin with the easy tests that do not require cpu or disk access
-                        if mempool_amount_float < 0:
-                            mempool_result.append("Mempool: Negative balance spend attempt")
-                            continue
-                        if mempool_timestamp_float > time_now:
-                            mempool_result.append("Mempool: Future transaction rejected {}s".
-                                                  format(mempool_timestamp_float - time_now))
-                            continue
-                        if mempool_timestamp_float < time_now - REFUSE_OLDER_THAN:
-                            # don't accept old txs, mempool needs to be harsher than ledger
-                            mempool_result.append("Mempool: Too old a transaction")
-                            continue
-
-                        # Then more cpu heavy tests. The signing scheme is bound to the DESTINATION block
-                        # height via mempool_post_fork (resolved above with the field-cap gating), so the
-                        # pool admits post-fork-signed txs (recoverable, no pubkey) once at/after the fork.
-                        # Pre-filter only; the digester is the authority.
-
-                        #  Will raise if error
-                        try:
-                            SignerFactory.verify_tx_signature(
-                                mempool_post_fork, mempool_timestamp, mempool_address, mempool_recipient,
-                                mempool_amount, mempool_operation, mempool_openfield,
-                                mempool_signature_enc, mempool_public_key_b64encoded,
-                                registry=self._hf('pk_registry'))
-                        except Exception as e:
-                            mempool_result.append(f"Mempool: Signature did not match for address ({e})")
-                            continue
-
-                        # Only now, process the tests requiring db access
-                        mempool_in = self.sig_check(mempool_signature_enc)
-
-                        # Temp: get last block for HF reason
-                        essentials.execute_param_c(c, "SELECT block_height FROM transactions WHERE 1 ORDER by block_height DESC limit ?",
-                                                   (1,), self.app_log)
-                        last_block = c.fetchone()[0]
-                        # reject transactions which are already in the ledger
-                        # TODO: not clean, will need to have ledger as a module too.
-                        # TODO: need better txid index, this is very sloooooooow
-                        # Bound to the confirmed tip: a crash/rollback can leave orphan rows ABOVE the
-                        # committed tip (or negative-height mirror rows); trusting them here re-opens the
-                        # same "stuck, not syncing" wedge the digest replay check was fixed to avoid.
-                        if self.config.old_sqlite:
-                            essentials.execute_param_c(c, "SELECT timestamp FROM transactions WHERE signature = ?1 AND block_height >= 0 AND block_height <= ?2",
-                                                       (mempool_signature_enc, last_block), self.app_log)
-                        else:
-                            essentials.execute_param_c(c,
-                                                       "SELECT timestamp FROM transactions WHERE substr(signature,1,4) = substr(?1,1,4) AND signature = ?1 AND block_height >= 0 AND block_height <= ?2",
-                                                       (mempool_signature_enc, last_block), self.app_log)
-                        # Keep the timestamp: it is used below to decide whether the peer is just one
-                        # block late. bool() here discarded it, making the 15-minute grace dead code.
-                        ledger_row = c.fetchone()
-                        ledger_in = float(ledger_row[0]) if ledger_row else None
-                        # remove from mempool if it's in both ledger and mempool already
-                        if mempool_in and ledger_in is not None:
-                            try:
-                                # Do not lock, we already have the lock for the whole merge.
-                                if self.config.old_sqlite:
-                                    self.execute(SQL_DELETE_TX_OLD, (mempool_signature_enc,))
-                                else:
-                                    self.execute(SQL_DELETE_TX, (mempool_signature_enc,))
-                                self.commit()
-                                mempool_result.append("Mempool: Transaction deleted from our mempool")
-                            except:  # experimental try and except
-                                mempool_result.append("Mempool: Transaction was not present in the pool anymore")
-                            continue
-                        if ledger_in is not None:
-                            mempool_result.append("That transaction is already in our ledger")
-                            # Can be a syncing node. Do not request mempool from this peer until FREEZE_MIN min
-                            # ledger_in is the ts of the tx in ledger. if it's recent, maybe the peer is just one block late.
-                            # give him 15 minute margin.
-                            if (peer_ip != '127.0.0.1') and (ledger_in < time_now - 60 * 15):
-                                with self.peers_lock:
-                                    self.peers_sent[peer_ip] = time.time() + FREEZE_MIN * 60
-                                self.app_log.warning("Freezing mempool from {} for {} min.".format(peer_ip, FREEZE_MIN))
-                            # Here, we point blank stop processing the batch from this host since it's outdated.
-                            # Update: Do not, since it blocks further valid tx - case has been found in real use.
-                            # return mempool_result
-                            continue
-                        # Already there, just ignore then
-                        if mempool_in:
-                            mempool_result.append("That transaction is already in our mempool")
-                            continue
-
-                        # Here we covered the basics, the current tx is conform and signed. Now let's check balance.
-
-                        # verify balance
-                        mempool_result.append("Mempool: Received address: {}".format(mempool_address))
-                        # include mempool fees - excluding the old ones.
-                        result = self.fetchall(SQL_MEMPOOL_GET, (mempool_address, ))
-                        debit_mempool = DECIMAL0
-                        if result:
-                            for x in result:
-                                debit_tx = quantize_eight(x[0])
-                                # Match consensus: dynamic base_fee post-fork (mirrored from the digester).
-                                # Pre-fork base_fee is None -> static BASE_FEE, byte-identical to the old call.
-                                fee = essentials.fee_calculate(x[1], x[2], last_block,
-                                                               base_fee=self._hf('base_fee'))  # Decimal 8
-                                debit_mempool += debit_tx + fee
-
-                        credit = DECIMAL0
-                        rewards = DECIMAL0
-                        for entry in essentials.execute_param_c(c,
-                                                                "SELECT amount, reward FROM transactions WHERE recipient = ?",
-                                                                (mempool_address, ), self.app_log):
-                            credit += amounts.ledger_value(entry[0])
-                            rewards += amounts.ledger_value(entry[1])
-
-                        debit_ledger = DECIMAL0
-                        fees = DECIMAL0
-                        for entry in essentials.execute_param_c(c,
-                                                                "SELECT amount, fee FROM transactions WHERE address = ?",
-                                                                (mempool_address,), self.app_log):
-                            debit_ledger += amounts.ledger_value(entry[0])
-                            fees += amounts.ledger_value(entry[1])
-
-                        debit = debit_ledger + debit_mempool
-
-                        # both are Decimals
-                        balance = credit - debit - fees + rewards - quantize_eight(mempool_amount)
-                        balance_pre = credit - debit_ledger - fees + rewards
-
-                        # doc/42: post-fork, carve the IMMATURE coinbase reward out of the spendable balance
-                        # (mirror the authoritative digest check, so an immature-spend is rejected at admission
-                        # rather than left to fail at block validation). Pre-fork (fork_height None): no carve-out.
-                        _fh_bal = self._hf('fork_height')
-                        if _fh_bal is not None and (last_block + 1) >= _fh_bal:
-                            _mat = essentials.coinbase_maturity(self.config.version == 'regnet')
-                            _immature = essentials.immature_coinbase(mempool_address, last_block + 1, c, _mat, self.app_log)
-                            balance -= _immature
-                            balance_pre -= _immature
-
-                        # Match consensus fee inputs (mirrored from the digester): dynamic base_fee
-                        # post-fork, static BASE_FEE pre-fork. Prevents admitting a tx that block apply
-                        # will reject for underpaying — the desync that wedges block production.
-                        fee = essentials.fee_calculate(mempool_openfield, mempool_operation, last_block,
-                                                       base_fee=self._hf('base_fee'))
-
-                        # print("Balance", balance, fee)
-
-                        if quantize_eight(mempool_amount) > balance_pre:  # mempool_amount is a 0.8f string for some reason
-                            # mp amount is already included in "balance" var! also, that tx might already be in the mempool
-                            mempool_result.append("Mempool: Sending more than owned")
-                            continue
-                        if balance - fee < 0:
-                            mempool_result.append("Mempool: Cannot afford to pay fees")
-                            continue
-
-                        # Pfew! we can finally insert into mempool - all is str, type converted and enforced above
-                        self.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?)",
-                                     (mempool_timestamp, mempool_address, mempool_recipient, mempool_amount,
-                                      mempool_signature_enc, mempool_public_key_b64encoded, mempool_operation,
-                                      mempool_openfield, int(time_now)))
-                        mempool_result.append("Mempool updated with a received transaction from {}".format(peer_ip))
-                        mempool_result.append("Success")  # WARNING: Do not change string or case ever!
-                        self.commit()  # Save (commit) the changes to mempool db
-
-                        mempool_size += sys.getsizeof(str(transaction)) / 1000000.0
-                    else:
+                    if not (size_bypass or self.space_left_for_tx(transaction, mempool_size)):
                         mempool_result.append("Local mempool is already full for this tx type, skipping merging")
-                        # self.app_log.warning("Local mempool is already full for this tx type, skipping merging")
-                # TEMP
-                # print("Mempool insert", mempool_result)
+                        continue
+                    try:
+                        mempool_timestamp = '%.2f' % (quantize_two(transaction[0]))
+                        mempool_timestamp_float = float(transaction[0])
+                    except Exception:
+                        mempool_result.append("Mempool: Invalid timestamp {}".format(transaction[0]))
+                        continue
+                    if not essentials.address_validate(transaction[1]):
+                        mempool_result.append("Mempool: Invalid address {}".format(transaction[1]))
+                        continue
+                    mempool_address = str(transaction[1])[:56]
+                    if not essentials.address_validate(transaction[2]):
+                        mempool_result.append("Mempool: Invalid recipient {}".format(transaction[2]))
+                        continue
+                    mempool_recipient = str(transaction[2])[:56]
+                    try:
+                        # consensus boundary: the legacy '%.8f' decimal-string amount the signature covers
+                        mempool_amount = '%.8f' % (quantize_eight(transaction[3]))
+                        mempool_amount_float = float(transaction[3])
+                    except Exception:
+                        mempool_result.append("Mempool: Invalid amount {}".format(transaction[3]))
+                        continue
+                    if len(transaction[4]) > essentials.MAX_TX_SIGNATURE_LEN:
+                        mempool_result.append("Mempool: Invalid signature len{}".format(len(transaction[4])))
+                        continue
+                    mempool_signature_enc = str(transaction[4])[:essentials.MAX_TX_SIGNATURE_LEN]
+                    if len(transaction[5]) > essentials.MAX_TX_PUBKEY_LEN:
+                        mempool_result.append("Mempool: Invalid pubkey len{}".format(len(transaction[5])))
+                        continue
+                    mempool_public_key_b64encoded = str(transaction[5])[:essentials.MAX_TX_PUBKEY_LEN]
+                    if "b'" == mempool_public_key_b64encoded[:2]:
+                        mempool_public_key_b64encoded = transaction[5][2:essentials.MAX_TX_PUBKEY_LEN + 2]
+
+                    last_block = store.tip() or 0
+                    # hf2: the operation/openfield caps and the mandatory-message rule are a PRE-FORK admission
+                    # policy; the DESTINATION height (tip+1) decides, and the same flag binds the signing scheme.
+                    _fork_height = self._hf('fork_height')
+                    mempool_post_fork = _fork_height is not None and (last_block + 1) >= _fork_height
+                    if mempool_post_fork:
+                        mempool_operation = str(transaction[6])
+                        mempool_openfield = str(transaction[7])
+                    else:
+                        if len(transaction[6]) > 30:
+                            mempool_result.append("Mempool: Invalid operation len{}".format(len(transaction[6])))
+                            continue
+                        mempool_operation = str(transaction[6])[:30]
+                        if len(transaction[7]) > 100000:
+                            mempool_result.append("Mempool: Invalid openfield len{}".format(len(transaction[7])))
+                            continue
+                        mempool_openfield = str(transaction[7])[:100000]
+                        if len(mempool_openfield) <= 4:
+                            if mempool_recipient in self.config.mandatory_message.keys():
+                                mempool_result.append("Mempool: Missing message - {}".format(
+                                    self.config.mandatory_message[mempool_recipient]))
+                                continue
+
+                    if mempool_amount_float < 0:
+                        mempool_result.append("Mempool: Negative balance spend attempt")
+                        continue
+                    if mempool_timestamp_float > time_now:
+                        mempool_result.append("Mempool: Future transaction rejected {}s".
+                                              format(mempool_timestamp_float - time_now))
+                        continue
+                    if mempool_timestamp_float < time_now - REFUSE_OLDER_THAN:
+                        mempool_result.append("Mempool: Too old a transaction")
+                        continue
+
+                    try:
+                        SignerFactory.verify_tx_signature(
+                            mempool_post_fork, mempool_timestamp, mempool_address, mempool_recipient,
+                            mempool_amount, mempool_operation, mempool_openfield,
+                            mempool_signature_enc, mempool_public_key_b64encoded,
+                            registry=self._hf('pk_registry'))
+                    except Exception as e:
+                        mempool_result.append(f"Mempool: Signature did not match for address ({e})")
+                        continue
+
+                    mempool_in = mempool_signature_enc in self._txs
+                    # reject transactions already on the confirmed chain
+                    ledger_rows = store.signature_rows(mempool_signature_enc, max_height=last_block, limit=1)
+                    ledger_in = float(ledger_rows[0][1]) if ledger_rows else None
+                    if mempool_in and ledger_in is not None:
+                        self._txs.pop(mempool_signature_enc, None)
+                        mempool_result.append("Mempool: Transaction deleted from our mempool")
+                        continue
+                    if ledger_in is not None:
+                        mempool_result.append("That transaction is already in our ledger")
+                        # a syncing peer: if the tx is not recent, stop taking its mempool for FREEZE_MIN
+                        if (peer_ip != '127.0.0.1') and (ledger_in < time_now - 60 * 15):
+                            with self.peers_lock:
+                                self.peers_sent[peer_ip] = time.time() + FREEZE_MIN * 60
+                            self.app_log.warning("Freezing mempool from {} for {} min.".format(peer_ip, FREEZE_MIN))
+                        continue
+                    if mempool_in:
+                        mempool_result.append("That transaction is already in our mempool")
+                        continue
+
+                    # balance: confirmed ledger balance minus this address's still-valid pending sends + fees
+                    mempool_result.append("Mempool: Received address: {}".format(mempool_address))
+                    debit_mempool = DECIMAL0
+                    _cutoff = time.time() - REFUSE_OLDER_THAN
+                    _pending = [(r[_AMOUNT], r[_OF], r[_OP]) for r in self._txs.values()
+                                if r[_ADDR] == mempool_address and float(r[_TS]) > _cutoff]
+                    for x in _pending:
+                        fee = essentials.fee_calculate(x[1], x[2], last_block, base_fee=self._hf('base_fee'))
+                        debit_mempool += quantize_eight(x[0]) + fee
+
+                    balance_pre = store.balance(mempool_address)
+                    balance = balance_pre - debit_mempool - quantize_eight(mempool_amount)
+
+                    _fh_bal = self._hf('fork_height')
+                    if _fh_bal is not None and (last_block + 1) >= _fh_bal:
+                        _mat = essentials.coinbase_maturity(self.config.version == 'regnet')
+                        _immature = essentials.immature_coinbase(mempool_address, last_block + 1, store, _mat,
+                                                                 self.app_log)
+                        balance -= _immature
+                        balance_pre -= _immature
+
+                    fee = essentials.fee_calculate(mempool_openfield, mempool_operation, last_block,
+                                                   base_fee=self._hf('base_fee'))
+                    if quantize_eight(mempool_amount) > balance_pre:
+                        mempool_result.append("Mempool: Sending more than owned")
+                        continue
+                    if balance - fee < 0:
+                        mempool_result.append("Mempool: Cannot afford to pay fees")
+                        continue
+
+                    self._txs[mempool_signature_enc] = (
+                        mempool_timestamp, mempool_address, mempool_recipient, mempool_amount,
+                        mempool_signature_enc, mempool_public_key_b64encoded, mempool_operation,
+                        mempool_openfield, int(time_now))
+                    mempool_result.append("Mempool updated with a received transaction from {}".format(peer_ip))
+                    mempool_result.append("Success")  # WARNING: Do not change string or case ever!
+                    mempool_size += sys.getsizeof(str(transaction)) / 1000000.0
                 return mempool_result
-                # TODO: Here maybe commit() on c to release the write lock?
             except Exception as e:
                 self.app_log.warning("Mempool: Error processing: {} {}".format(data, e))
                 if self.config.debug:
@@ -588,6 +420,5 @@ class Mempool(MempoolQueriesMixin):
                     fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
                     self.app_log.warning("{} {} {}".format(exc_type, fname, exc_tb.tb_lineno))
                     mempool_result.append("Exception: {}".format(str(e)))
-                    # if left there, means debug can *not* be used in production, or exception is not sent back to the client.
                     raise
         return mempool_result

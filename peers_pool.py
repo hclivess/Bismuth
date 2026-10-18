@@ -1,5 +1,31 @@
 """Outbound connection-pool membership and retry/back-off bookkeeping (mixin)."""
+import socket
 from time import time
+
+_OWN_ADDRESSES = None
+
+
+def own_addresses():
+    """Every address this machine answers on: loopback, the hostname's addresses and the source address of
+    the default route (found with an unsent UDP connect). Computed once. A peer list gossiped back to us
+    carries our PUBLIC IP, which node_ip (often 127.0.0.1) does not cover — dialing it is a self-connection
+    that votes our own height as 100% consensus."""
+    global _OWN_ADDRESSES
+    if _OWN_ADDRESSES is None:
+        own = {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
+        try:
+            own.update(socket.gethostbyname_ex(socket.gethostname())[2])
+        except OSError:
+            pass
+        for family, probe in ((socket.AF_INET, ("192.0.2.1", 9)), (socket.AF_INET6, ("2001:db8::1", 9))):
+            try:
+                with socket.socket(family, socket.SOCK_DGRAM) as s:
+                    s.connect(probe)
+                    own.add(s.getsockname()[0])
+            except OSError:
+                pass
+        _OWN_ADDRESSES = frozenset(own)
+    return _OWN_ADDRESSES
 
 
 class PeersPoolMixin:
@@ -53,7 +79,7 @@ class PeersPoolMixin:
         # self-opinion when it has no real peers, which looks like "fully synced" while stuck. Skip our
         # own listening address (public node_ip or loopback, on our own port); other local services on a
         # different port are still allowed.
-        if str(port) == str(self.config.port) and host in ("127.0.0.1", "localhost", self.config.node_ip):
+        if str(port) == str(self.config.port) and (host == self.config.node_ip or host in own_addresses()):
             return False
 
         host_port = f"{host}:{port}"

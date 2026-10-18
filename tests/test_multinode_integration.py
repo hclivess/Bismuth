@@ -3,22 +3,21 @@ Multi-node regnet integration test (doc/26 KVStore storage seam) — the 3-node 
 
 This is the heavier sibling of tests/test_two_node_api_sync.py. It brings up a THREE-node regnet cluster
 (no socket peering — regnet refuses it by design; api_sync over REST is the ONLY multi-node path) and proves
-that the just-migrated KVStore-backed LMDB stores produce IDENTICAL results across independently-built
-ledgers. config_custom.txt turns on, per node: the four core rebuildable side-indexes that were migrated
-onto kvstore.open_store (block_store / balance_index / txid_index), PLUS token_index (owned by the
-optional tokens_aliases PLUGIN, doc/27 — node core never constructs it; it arrives as a plugin service). The
-KVStore-backed indexes serve the consensus reads; this test exercises all of them across the cluster.
+that the LMDB ledger (ONE environment: blocks + balance / signature / address / txid / pubkey indexes)
+produces IDENTICAL results across independently-built nodes, PLUS token_index (owned by the optional
+tokens_aliases PLUGIN, doc/27 — node core never constructs it; it arrives as a plugin service). The
+ledger's indexes serve the consensus reads; this test exercises all of them across the cluster.
 
     A  socket 4070 / REST 4071   — mines a chain CROSSING the regnet hf2 fork, issues a token
     B  socket 4072 / REST 4073   — api_sync=ON from A's REST (empty ledger -> reconstructs A's chain)
     C  socket 4074 / REST 4075   — api_sync=ON from A's REST (empty ledger -> reconstructs A's chain)
 
-Asserts, using ONLY the REST API surfaces (never opening the LMDB dirs directly):
+Asserts (chain parity read from each node's LMDB ledger read-only; everything else over REST):
   1. CHAIN PARITY      — every block hash 1..tip is byte-identical across all 3 independent ledgers.
   2. STORE AGREEMENT   — for a handful of addresses/txs/blocks, each node returns IDENTICAL results:
-                           * balance  (/api/balance/<addr>)         -> balance_index @ primary
-                           * tx height(/api/transaction/<txid>)     -> txid_index
-                           * block bodies by height (/api/block/...) -> block_store
+                           * balance  (/api/balance/<addr>)         -> the ledger's balance index
+                           * tx height(/api/transaction/<txid>)     -> the ledger's txid index
+                           * block bodies by height (/api/block/...) -> the ledger's block bodies
                            * token supply + holders (/api/token/<name>) -> token_index (tokens_aliases PLUGIN)
                        The token checks run on POPULATED state: node A issues+transfers a token
                        (all post-fork) BEFORE B/C sync.
@@ -33,15 +32,12 @@ import json
 import os
 import shutil
 import socket
-import sqlite3
 import subprocess
 import sys
 import time
 import urllib.request
 
 import pytest
-
-pytest.importorskip("lmdb")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -75,9 +71,7 @@ def _start_node(datadir, sock_port, rest_port, extra_env):
     env["BISMUTH_REGNET_PORT"] = str(sock_port)
     env["BISMUTH_REST_API_PORT"] = str(rest_port)
     env["BISMUTH_REGNET_DB"] = os.path.join(datadir, "regmode.db")
-    env["BISMUTH_REGNET_INDEX"] = os.path.join(datadir, "index_reg.db")
     env["BISMUTH_REGNET_PEERS"] = os.path.join(datadir, "peers_reg.txt")
-    env["BISMUTH_MEMPOOL_PATH"] = os.path.join(datadir, "mempool.db")
     env.update(extra_env)
     log = open(os.path.join(datadir, "node.log"), "w")
     proc = subprocess.Popen([sys.executable, "node.py", "regnet2"], cwd=ROOT,
@@ -98,15 +92,15 @@ def _await(cond, deadline_s, poll=1.0):
 
 
 def _block_hashes(ledger_path):
-    """{height: block_hash} for every positive-height block in a ledger (read-only)."""
-    conn = sqlite3.connect("file:%s?mode=ro" % ledger_path, uri=True, timeout=20)
-    conn.text_factory = str
+    """{height: block_hash} for every block in a node's LMDB ledger (a read-only reader beside its writer)."""
+    import block_store
+    import kvstore
+    bs = block_store.BlockStore(kvstore.store_path(ledger_path, "blockstore"), readonly=True)
     try:
-        rows = conn.execute("SELECT block_height, block_hash FROM transactions "
-                            "WHERE block_height > 0 GROUP BY block_height ORDER BY block_height").fetchall()
+        tip = bs.tip() or 0
+        return {h: bs.block_hash(h) for h in range(1, tip + 1) if bs.block_hash(h) is not None}
     finally:
-        conn.close()
-    return {int(h): bh for (h, bh) in rows}
+        bs.close()
 
 
 def _tail(path, n=40):
@@ -134,8 +128,8 @@ def _canonical_block(port, height):
                     reason="heavy three-node harness (spins up 3 extra node processes); "
                            "run explicitly with BISMUTH_RUN_MULTINODE=1")
 def test_multinode_integration(tmp_path):
-    # All regnet nodes read ROOT/config_custom.txt (regnet flags: block_store, balance_index=primary,
-    # txid_index=primary, parity_strict, vm, token_index). Prod ignores it (BISMUTH_IGNORE_CONFIG_CUSTOM=1).
+    # All regnet nodes read ROOT/config_custom.txt (regnet flags: integer amounts, fork window, REST/RPC).
+    # Prod ignores it (BISMUTH_IGNORE_CONFIG_CUSTOM=1).
     if not os.path.exists(os.path.join(ROOT, "config_custom.txt")):
         shutil.copy(os.path.join(ROOT, "tests/config_custom.txt"), os.path.join(ROOT, "config_custom.txt"))
 
@@ -228,17 +222,17 @@ def test_multinode_integration(tmp_path):
         ports = {"A": A_R, "B": B_R, "C": C_R}
         fork_height = _rest(A_R, "fork").get("fork_height")
 
-        # --- block_store: full block bodies by height agree across nodes (several heights incl. genesis+tip)
+        # --- block bodies: full block bodies by height agree across nodes (several heights incl. genesis+tip)
         sample_heights = sorted(set([1, 2, max(1, tip // 2), tip - 1, tip]))
         sample_heights = [h for h in sample_heights if 1 <= h <= tip]
         for h in sample_heights:
             bodies = {nm: _canonical_block(p, h) for nm, p in ports.items()}
             assert bodies["A"] == bodies["B"] == bodies["C"], \
-                "block_store body at height %d disagrees across nodes:\n%s" % (h, json.dumps(
+                "block body at height %d disagrees across nodes:\n%s" % (h, json.dumps(
                     {nm: [list(t) for t in b] for nm, b in bodies.items()}, indent=2)[:2000])
-        print("STORE AGREEMENT block_store ok: bodies at heights %s identical across A,B,C" % sample_heights)
+        print("STORE AGREEMENT block bodies ok: bodies at heights %s identical across A,B,C" % sample_heights)
 
-        # --- balance_index (@primary): the miner/coinbase address balance agrees across nodes
+        # --- balance index: the miner/coinbase address balance agrees across nodes
         addrs = {ca.address}
         # also pull a couple of recipient addresses seen on chain to broaden the balance check
         for h in (tip, max(1, tip - 1)):
@@ -250,15 +244,13 @@ def test_multinode_integration(tmp_path):
         for addr in addrs:
             bals = {nm: _rest(p, "balance/%s" % addr)["balance"] for nm, p in ports.items()}
             assert bals["A"] == bals["B"] == bals["C"], \
-                "balance_index disagrees for %s: %s" % (addr, bals)
-        print("STORE AGREEMENT balance_index ok: balances for %d addr(s) identical across A,B,C" % len(addrs))
+                "balance index disagrees for %s: %s" % (addr, bals)
+        print("STORE AGREEMENT balance index ok: balances for %d addr(s) identical across A,B,C" % len(addrs))
 
-        # --- txid_index: /api/transaction confirms a post-fork tx's confirmed height is identical on every
-        #     node. NOTE the migrated txid_index KVStore itself is validated AUTHORITATIVELY (not by this REST
-        #     path, which re-derives from SQLite): config_custom.txt runs txid_index_consensus=primary +
-        #     parity_strict, so digest consults txid_index.contains() as the dedup gate on every post-fork
-        #     block on all 3 nodes — a divergent txid_index would RAISE during digestion and break the
-        #     (asserted byte-identical) chain above. This check is the cross-node tx-height corroboration.
+        # --- txid index: /api/transaction confirms a post-fork tx's confirmed height is identical on every
+        #     node. The digester also consults the ledger's txid index as the post-fork dedup gate on every
+        #     block on all 3 nodes, so a divergent index would RAISE during digestion and break the (asserted
+        #     byte-identical) chain above. This check is the cross-node tx-height corroboration.
         txid_checked = 0
         if fork_height is not None:
             # find post-fork blocks with txs and pick a few txids (coinbase txs always exist)
@@ -279,9 +271,9 @@ def test_multinode_integration(tmp_path):
                     except Exception as e:
                         heights[nm] = "ERR:%s" % e
                 assert heights["A"] == heights["B"] == heights["C"] == expect_h, \
-                    "txid_index disagrees for %s (expect h=%s): %s" % (tx_id, expect_h, heights)
+                    "txid index disagrees for %s (expect h=%s): %s" % (tx_id, expect_h, heights)
                 txid_checked += 1
-        print("STORE AGREEMENT txid_index ok: %d post-fork txid height(s) identical across A,B,C" % txid_checked)
+        print("STORE AGREEMENT txid index ok: %d post-fork txid height(s) identical across A,B,C" % txid_checked)
 
         # --- token_index (tokens_aliases PLUGIN): the projected token supply + holder set agree across nodes.
         # B/C never received these txs over a socket — their plugin re-projected them from the api_sync'd
@@ -350,7 +342,7 @@ def test_multinode_integration(tmp_path):
             # detector drive is a bonus. Surface but don't fail the run if its internals shifted.
             print("DETECTOR in-process drive skipped (cluster /api/difficulty already agrees %s): %s" % (diffs, e))
 
-        print("\nALL CHECKS PASSED: 3-node chain parity + block_store/balance_index/txid_index"
+        print("\nALL CHECKS PASSED: 3-node chain parity + ledger block/balance/txid index"
               " agreement + token_index (populated) + detector CLEAN at tip %d" % tip)
     finally:
         for proc, log, _ in procs:

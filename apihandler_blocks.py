@@ -6,25 +6,36 @@ instance, so ``self.app_log``/``self.config`` and cross-domain ``self.api_*`` ca
 """
 import json
 import os
+import re
 import sys
 import amounts
 import block_format
 import connections
 
 
-def _seam_backend(node):
-    """Storage read seam (doc/26 stage 3): the LMDB block store post-fork when present, else None (the caller
-    falls back to the legacy SQLite ledger cursor — unchanged pre-fork). The socket analog of rest_api's
-    _store_backend; this is the legacy wire protocol, migrated for parity."""
-    if node is None:
-        return None
-    store = getattr(node, "block_store", None)
-    fork_height = getattr(node, "fork_height", None)
-    last_block = getattr(node, "last_block", 0) or 0
-    if store is not None and fork_height is not None and last_block >= fork_height:
-        import storage_backend
-        return storage_backend.LmdbBackend(store)
-    return None
+def _store(db_handler, node=None):
+    """The LMDB ledger (``block_store.BlockStore``) behind a DbHandler (or the node's, as a fallback)."""
+    store = getattr(db_handler, "store", None)
+    if store is None and node is not None:
+        store = getattr(node, "ledger", None)
+    return store
+
+
+def _like(pattern):
+    """A matcher with the legacy ``LIKE`` semantics the API exposed: ``%`` / ``_`` wildcards, ASCII
+    case-insensitive, whole-string."""
+    rx = "".join(".*" if c == "%" else "." if c == "_" else re.escape(c) for c in str(pattern))
+    return re.compile(rx, re.ASCII | re.IGNORECASE | re.DOTALL).fullmatch
+
+
+def _rows_in_range(store, lo, hi):
+    """Every typed row in blocks [lo, hi], ascending."""
+    out = []
+    if hi < lo:
+        return out
+    for _h, rows in store.blocks_in_range(lo, hi):
+        out.extend(rows)
+    return out
 
 
 class BlockApiMixin:
@@ -46,19 +57,14 @@ class BlockApiMixin:
 
         block_hash = connections.receive(socket_handler)
 
-        # seam (doc/26): LMDB block store post-fork, SQLite fallback — same rows, same blockstojson output
-        result = None
-        be = _seam_backend(getattr(self, "node", None))
-        if be is not None:
-            h = be.height_by_hash(block_hash)
-            if h is not None:
-                result = be.get_block(h)
-        if not result:
-            db_handler.execute_param(db_handler.h,
-                                     "SELECT * FROM transactions "
-                                     "WHERE block_hash = ?",
-                                     (block_hash,))
-            result = db_handler.h.fetchall()
+        store = _store(db_handler, getattr(self, "node", None))
+        result = []
+        try:
+            h = store.height_by_hash(block_hash)
+        except Exception:
+            h = None
+        if h is not None:
+            result = store.get_block(h) or []
         blocks = block_format.blockstojson(result)
         connections.send(socket_handler, blocks)
 
@@ -77,10 +83,12 @@ class BlockApiMixin:
         try:
             block_hash = connections.receive(socket_handler)
 
-            result = db_handler.fetchall(db_handler.h,
-                                         "SELECT * FROM transactions "
-                                         "WHERE block_hash = ? ",
-                                         (block_hash,))
+            store = _store(db_handler, getattr(self, "node", None))
+            try:
+                h = store.height_by_hash(block_hash)
+            except Exception:
+                h = None
+            result = (store.get_block(h) or []) if h is not None else []
             blocks = block_format.blockstojson(result)
             if not blocks:
                 # Unknown or pruned hash: reply explicitly so the client is not left blocking.
@@ -88,15 +96,10 @@ class BlockApiMixin:
                 return
             block = list(blocks.values())[0]
 
-            block["previous_block_hash"] = db_handler.fetchone(db_handler.h,
-                                                               "SELECT block_hash FROM transactions WHERE block_height = ?",
-                                                               (block['block_height'] - 1,))
-            block["next_block_hash"] = db_handler.fetchone(db_handler.h,
-                                                           "SELECT block_hash FROM transactions WHERE block_height = ?",
-                                                           (block['block_height'] + 1,))
-            difficulty_row = db_handler.fetchone(db_handler.h,
-                                                 "SELECT difficulty FROM misc WHERE block_height = ?",
-                                                 (block['block_height'],))
+            height = int(block['block_height'])
+            block["previous_block_hash"] = store.block_hash(height - 1) if height > 0 else None
+            block["next_block_hash"] = store.block_hash(height + 1)
+            difficulty_row = store.difficulty(height)
             block["difficulty"] = int(float(difficulty_row)) if difficulty_row is not None else 0
             # print(block)
             connections.send(socket_handler, block)
@@ -123,19 +126,11 @@ class BlockApiMixin:
 
         height = connections.receive(socket_handler)
 
-        # seam (doc/26): LMDB block store post-fork, SQLite fallback — same rows, same blockstojson output
-        result = None
-        be = _seam_backend(getattr(self, "node", None))
-        if be is not None:
-            try:
-                result = be.get_block(int(height))
-            except (ValueError, TypeError):
-                result = None
-        if not result:
-            db_handler.execute_param(db_handler.h, ("SELECT * FROM transactions "
-                                                    "WHERE block_height = ? "),
-                                     (height,))
-            result = db_handler.h.fetchall()
+        store = _store(db_handler, getattr(self, "node", None))
+        try:
+            result = store.get_block(int(height)) or []
+        except (ValueError, TypeError):
+            result = []
         blocks = block_format.blockstojson(result)
         connections.send(socket_handler, blocks)
 
@@ -156,19 +151,14 @@ class BlockApiMixin:
             limit = 50
 
         try:
-            db_handler.execute_param(db_handler.h,
-                                     ('SELECT * FROM transactions '
-                                      'WHERE block_height >= ? '
-                                      'AND block_height < ?;'),
-                                     (start_block, start_block+limit,))
-            raw_txs = db_handler.h.fetchall()
-
-            db_handler.execute_param(db_handler.h,
-                                     ('SELECT difficulty FROM misc '
-                                      'WHERE block_height >= ? '
-                                      'AND block_height < ?;'),
-                                     (start_block, start_block+limit,))
-            raw_diffs = db_handler.h.fetchall()
+            store = _store(db_handler, getattr(self, "node", None))
+            start_block, limit = int(start_block), int(limit)
+            diffs = dict(store.difficulty_range(start_block, start_block + limit))
+            raw_txs, raw_diffs = [], []
+            for h, rows in store.blocks_in_range(start_block, start_block + limit - 1):
+                raw_txs.extend(rows)
+                # one mining tx per block: keep the difficulty list aligned with the mining txs
+                raw_diffs.extend((diffs.get(h),) for r in rows if r[9] != 0)
 
             reply = json.dumps(block_format.blocktojsondiffs(raw_txs, raw_diffs))
 
@@ -200,13 +190,11 @@ class BlockApiMixin:
         # print('api_getblocksince', since_height)
         try:
             try:
-                db_handler.execute(db_handler.h, "SELECT MAX(block_height) FROM transactions")
+                store = _store(db_handler, getattr(self, "node", None))
+                tip = store.tip()
                 # what is the min block height to consider ?
-                block_height = max(db_handler.h.fetchone()[0]-11, since_height)
-                db_handler.execute_param(db_handler.h,
-                                        ('SELECT * FROM transactions WHERE block_height > ?;'),
-                                        (block_height, ))
-                info = [amounts.display_row(r) for r in db_handler.h.fetchall()]
+                block_height = max(tip - 11, since_height)
+                info = [amounts.display_row(r) for r in _rows_in_range(store, int(block_height) + 1, tip)]
                 # it's a list of tuples, send as is.
                 #print(all)
             except Exception as e:
@@ -231,18 +219,15 @@ class BlockApiMixin:
         info = []
         # get the last known block
         since_height = int(connections.receive(socket_handler))
-        where_openfield_like = connections.receive(socket_handler)+'%'
+        where_openfield_like = _like(connections.receive(socket_handler) + '%')
         #print('api_getblockswhereoflike', since_height, where_openfield_like)
         try:
             try:
-                db_handler.execute(db_handler.h, "SELECT MAX(block_height) FROM transactions")
+                store = _store(db_handler, getattr(self, "node", None))
                 # what is the max block height to consider ?
-                block_height = min(db_handler.h.fetchone()[0], since_height+1440)
-                #print("block_height", since_height, block_height)
-                db_handler.execute_param(db_handler.h,
-                                        'SELECT * FROM transactions WHERE block_height > ? and block_height <= ? and openfield like ?',
-                                        (since_height, block_height, where_openfield_like) )
-                info = [amounts.display_row(r) for r in db_handler.h.fetchall()]
+                block_height = min(store.tip(), since_height+1440)
+                info = [amounts.display_row(r) for r in _rows_in_range(store, since_height + 1, block_height)
+                        if where_openfield_like(str(r[11]))]
                 # it's a list of tuples, send as is.
                 #print("info", info)
             except Exception as e:
@@ -272,41 +257,6 @@ class BlockApiMixin:
         # get the last known block
         since_height = connections.receive(socket_handler)
         where_conditions = connections.receive(socket_handler)
-        self.app_log.warning('api_getblocksafterwhere', since_height, where_conditions)
-        # TODO: feed as array to have a real control and avoid sql injection !important
-        # Do *NOT* use in production until it's done.
+        self.app_log.warning(f"api_getblocksafterwhere {since_height} {where_conditions}")
+        # Free-form where-conditions were never safe to evaluate; the command stays disabled.
         raise ValueError("Unsafe, do not use yet")
-        """
-        [
-        ['','openfield','like','egg%']
-        ]
-
-        [
-        ['', '('],
-        ['','reward','>','0']
-        ['and','recipient','in',['','','']]
-        ['', ')'],
-        ]
-        """
-        where_assembled = where_conditions
-        conditions_assembled = ()
-        try:
-            try:
-                db_handler.execute(db_handler.h, "SELECT MAX(block_height) FROM transactions")
-                # what is the max block height to consider ?
-                block_height = min(db_handler.h.fetchone()[0], since_height+720)
-                # print("block_height",block_height)
-                db_handler.execute_param(db_handler.h,
-                                        ('SELECT * FROM transactions WHERE block_height > ? and block_height <= ? and ( '+where_assembled+')'),
-                                        (since_height, block_height)+conditions_assembled)
-                info = [amounts.display_row(r) for r in db_handler.h.fetchall()]
-                # it's a list of tuples, send as is.
-                # print(all)
-            except Exception as e:
-                self.app_log.warning(e)
-                raise
-            # print("info", info)
-            connections.send(socket_handler, info)
-        except Exception as e:
-            # self.app_log.warning(e)
-            raise

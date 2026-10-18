@@ -4,7 +4,7 @@
 # for license see LICENSE file
 # .
 
-import connections, time, options, log, sqlite3, socks, hashlib, random, re, essentials, base64, sys, os, math
+import connections, time, options, log, socks, hashlib, random, re, essentials, base64, sys, os, math
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer   # miner<->pool is HTTP now
 from urllib.parse import urlparse
 from Cryptodome import Random
@@ -18,12 +18,12 @@ import json
 import logging
 import mining_heavy3 as mining
 import bismuth_serialize
+import pool_store
 
 config = options.Get()
 config.read()
 port = config.port
 node_ip_conf = config.node_ip
-ledger_path_conf = "static/ledger.db"
 #tor_conf = config.tor
 debug_level_conf = config.debug_level
 version = config.version
@@ -39,7 +39,6 @@ app_log.addHandler(ch)
 if version == "testnet":
     port = "2829"
     m_peer_file = "peers_test.txt"
-    ledger_path_conf = "static/test.db"
 else:
     m_peer_file = "peers.txt"
 
@@ -118,17 +117,20 @@ bin_format_dict = dict((x, format(ord(x), '8b').replace(' ', '0')) for x in '012
 def percentage(percent, whole):
     return int((percent * whole) / 100)
 
-def checkdb():
-    shares = sqlite3.connect('shares.db')
-    shares.text_factory = str
-    s = shares.cursor()
-    s.execute("SELECT * FROM shares")
-    present = s.fetchall()
+# the pool's own state (shares / archive / nonce guard): ONE LMDB env, opened once per process
+_store = None
 
-    if not present:
-        return False
-    else:
-        return True
+
+def get_store():
+    global _store
+    if _store is None:
+        _store = pool_store.PoolStore(pool_store.DEFAULT_PATH)
+        app_log.warning("Pool store open: {}".format(os.path.abspath(pool_store.DEFAULT_PATH)))
+    return _store
+
+
+def checkdb():
+    return get_store().has_shares()
 
 # payout processing
 
@@ -137,24 +139,20 @@ def payout(payout_threshold,myfee,othfee):
     app_log.info("Minimum payout is {} Bismuth".format(str(payout_threshold)))
     app_log.info("Current pool fee is {} Percent".format(str(myfee)))
 
-    shares = sqlite3.connect('shares.db')
-    shares.text_factory = str
-    s = shares.cursor()
+    store = get_store()
+    unpaid = store.unpaid()
+    by_address = pool_store.unpaid_sum_by_address(unpaid)
 
     #get sum of all shares not paid
-    s.execute("SELECT sum(shares) FROM shares WHERE paid != 1")
-    shares_total = s.fetchone()[0]
-    #get sum of all shares not paid
+    shares_total = sum(by_address.values()) if by_address else None
 
     #get block threshold
     try:
-        s.execute("SELECT min(timestamp) FROM shares WHERE paid != 1")
-        block_threshold = float(s.fetchone()[0])
-    except:
+        block_threshold = float(min(r["timestamp"] for r in unpaid))
+    except Exception:
         block_threshold = time.time()
-    #get block threshold
 
-    #get eligible blocks (the pool's mined coinbase rewards) from the node REST — NOT a ledger.db scan
+    #get eligible blocks (the pool's mined coinbase rewards) from the node REST (never a ledger read)
     reward_list = []
     try:
         for t in _node_get("/address/%s/transactions?limit=500" % address).get("transactions", []):
@@ -172,7 +170,7 @@ def payout(payout_threshold,myfee,othfee):
     reward_total = "%.8f" % (((100-(myfee+othfee))*super_total)/100)
     reward_total = float(reward_total)
 
-    if reward_total > 0:
+    if reward_total > 0 and shares_total:
 
         # calculate alt address fee
 
@@ -189,25 +187,10 @@ def payout(payout_threshold,myfee,othfee):
 
         shares_threshold = math.floor(payout_threshold/reward_per_share)
 
-        #get unique addresses
-        addresses = []
-        for row in s.execute("SELECT * FROM shares"):
-            shares_address = row[0]
-
-            if shares_address not in addresses:
-                addresses.append(shares_address)
-        print (addresses)
-        #get unique addresses
-
         # prepare payout address list with number of shares and new total shares
         payadd = []
         new_sum = 0
-        for x in addresses:
-            s.execute("SELECT sum(shares) FROM shares WHERE address = ? AND paid != 1", (x,))
-            shares_sum = s.fetchone()[0]
-
-            if shares_sum == None:
-                shares_sum = 0
+        for x, shares_sum in by_address.items():
             if shares_sum > shares_threshold:
                 payadd.append([x,shares_sum])
                 new_sum = new_sum + shares_sum
@@ -290,90 +273,13 @@ def payout(payout_threshold,myfee,othfee):
                 app_log.warning("Invalid signature, skipping payout")
                 reply = "Invalid signature"
 
-            s.execute("UPDATE shares SET paid = 1 WHERE address = ?",(recipient,))
-            shares.commit()
+            store.mark_paid(recipient)
 
         if payout_passed == 1:
-            s.execute("UPDATE shares SET timestamp = ?", (time.time(),))
-            shares.commit()
+            store.touch_timestamps(time.time())
 
-        # calculate payouts
-        #payout
-
-        # archive paid shares
-        s.execute("SELECT * FROM shares WHERE paid = 1")
-        pd = s.fetchall()
-
-        if pd == None:
-            pass
-        else:
-            archive = sqlite3.connect('archive.db')
-            archive.text_factory = str
-            a = archive.cursor()
-
-            for sh in pd:
-                a.execute("INSERT INTO shares VALUES (?,?,?,?,?,?,?,?)", (sh[0],sh[1],sh[2],sh[3],sh[4],sh[5],sh[6],sh[7]))
-
-            archive.commit()
-            a.close()
-        # archive paid shares
-
-    # clear nonces
-    s.execute("DELETE FROM nonces")
-    s.execute("DELETE FROM shares WHERE paid = 1")
-    shares.commit()
-    s.execute("VACUUM")
-    #clear nonces
-    s.close()
-
-
-def commit(cursor):
-    # secure commit for slow nodes
-    passed = 0
-    while passed == 0:
-        try:
-            cursor.commit()
-            passed = 1
-        except Exception as e:
-            app_log.warning("Retrying database execute due to " + str(e))
-            time.sleep(random.random())
-            pass
-            # secure commit for slow nodes
-
-
-def execute(cursor, what):
-    # secure execute for slow nodes
-    passed = 0
-    while passed == 0:
-        try:
-            # print cursor
-            # print what
-
-            cursor.execute(what)
-            passed = 1
-        except Exception as e:
-            app_log.warning("Retrying database execute due to {}".format(e))
-            time.sleep(random.random())
-            pass
-            # secure execute for slow nodes
-    return cursor
-
-
-def execute_param(cursor, what, param):
-    # secure execute for slow nodes
-    passed = 0
-    while passed == 0:
-        try:
-            # print cursor
-            # print what
-            cursor.execute(what, param)
-            passed = 1
-        except Exception as e:
-            app_log.warning("Retrying database execute due to " + str(e))
-            time.sleep(0.1)
-            pass
-            # secure execute for slow nodes
-    return cursor
+    # archive the paid shares + clear the nonce guard (one transaction)
+    store.close_round()
 
 
 def bin_convert(string):
@@ -442,31 +348,6 @@ def worker(s_time):
 
         except Exception as e:
             app_log.warning(str(e))
-
-# TODO: for tests only
-#os.remove('shares.db')
-#os.remove('archive.db')
-
-
-if not os.path.exists('shares.db'):
-    # create empty shares
-    shares = sqlite3.connect('shares.db')
-    shares.text_factory = str
-    s = shares.cursor()
-    execute(s, "CREATE TABLE IF NOT EXISTS shares (address, shares, timestamp, paid, rate, name, workers, subname)")
-    execute(s, "CREATE TABLE IF NOT EXISTS nonces (nonce)") #for used hash storage
-    app_log.warning("Created shares file")
-    s.close()
-    # create empty shares
-if not os.path.exists('archive.db'):
-    # create empty archive
-    archive = sqlite3.connect('archive.db')
-    archive.text_factory = str
-    a = archive.cursor()
-    execute(a, "CREATE TABLE IF NOT EXISTS shares (address, shares, timestamp, paid, rate, name, workers, subname)")
-    app_log.warning("Created archive file")
-    a.close()
-    # create empty archive
 
 """
 if checkdb():
@@ -583,26 +464,20 @@ def process_share(miner_address, sh):
     diff_shares = diff if diff < mdiff else mdiff
     saved = False
     duplicate = False
-    shares = sqlite3.connect('shares.db')
-    shares.text_factory = str
-    s = shares.cursor()
-    execute_param(s, ("SELECT nonce FROM nonces WHERE nonce = ?"), (nonce,))
-    try:
-        s.fetchone()[0]
+    store = get_store()
+    if store.nonce_seen(nonce):
         app_log.warning("Miner trying to reuse a share, ignored")
         duplicate = True
-    except Exception:
-        if real_diff >= diff_shares:
-            execute_param(s, ("INSERT INTO nonces VALUES (?)"), (nonce,))
-            commit(shares)
-            timestamp = '%.2f' % time.time()
-            s.execute("INSERT INTO shares VALUES (?,?,?,?,?,?,?,?)",
-                      (str(miner_address), str(1), timestamp, "0", str(mrate), bname, str(wnum), wname))
-            shares.commit()
+    elif real_diff >= diff_shares:
+        rec = {"address": str(miner_address), "shares": 1, "timestamp": '%.2f' % time.time(), "paid": "0",
+               "rate": str(mrate), "name": bname, "workers": str(wnum), "subname": wname}
+        if store.record_share(nonce, rec):
             saved = True
-        else:
-            app_log.warning("Difficulty requirement not satisfied for anything")
-    s.close()
+        else:                                   # raced a concurrent submit of the same nonce
+            app_log.warning("Miner trying to reuse a share, ignored")
+            duplicate = True
+    else:
+        app_log.warning("Difficulty requirement not satisfied for anything")
     return {"accepted": saved, "block_found": block_found, "real_diff": real_diff,
             "duplicate": duplicate, "share_diff": diff_shares}
 

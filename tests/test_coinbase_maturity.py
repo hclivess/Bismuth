@@ -2,9 +2,11 @@
 
 Run: python3 -m pytest tests/test_coinbase_maturity.py -q
 """
-import sqlite3
 from decimal import Decimal
 
+import pytest
+
+import block_store
 import essentials
 
 
@@ -12,18 +14,28 @@ MINER = "miner_addr"
 OTHER = "other_addr"
 
 
-def _ledger(rows):
-    """rows = list of (block_height, recipient, address, amount, reward). In-memory transactions table."""
-    conn = sqlite3.connect(":memory:")
-    cur = conn.cursor()
-    cur.execute("CREATE TABLE transactions (block_height INTEGER, timestamp, address, recipient, "
-                "amount, signature, public_key, block_hash, fee, reward, operation, openfield)")
-    for h, recip, addr, amount, reward in rows:
-        cur.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (h, "%.2f" % (1500000000 + h), addr, recip, amount, "s%d" % h, "p", "bh",
-                     "0", reward, "0", ""))
-    conn.commit()
-    return cur
+@pytest.fixture
+def ledger(tmp_path):
+    """Factory: rows = list of (block_height, recipient, address, amount, reward) -> a temp LMDB ledger with
+    every height 1..max committed (heights without a listed row get an unrelated filler tx)."""
+    stores = []
+
+    def build(rows):
+        store = block_store.BlockStore(str(tmp_path / ("ledger%d" % len(stores))), map_size=1 << 28, sync=False)
+        stores.append(store)
+        by_h = {}
+        for h, recip, addr, amount, reward in rows:
+            by_h.setdefault(h, []).append((str(h), "%.2f" % (1500000000 + h), addr, recip, amount,
+                                           "s%d_%d" % (h, len(by_h.get(h, []))), "p", "bh", "0", reward, "0", ""))
+        for h in range(1, max(by_h) + 1):
+            block = by_h.get(h) or [(str(h), "%.2f" % (1500000000 + h), "filler", "filler", "0", "f%d" % h,
+                                     "p", "bh", "0", "0", "0", "")]
+            store.commit_block(h, "%056x" % h, block)
+        return store
+
+    yield build
+    for s in stores:
+        s.close()
 
 
 def test_maturity_constant_is_fixed_not_rollback_depth():
@@ -32,9 +44,9 @@ def test_maturity_constant_is_fixed_not_rollback_depth():
     assert essentials.COINBASE_MATURITY != 30
 
 
-def test_immature_sums_only_recent_coinbase_rewards():
+def test_immature_sums_only_recent_coinbase_rewards(ledger):
     # coinbase rewards at heights 950, 990, 999 to MINER; validate at height 1000 (window: > 1000-100 = 900).
-    cur = _ledger([
+    cur = ledger([
         (950, MINER, "coinbase", "0.00000000", "10.00000000"),   # 50 deep  -> immature
         (990, MINER, "coinbase", "0.00000000", "10.00000000"),   # 10 deep  -> immature
         (999, MINER, "coinbase", "0.00000000", "10.00000000"),   # 1 deep   -> immature
@@ -44,17 +56,17 @@ def test_immature_sums_only_recent_coinbase_rewards():
     assert imm == Decimal("30.00000000"), imm   # only the three within the last 100 blocks
 
 
-def test_immature_boundary_exactly_maturity_deep_is_mature():
+def test_immature_boundary_exactly_maturity_deep_is_mature(ledger):
     # a reward at exactly validate_height - COINBASE_MATURITY is mature (not > cutoff); one block newer is immature.
-    cur = _ledger([
+    cur = ledger([
         (900, MINER, "coinbase", "0.00000000", "5.00000000"),    # 1000-100 = 900 -> mature (block_height > 900 is False)
         (901, MINER, "coinbase", "0.00000000", "7.00000000"),    # 901 > 900 -> immature
     ])
     assert essentials.immature_coinbase(MINER, 1000, cur, 100) == Decimal("7.00000000")
 
 
-def test_immature_ignores_non_coinbase_and_other_addresses():
-    cur = _ledger([
+def test_immature_ignores_non_coinbase_and_other_addresses(ledger):
+    cur = ledger([
         (995, MINER, "sender", "3.00000000", "0"),               # reward 0 -> NOT a coinbase, ignored
         (996, OTHER, "coinbase", "0.00000000", "10.00000000"),   # different recipient, ignored
         (997, MINER, "coinbase", "0.00000000", "10.00000000"),   # counted
@@ -63,15 +75,15 @@ def test_immature_ignores_non_coinbase_and_other_addresses():
     assert essentials.immature_coinbase(OTHER, 1000, cur, 100) == Decimal("10.00000000")
 
 
-def test_immature_zero_when_no_recent_rewards():
-    cur = _ledger([(100, MINER, "coinbase", "0.00000000", "10.00000000")])  # 900 deep at height 1000
+def test_immature_zero_when_no_recent_rewards(ledger):
+    cur = ledger([(100, MINER, "coinbase", "0.00000000", "10.00000000")])  # 900 deep at height 1000
     assert essentials.immature_coinbase(MINER, 1000, cur, 100) == Decimal("0")
     assert essentials.immature_coinbase("nobody", 1000, cur, 100) == Decimal("0")
 
 
-def test_spendable_carveout_arithmetic():
+def test_spendable_carveout_arithmetic(ledger):
     # the carve-out the digest/mempool checks apply: spendable = balance - immature.
-    cur = _ledger([(999, MINER, "coinbase", "0.00000000", "10.00000000")])
+    cur = ledger([(999, MINER, "coinbase", "0.00000000", "10.00000000")])
     balance = Decimal("25.00000000")             # say the miner also holds 15 mature + this 10 immature
     immature = essentials.immature_coinbase(MINER, 1000, cur, 100)
     spendable = balance - immature

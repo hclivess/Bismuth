@@ -1,7 +1,7 @@
 """
 Node-free unit tests for the LMDB token/alias side-index (``token_index.TokenIndex``, doc/26 stage 2).
 
-These pin the behaviour that must stay byte-identical to the retired SQLite ``index.db`` projection:
+These pin the index's observable behaviour (the shapes the node's API has always returned):
 token issuance/registry, the EXACT overspend rule (credit at block_height < h, debit at <= h), holders /
 supply / reverse-index queries, first-claimant-wins aliases, and height-keyed reorg rollback for both.
 
@@ -144,7 +144,7 @@ def test_alias_first_claimant_wins_and_reads(ti):
     assert ti.addfromalias("alice") == "ALICE"
     assert ti.addfromalias("ghost") == "No alias"
     assert ti.aliasget("ALICE") == [["alice"], ["al2"]]        # all, in registration order
-    assert ti.aliasget("NOBODY") == [["NOBODY"]]               # SQLite shape when none
+    assert ti.aliasget("NOBODY") == [["NOBODY"]]               # the legacy shape when none
     assert ti.aliasesget(["ALICE", "NOBODY"]) == ["alice", "NOBODY"]  # first per address, else itself
     assert ti.alias_anchor() == 7
 
@@ -161,7 +161,7 @@ def test_alias_rollback(ti):
     assert ti.alias_anchor() == 2
 
 
-# --- KV seam: byte-identity + backend swappability (doc/26 storage stage 1) -----------------------
+# --- KV seam: on-disk byte-identity + an end-to-end workload (doc/26 storage stage 1) -----------------------
 import json as _json      # noqa: E402
 import struct as _struct  # noqa: E402
 
@@ -281,10 +281,9 @@ def _drive(backend, path):
         ti.close()
 
 
-@pytest.mark.parametrize("backend", ["lmdb", "sqlite-kv"])
-def test_backend_swappable_smoke(backend, tmp_path):
-    """Each backend independently produces the expected results through the open_store(backend=...) seam."""
-    res = _drive(backend, str(tmp_path / ("tidx_" + backend)))
+def test_workload_smoke(tmp_path):
+    """A token+alias workload with rollbacks produces the expected observable results."""
+    res = _drive("lmdb", str(tmp_path / "tidx_lmdb"))
     assert res["bal_A"] == 599900 and res["bal_B"] == 400000
     assert res["credit_C_same"] == 0 and res["credit_C_later"] == 100
     assert res["detail"]["holder_count"] == 3 and res["detail"]["supply"] == 1000000
@@ -293,12 +292,3 @@ def test_backend_swappable_smoke(backend, tmp_path):
     assert res["after_has_txid_cin"] is False
     assert res["after_alias_owner_bob"] == "BOB"      # transfer at h=7 undone
     assert res["stats"] == {"tokens": 1, "aliases": 3, "tok_anchor": 10, "alias_anchor": 7}
-
-
-def test_swappability_lmdb_equals_sqlite(tmp_path):
-    """The SAME TokenIndex run on a 2nd engine (sqlite-kv) yields IDENTICAL observable results to lmdb —
-    proving the KV seam is engine-independent for this store (incl. prefix iterate, height range, the JSON
-    journal rollbacks and KVStore.stat). [doc/26 storage stage 1]"""
-    res_lmdb = _drive("lmdb", str(tmp_path / "tidx_lmdb"))
-    res_sqlite = _drive("sqlite-kv", str(tmp_path / "tidx_sqlite"))
-    assert res_lmdb == res_sqlite, "TokenIndex results differ across backends -> seam not engine-independent"

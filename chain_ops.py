@@ -1,450 +1,35 @@
 """
-Chain-maintenance operations extracted from ``node.py``: single-block rollback, hyperblock
-recompression, the ledger/hyper cross-integrity height check, and the ``blocknf`` ("block not found")
-rollback handler.
+Chain-maintenance operations: rollback, the ``blocknf`` ("block not found") fork resolution, genesis
+seeding and snapshot bootstrap of a fresh ledger, and the peer-difficulty divergence detector + guarded
+self-heal. They take ``node``/``db_handler`` explicitly. ``node.py`` re-exports ``blocknf`` so
+``worker.py``'s ``from node import blocknf`` keeps working.
 
-These are the ledger-maintenance functions that already took ``node``/``db_handler`` explicitly, so
-they lift out of the node monolith by dependency injection with no behaviour change — every free name
-here is either a parameter or a module imported below (``sql_trace_callback`` comes from its canonical
-home in ``dbhandler``, not a 5th copy). ``node.py`` re-exports ``blocknf`` so ``worker.py``'s
-``from node import blocknf`` keeps working.
+The ledger is ONE LMDB environment (``block_store``): a rollback is one atomic transaction that drops the
+blocks and every index entry they created, so there is nothing to reconcile after a crash.
 """
-import functools
-import glob
 import os
 import shutil
-import sqlite3
-import tarfile
 import threading
 import time
-from decimal import Decimal
 
 import essentials
 import mempool as mp
-import tokensv2 as tokens
-from dbhandler import sql_trace_callback
-from essentials import download_file
-from quantizer import quantize_eight
 
 
-def _rollback_aux_stores(node, keep_height):
-    """Roll back EVERY integrated height-keyed auxiliary store to ``keep_height`` (the new tip) in ONE
-    place, so a chain rollback (reorg) can never leave a store out of sync with the ledger. Each is
-    guarded + logged; stores that aren't enabled skip. The balance index / reward sidechain join this
-    list when they are wired into the read path. (Depth is bounded upstream by the blocknf /
-    rollback_depth / rollback_consensus checks — this only mirrors the already-bounded ledger rollback,
-    so it adds no new deep-reorg attack surface.)"""
-    for label, store in (("block store", getattr(node, "block_store", None)),
-                         ("reward sidechain", getattr(node, "reward_chain", None))):
-        if store is None:
-            continue
-        try:
-            removed = store.rollback(keep_height)
-            node.logger.app_log.warning(f"Status: {label} rolled back to {keep_height} ({removed} removed)")
-        except Exception as e:
-            node.logger.app_log.warning(f"{label} rollback failed: {e}")
-
-
-def _rebuild_derived_state(node, db_handler, keep_height):
-    """Rebuild every DERIVED consensus projection from the just-rolled-back ledger so a reorg can never
-    leave a store AHEAD of the ledger. ``keep_height`` is the new tip (highest block KEPT). This MUST run
-    on EVERY rollback path (rollback / blocknf / sequencing_check). The height-keyed DELETE stores
-    (ledger / tokens / aliases) are rolled back at each call site with the site's own boundary; this
-    rebuilds the RE-EXECUTABLE projections. All guarded + logged; disabled stores skip."""
-    # auxiliary block stores (block-store / reward sidechain) keep <= keep_height
-    _rollback_aux_stores(node, keep_height)
-    # the balance index is a full-ledger projection (rewards baked into balances) — rebuild from the cursor
-    if getattr(node, "balance_index", None) is not None:
-        try:
-            node.balance_index.rebuild_from_cursor(db_handler.c)
-        except Exception as e:
-            # doc/26 stage 4 (S1): consensus-critical once the overspend read trusts the index — a failed
-            # reorg rebuild would leave it ahead of the ledger; HALT rather than drift. Inert while off.
-            if getattr(node, "balance_index_consensus", "off") != "off":
-                raise
-            node.logger.app_log.warning(f"balance index rollback rebuild failed: {e}")
-    # the txid index is a full-ledger post-fork projection (doc/26 stage 4) — rebuild from the cursor so the
-    # dup-replay read can never trust txids confirmed above the new tip. HALT (not drift) when consensus-on.
-    if getattr(node, "txid_index", None) is not None:
-        try:
-            node.txid_index.rebuild_from_cursor(db_handler.c, getattr(node, "fork_height", None))
-        except Exception as e:
-            if getattr(node, "txid_index_consensus", "off") != "off":
-                raise
-            node.logger.app_log.warning(f"txid index rollback rebuild failed: {e}")
-    # hf2 pubkey-by-reference (doc/40): rebuild the address->pubkey registry from the FULL ledger cursor
-    # (db_handler.h, NOT the pruned .c) so a post-reorg by-reference tx can never resolve a key registered
-    # in a block above the new tip. Deterministic full reconstruction; HALT (not drift) when consensus-on.
-    if getattr(node, "pk_registry", None) is not None:
-        try:
-            node.pk_registry.rebuild_from_cursor(db_handler.h, getattr(node, "fork_height", None))
-        except Exception as e:
-            if getattr(node, "pk_registry_consensus", "off") != "off":
-                raise
-            node.logger.app_log.warning(f"pubkey registry rollback rebuild failed: {e}")
+def _rollback_plugin_stores(node, db_handler, block_height):
+    """Roll the plugin-owned stores (token/alias index) back with the ledger: drop heights >= block_height."""
+    db_handler.tokens_rollback(node, block_height)
+    db_handler.aliases_rollback(node, block_height)
 
 
 def rollback(node, db_handler, block_height):
+    """Drop every block at or above ``block_height`` (ledger + all its indexes in one transaction, then the
+    plugin stores). Returns the removed rows."""
     node.logger.app_log.warning(f"Status: Rolling back below: {block_height}")
-
-    db_handler.rollback_under(block_height)
-
-    # rollback indices
-    db_handler.tokens_rollback(node, block_height)
-    db_handler.aliases_rollback(node, block_height)
-    # rollback indices
-
-    # rollback_under(block_height) drops heights >= block_height, so the derived stores keep <= height-1
-    _rebuild_derived_state(node, db_handler, block_height - 1)
-
+    removed = db_handler.rollback_under(block_height)
+    _rollback_plugin_stores(node, db_handler, block_height)
     node.logger.app_log.warning(f"Status: Chain rolled back below {block_height} and will be resynchronized")
-
-
-def _rollup_balances(conn, depth_specific):
-    """Collapsed {recipient_address: balance} for the hyperblock rollup of all blocks in the prune range
-    (``block_height`` in the open interval that excludes the kept tail and the negative mirror rows).
-
-    Replaces the old O(distinct-recipients x 2 index scans) per-address double loop — which on a deep
-    rollup issues millions of indexed queries and runs for hours — with a SINGLE range scan that
-    accumulates per-address credit/debit in memory. The arithmetic is byte-identical to the original:
-    the same ``quantize_eight`` is applied per entry before summing (Decimal sums are exact and
-    order-independent), and — exactly like the original, which iterates ``distinct(recipient)`` — only
-    addresses that appear as a RECIPIENT in the range get a collapsed row (``credit - debit`` if > 0).
-    The legacy ``except -> 0`` per-address reset is preserved (it is dead code on numeric decimal-mode
-    data, but kept so behaviour is identical)."""
-    credit, debit = {}, {}
-    cur = conn.cursor()
-    cur.execute("SELECT recipient, amount, reward, address, fee FROM transactions "
-                "WHERE block_height < ? AND block_height > ?", (depth_specific, -depth_specific))
-    for rcpt, amount, reward, addr, fee in cur:
-        try:
-            credit[rcpt] = quantize_eight(credit.get(rcpt, Decimal("0"))) + quantize_eight(amount) + quantize_eight(reward)
-        except Exception:
-            credit[rcpt] = 0
-        try:
-            debit[addr] = quantize_eight(debit.get(addr, Decimal("0"))) + quantize_eight(amount) + quantize_eight(fee)
-        except Exception:
-            debit[addr] = 0
-    cur.close()
-    out = {}
-    for addr in credit:                      # recipients only — matches the original distinct(recipient)
-        end_balance = quantize_eight(Decimal(credit[addr]) - Decimal(debit.get(addr, 0)))
-        if end_balance > 0:
-            out[addr] = end_balance
-    return out
-
-
-def recompress_ledger(node, rebuild=False, depth=15000):
-    # TODO: Candidate for single user mode
-    # HARDFORK / cleanup (doc/16): NOT integer-storage safe — this hyperblock rollup sums amount/reward
-    # with bare quantize_eight() (which would read integer atomic units as whole BIS) and writes the
-    # collapsed balance into a synthetic address='Hyperblock' mirror row as a decimal STRING. It also
-    # swallows conversion errors with `except: credit = 0`. Regnet/tests don't exercise pruning, so it
-    # is knowingly left legacy; it MUST be converted (amounts.ledger_value on reads, integer units on
-    # write) and the mirror-row hack replaced (phase 5) before ledger_integer_amounts is set on mainnet.
-    node.logger.app_log.warning(f"Status: Recompressing, please be patient")
-
-    files_remove = [node.ledger_path + '.temp',node.ledger_path + '.temp-shm',node.ledger_path + '.temp-wal']
-    for file in files_remove:
-        if os.path.exists(file):
-            os.remove(file)
-            node.logger.app_log.warning(f"Removed old {file}")
-
-    if rebuild:
-        node.logger.app_log.warning(f"Status: Hyperblocks will be rebuilt")
-
-    # Consistent snapshot of the source before copying. The source (hyper.db, or ledger.db when
-    # rebuilding) is a WAL-mode DB, so committed rows can still live in its `-wal` sidecar that hasn't
-    # been checkpointed into the main file yet. `shutil.copy` copies ONLY the main file, so without a
-    # checkpoint first the copy silently drops those committed frames — an inconsistent snapshot that
-    # is BEHIND the real tip. A non-clean exit (an impatient double Ctrl-C / hard kill — the graceful
-    # stop flag is only honoured by the main loop, not during this startup step) is exactly when the WAL
-    # is left un-checkpointed, which is why this only bites after an unclean stop. TRUNCATE folds the
-    # frames into the main file and empties the WAL so the copy is complete.
-    source = node.ledger_path if rebuild else node.hyper_path
-    try:
-        src_conn = sqlite3.connect(source, timeout=30)
-        src_conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-        src_conn.close()
-    except sqlite3.Error as e:
-        node.logger.app_log.warning(f"Recompress: could not checkpoint {source} before copy ({e}); "
-                                    f"proceeding with current main-file state")
-    shutil.copy(source, node.ledger_path + '.temp')
-    hyper = sqlite3.connect(node.ledger_path + '.temp', timeout=30)
-    if node.trace_db_calls:
-       hyper.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"HYPER"))
-    hyper.text_factory = str
-    hyp = hyper.cursor()
-
-    hyp.execute("UPDATE transactions SET address = 'Hypoblock' WHERE address = 'Hyperblock'")
-
-    hyp.execute("SELECT max(block_height) FROM transactions")
-    db_block_height = int(hyp.fetchone()[0])
-    depth_specific = db_block_height - depth
-
-    # OPTIMIZED: one range scan + in-memory accumulation (see _rollup_balances) instead of the old
-    # per-recipient double index-scan loop that ran for hours on a deep rollup. Byte-identical output.
-    rollup = _rollup_balances(hyper, depth_specific)
-    timestamp = str(time.time())
-    for addr, end_balance in rollup.items():
-        hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-            depth_specific - 1, timestamp, "Hyperblock", addr, str(end_balance), "0", "0", "0", "0",
-            "0", "0", "0"))
-    hyper.commit()
-
-    hyp.execute(
-        "DELETE FROM transactions WHERE address != 'Hyperblock' AND (block_height < ? AND block_height > ?);",
-        (depth_specific, -depth_specific,))
-    hyper.commit()
-
-    hyp.execute("DELETE FROM misc WHERE (block_height < ? AND block_height > ?);",
-                (depth_specific, -depth_specific,))  # remove diff calc
-    hyper.commit()
-
-    hyp.execute("VACUUM")
-    # Fold the temp DB's own WAL back into its main file before we close+rename, so `.temp` is a single
-    # self-contained file. Otherwise a surviving `.temp-wal` would either be dropped by the rename (main
-    # file only) or, worse, get mis-associated with the renamed hyper.db.
-    hyp.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-    hyper.close()
-
-    if os.path.exists(node.hyper_path):
-        # Remove the old hyperblock DB **and its WAL sidecars**. Removing only hyper.db (the old
-        # behaviour) left any stale `hyper.db-wal`/`-shm` from a non-clean exit orphaned next to the
-        # freshly-renamed DB; SQLite then mis-associates that sidecar (whose page refs belong to the OLD
-        # file) with the new hyper.db on the next open, wedging WAL recovery ("disk image is malformed" /
-        # indefinite stall) — the "hangs at Recompressing" that only a wipe + ledger.tar.gz re-extract
-        # cleared. bootstrap()/seed_genesis() already clear these sidecars on every DB swap; match them.
-        for ext in ("", "-wal", "-shm"):
-            try:
-                os.remove(node.hyper_path + ext)
-            except OSError:
-                pass
-        # Drop any leftover temp sidecars too (the checkpoint above should have removed them) so only the
-        # self-contained `.temp` main file is promoted to hyper.db.
-        for ext in ("-wal", "-shm"):
-            try:
-                os.remove(node.ledger_path + '.temp' + ext)
-            except OSError:
-                pass
-        os.rename(node.ledger_path + '.temp', node.hyper_path)
-
-
-def ledger_check_heights(node, db_handler):
-    # TODO: Candidate for single user mode
-    """conversion of normal blocks into hyperblocks from ledger.db or hyper.db to hyper.db"""
-    if os.path.exists(node.hyper_path):
-
-        # cross-integrity check
-        hdd_block_max = db_handler.block_height_max()
-        hdd_block_max_diff = db_handler.block_height_max_diff()
-        hdd2_block_last = db_handler.block_height_max_hyper()
-        hdd2_block_last_misc = db_handler.block_height_max_diff_hyper()
-
-        # cross-integrity check
-
-        if hdd_block_max == hdd2_block_last == hdd2_block_last_misc == hdd_block_max_diff and node.hyper_recompress:  # cross-integrity check
-            node.logger.app_log.warning("Status: Recompressing hyperblocks (keeping full ledger)")
-            node.recompress = True
-
-            #print (hdd_block_max,hdd2_block_last,node.hyper_recompress)
-        elif hdd_block_max == hdd2_block_last and not node.hyper_recompress:
-            node.logger.app_log.warning("Status: Hyperblock recompression skipped")
-            node.recompress = False
-        else:
-            lowest_block = min(hdd_block_max, hdd2_block_last, hdd_block_max_diff, hdd2_block_last_misc)
-            highest_block = max(hdd_block_max, hdd2_block_last, hdd_block_max_diff, hdd2_block_last_misc)
-
-            node.logger.app_log.warning(
-                f"Status: Cross-integrity check failed (db heights span {lowest_block}..{highest_block}); "
-                f"trimming the excess above the common height {lowest_block} (kept) and resyncing from there")
-
-            # rollback drops heights >= its arg, so pass lowest_block+1 to KEEP lowest_block (the height all
-            # DBs share) and discard only the excess above it — minimal, instead of nuking a valid block.
-            rollback(node, db_handler, lowest_block + 1)
-            node.recompress = False
-
-    else:
-        node.logger.app_log.warning("Status: Compressing ledger to Hyperblocks")
-        node.recompress = True
-
-
-def _tips_of(path):
-    """Return (max transactions height, max misc height) for a ledger/hyper SQLite file, or (None, None)
-    if the file or tables don't exist yet. Uses a private short-lived connection — NEVER the cached
-    DbHandler reads (block_height_max has a 1s cache) — so reconciliation always sees ground truth."""
-    if not os.path.exists(path):
-        return (None, None)
-    conn = sqlite3.connect(path, timeout=5)
-    try:
-        c = conn.cursor()
-        try:
-            c.execute("SELECT max(block_height) FROM transactions")
-            tx = c.fetchone()[0]
-            c.execute("SELECT max(block_height) FROM misc")
-            misc = c.fetchone()[0]
-            return (tx, misc)
-        except sqlite3.OperationalError:
-            # tables not created yet (fresh/empty db)
-            return (None, None)
-    finally:
-        conn.close()
-
-
-def _marker_of(path):
-    """Return the lockstep ``commit_marker.committed_height`` for a store, or None when the file/table
-    is absent (legacy DB never written by the lockstep code) or the marker was never set.
-
-    db_to_drive advances ledger.db's and hyper.db's markers TOGETHER in one transaction, so the marker
-    is "the height at which both files agreed at the last flush". When BOTH markers are present, the
-    common consistent height is exactly min(markers) — an UNAMBIGUOUS, monotonic recovery floor that
-    does not depend on inferring direction from the four tips. None ⇒ fall back to tip inference."""
-    if not os.path.exists(path):
-        return None
-    conn = sqlite3.connect(path, timeout=5)
-    try:
-        try:
-            row = conn.execute("SELECT committed_height FROM commit_marker WHERE id = 0").fetchone()
-            return row[0] if row else None
-        except sqlite3.OperationalError:
-            return None
-    finally:
-        conn.close()
-
-
-def _set_marker(path, height):
-    """Best-effort: set a store's commit_marker to `height` (used after a reconcile-trim so the marker
-    matches the new tip). Creates the table+row if missing so post-reconcile stores carry the marker
-    going forward. Never raises — recovery already converged on the rows; the marker is the signal."""
-    if not os.path.exists(path):
-        return
-    conn = sqlite3.connect(path, timeout=5)
-    try:
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS commit_marker "
-            "(id INTEGER PRIMARY KEY CHECK(id = 0), committed_height INTEGER)")
-        conn.execute(
-            "INSERT INTO commit_marker (id, committed_height) VALUES (0, ?) "
-            "ON CONFLICT(id) DO UPDATE SET committed_height = excluded.committed_height", (height,))
-        conn.commit()
-    except Exception:
-        pass
-    finally:
-        conn.close()
-
-
-def _trim_store_to(path, keep_height, label, app_log, trace_db_calls=False):
-    """Delete every height ABOVE keep_height from one store's transactions+misc, so its tip becomes
-    exactly keep_height. Mirrors rollback_under's delete shape (the negative-height mirror rows for a
-    height live at -height, so `> keep_height` already keeps them). Returns rows removed from
-    transactions."""
-    conn = sqlite3.connect(path, timeout=5)
-    if trace_db_calls:
-        conn.set_trace_callback(functools.partial(sql_trace_callback, app_log, "RECONCILE"))
-    conn.text_factory = str
-    try:
-        c = conn.cursor()
-        c.execute("SELECT count(*) FROM transactions WHERE block_height > ?", (keep_height,))
-        removed = c.fetchone()[0]
-        c.execute("DELETE FROM transactions WHERE block_height > ?", (keep_height,))
-        c.execute("DELETE FROM misc WHERE block_height > ?", (keep_height,))
-        conn.commit()
-        app_log.warning(
-            f"Status: Reconcile trimmed {label} ({path}) down to height {keep_height} "
-            f"({removed} transaction-rows removed)")
-        return removed
-    finally:
-        conn.close()
-
-
-def reconcile_ledger_hyper(node):
-    """Deterministic startup reconciliation of the full ledger vs the hyperblock rollup.
-
-    Bismuth keeps two on-disk chains that are written by SEPARATE code paths / connections at
-    different moments per block (digest.to_db -> hyper.db via `conn`; db_to_drive -> ledger.db via
-    `hdd`), with NO atomic cross-DB transaction. An unclean exit (OOM SIGKILL, power loss) can commit
-    one file a few blocks ahead of the other. The runtime then derives node.hdd_block from ledger.db
-    (block_height_max -> self.h) but reads its working tip/last hash from hyper.db (block_max_ram /
-    last_block_hash -> self.c); when the two disagree, the FIRST digest after restart rejects the next
-    block ("... already in ledger"), handle_processing_error snaps node.hdd_block down to the shorter
-    store, and the node wedges re-fetching a height it already half-has.
-
-    This heals that split BEFORE syncing (and before ledger_check_heights / recompress, which assume
-    the two are already coherent): roll whichever store is ahead back to the common consistent height
-    (the min of all four tips), so both files end at one identical, contiguous tip. The trimmed blocks
-    are re-downloadable from peers. This is recovery, not validation — it never runs in the digest path
-    and only removes the divergent excess above the shared height, never the agreed bulk.
-
-    In hyperblock mode (full_ledger=False) ledger_path and hyper_path are the same file (the ledger is
-    a clone of the hyperblocks), so there is nothing to reconcile and we return early.
-    """
-    app_log = node.logger.app_log
-
-    # full_ledger=False clones hyper->ledger (same path); nothing to cross-check.
-    if getattr(node, "ledger_path", None) == getattr(node, "hyper_path", None):
-        return
-
-    if not (os.path.exists(node.ledger_path) and os.path.exists(node.hyper_path)):
-        # one side absent (fresh node / hyperblock builder will create it) -> nothing to reconcile.
-        return
-
-    ledger_tx, ledger_misc = _tips_of(node.ledger_path)
-    hyper_tx, hyper_misc = _tips_of(node.hyper_path)
-
-    tips = [t for t in (ledger_tx, ledger_misc, hyper_tx, hyper_misc) if t is not None]
-    if not tips:
-        return  # both empty
-
-    # Lockstep markers (db_to_drive stamps both files together): "the height at which both files agreed
-    # at the last flush". When BOTH are present they give an UNAMBIGUOUS recovery floor = min(markers),
-    # independent of inferring direction from the four tips. Absent/NULL ⇒ legacy DB ⇒ tip inference.
-    ledger_marker = _marker_of(node.ledger_path)
-    hyper_marker = _marker_of(node.hyper_path)
-    markers_usable = ledger_marker is not None and hyper_marker is not None
-
-    if ledger_tx == ledger_misc == hyper_tx == hyper_misc and (
-            not markers_usable or ledger_marker == hyper_marker == ledger_tx):
-        return  # already coherent — common, fast path; stay silent to avoid log noise.
-
-    tip_common = min(tips)
-    if markers_usable:
-        # Marker floor is authoritative for DIRECTION, but clamp by the real tips so a marker can never
-        # ask us to "keep" a height whose rows aren't actually present (defence in depth — the marker is
-        # written in-txn with the rows, so this clamp is belt-and-suspenders).
-        common = min(ledger_marker, hyper_marker, tip_common)
-        basis = (f"lockstep markers (ledger={ledger_marker}, hyper={hyper_marker}; tips floor "
-                 f"{tip_common})")
-    else:
-        common = tip_common
-        basis = "tip inference (no lockstep markers present)"
-
-    app_log.warning(
-        f"Status: Ledger/hyper mismatch detected "
-        f"(ledger tx={ledger_tx} misc={ledger_misc} marker={ledger_marker}; "
-        f"hyper tx={hyper_tx} misc={hyper_misc} marker={hyper_marker}). "
-        f"Reconciling both stores down to the common consistent height {common} via {basis} before sync.")
-
-    # Trim only the file(s) that are actually above the common height. A store exactly at `common`
-    # (or absent) is skipped, so we never rewrite a file needlessly.
-    if (ledger_tx is not None and ledger_tx > common) or (ledger_misc is not None and ledger_misc > common):
-        _trim_store_to(node.ledger_path, common, "ledger", app_log, node.trace_db_calls)
-    if (hyper_tx is not None and hyper_tx > common) or (hyper_misc is not None and hyper_misc > common):
-        _trim_store_to(node.hyper_path, common, "hyper", app_log, node.trace_db_calls)
-
-    # Re-stamp both markers to the reconciled height so the files agree on the marker too (otherwise a
-    # store we trimmed would still carry its old higher marker). Best-effort: a legacy file without the
-    # table simply keeps None and the next clean db_to_drive sets it.
-    _set_marker(node.ledger_path, common)
-    _set_marker(node.hyper_path, common)
-
-    # Verify both stores now agree on a single tip; if not, fail loud rather than boot wedged.
-    l2_tx, l2_misc = _tips_of(node.ledger_path)
-    h2_tx, h2_misc = _tips_of(node.hyper_path)
-    if not (l2_tx == l2_misc == h2_tx == h2_misc == common):
-        raise ValueError(
-            f"Ledger/hyper reconciliation failed to converge: after trimming to {common} the tips are "
-            f"ledger tx={l2_tx} misc={l2_misc}; hyper tx={h2_tx} misc={h2_misc}")
-    app_log.warning(f"Status: Ledger/hyper reconciled to a single consistent tip {common}")
+    return removed
 
 
 def blocknf(node, block_hash_delete, peer_ip, db_handler, hyperblocks=False, peer_height=None, peer_port=None):
@@ -467,14 +52,11 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler, hyperblocks=False, pee
 
 
 def _our_hash_at_factory(db_handler):
-    """``our_hash_at(height) -> block_hash | None`` against the FULL ledger cursor (what
-    ``block_height_from_hash`` serves to peers, so both sides of a probe read the same store)."""
+    """``our_hash_at(height) -> block_hash | None`` from the ledger (what ``block_height_from_hash`` serves to
+    peers, so both sides of a probe read the same store)."""
     def our_hash_at(height):
         try:
-            db_handler.execute_param(db_handler.h, "SELECT block_hash FROM transactions WHERE block_height = ? "
-                                                   "AND reward != 0 LIMIT 1;", (int(height),))
-            row = db_handler.h.fetchone()
-            return str(row[0]) if row and row[0] else None
+            return db_handler.store.block_hash(int(height))
         except Exception:
             return None
     return our_hash_at
@@ -679,18 +261,15 @@ def _blocknf_measured(node, block_hash_delete, peer_ip, db_handler, hyperblocks=
 
 
 def _roll_to_locked(node, db_handler, ancestor):
-    """Ledger + derived stores + node tip variables -> ``ancestor`` (caller holds node.db_lock and has already
+    """Ledger + plugin stores + node tip variables -> ``ancestor`` (caller holds node.db_lock and has already
     taken its backup). Mirrors the legacy blocknf mutation, for N blocks at once."""
     db_handler.rollback_under(ancestor + 1)
-    db_handler.tokens_rollback(node, ancestor + 1)
-    db_handler.aliases_rollback(node, ancestor + 1)
-    _rebuild_derived_state(node, db_handler, ancestor)
+    _rollback_plugin_stores(node, db_handler, ancestor + 1)
     node.last_block_timestamp = db_handler.last_block_timestamp()
     node.last_block_hash = db_handler.last_block_hash()
     node.last_block = ancestor
-    node.hdd_hash = db_handler.last_block_hash()
+    node.hdd_hash = node.last_block_hash
     node.hdd_block = ancestor
-    tokens.tokens_update(node, db_handler)
 
 
 def _apply_blocks_locked(node, db_handler, blocks, peer_ip):
@@ -712,10 +291,8 @@ def _apply_blocks_locked(node, db_handler, blocks, peer_ip):
         except Exception:
             pass
     finally:
-        try:
-            db_handler.db_to_drive(node)
-        except Exception as e:
-            node.logger.app_log.warning(f"Fork resolution: db_to_drive after apply failed: {e}")
+        node.hdd_block = node.last_block
+        node.hdd_hash = node.last_block_hash
 
 
 def _return_txs_to_mempool(node, db_handler, backup_data, peer_ip, my_time, old_hash, reason):
@@ -730,7 +307,7 @@ def _return_txs_to_mempool(node, db_handler, backup_data, peer_ip, my_time, old_
                     nb_tx += 1
                     node.logger.app_log.info(
                         mp.MEMPOOL.merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]),
-                                         peer_ip, db_handler.c, False, revert=True))
+                                         peer_ip, db_handler, False, revert=True))
                 except Exception as e:
                     node.logger.app_log.warning(f"Error during moving tx back to mempool: {e}")
             else:
@@ -791,28 +368,16 @@ def _blocknf_legacy(node, block_hash_delete, peer_ip, db_handler, hyperblocks=Fa
                 skip = True
 
             else:
-                backup_data = db_handler.backup_higher(db_block_height)
-
                 node.logger.app_log.warning(f"Node {peer_ip} didn't find block {db_block_height}({db_block_hash})")
-
-                # roll back hdd too
-                db_handler.rollback_under(db_block_height)
-                # /roll back hdd too
-
-                # rollback indices
-                db_handler.tokens_rollback(node, db_block_height)
-                db_handler.aliases_rollback(node, db_block_height)
-                # rebuild the re-executable projections (balance index, aux stores) — this is the LIVE
-                # reorg path.
-                _rebuild_derived_state(node, db_handler, db_block_height - 1)
-                # /rollback indices
+                # ledger + every index in one transaction, then the plugin stores
+                backup_data = db_handler.backup_higher(db_block_height)
+                _rollback_plugin_stores(node, db_handler, db_block_height)
 
                 node.last_block_timestamp = db_handler.last_block_timestamp()
                 node.last_block_hash = db_handler.last_block_hash()
                 node.last_block = db_block_height - 1
                 node.hdd_hash = db_handler.last_block_hash()
                 node.hdd_block = db_block_height - 1
-                tokens.tokens_update(node, db_handler)
 
         except Exception as e:
             node.logger.app_log.warning(e)
@@ -837,7 +402,7 @@ def _blocknf_legacy(node, block_hash_delete, peer_ip, db_handler, hyperblocks=Fa
                                 nb_tx += 1
                                 node.logger.app_log.info(
                                     mp.MEMPOOL.merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]),
-                                                     peer_ip, db_handler.c, False, revert=True))  # will get stuck if you change it to respect node.db_lock
+                                                     peer_ip, db_handler, False, revert=True))  # will get stuck if you change it to respect node.db_lock
                                 node.logger.app_log.warning(f"Moved tx back to mempool: {tx_short}")
                             except Exception as e:
                                 node.logger.app_log.warning(f"Error during moving tx back to mempool: {e}")
@@ -860,430 +425,47 @@ def _blocknf_legacy(node, block_hash_delete, peer_ip, db_handler, hyperblocks=Fa
 
 
 def seed_genesis(node):
-    """doc/30 sync_from_genesis: create a fresh GENESIS-ONLY ledger (block 1) instead of
-    downloading a snapshot, so the node syncs the chain from block 1. The genesis block is
-    the canonical one shared by mainnet/regnet (height 1, block_hash 7a0f3848…, the
-    4edadac… genesis address) — reused from regnet.SQL_LEDGER so the long key/sig literal is
-    not duplicated. Catch-up then pulls block 2..tip from peers; everything below the
-    assume_valid_height horizon is accepted on the trusted prefix and anchored by the
-    checkpoints. Never clobbers a ledger that already has blocks."""
-    import amounts
+    """Seed the canonical genesis block (height 1) into an EMPTY ledger; a no-op once it has blocks. The
+    chain above it is synced from peers (or mined, on regnet)."""
+    import ledger_genesis
     import regnet
-    ledger_sql = regnet.SQL_LEDGER_INTEGER if amounts.LEDGER_INTEGER else regnet.SQL_LEDGER
-
-    def _has_blocks(path):
-        if not os.path.exists(path) or os.path.getsize(path) == 0:
-            return False
-        try:
-            con = sqlite3.connect(path); cur = con.cursor()
-            cur.execute("SELECT MAX(block_height) FROM transactions")
-            mx = cur.fetchone()[0]; con.close()
-            return bool(mx) and int(mx) >= 1
-        except Exception:
-            return False
-
-    # the node reads from hyper_path and (cloned) ledger_path; seed both with genesis
-    for path in dict.fromkeys([p for p in (node.hyper_path, node.ledger_path) if p]):
-        if _has_blocks(path):
-            node.logger.app_log.warning(f"sync_from_genesis: {path} already populated — not reseeding")
-            continue
-        d = os.path.dirname(path) or "."
-        if d and not os.path.exists(d):
-            os.makedirs(d, exist_ok=True)
-        for ext in ("", "-wal", "-shm"):
-            try: os.remove(path + ext)
-            except OSError: pass
-        with sqlite3.connect(path) as con:
-            for stmt in ledger_sql:
-                con.execute(stmt)
-            con.commit()
-        node.logger.app_log.warning(f"sync_from_genesis: seeded canonical genesis (height 1) into {path}")
-
-    # the alias/token index db
-    idx = getattr(node, "index_db", None)
-    if idx and not (os.path.exists(idx) and os.path.getsize(idx) > 0):
-        d = os.path.dirname(idx) or "."
-        if d and not os.path.exists(d):
-            os.makedirs(d, exist_ok=True)
-        with sqlite3.connect(idx) as con:
-            for stmt in regnet.SQL_INDEX:
-                con.execute(stmt)
-            con.commit()
-    node.logger.app_log.warning("sync_from_genesis: genesis seeded; will sync the chain from block 2")
-
-
-# Exit status of the lost-ledger guard below. Distinct from every other exit path (1 = generic failure)
-# so systemd can be told not to restart into it: RestartPreventExitStatus=78 (78 = EX_CONFIG, sysexits.h).
-LEDGER_LOST_EXIT_CODE = 78
-
-
-def _sqlite_has_blocks(path):
-    """True if ``path`` is a SQLite ledger with at least one block. Opened READ-ONLY via a URI so a
-    missing file is NOT created as a side effect (plain sqlite3.connect would create an empty one)."""
-    if not path or not os.path.exists(path) or os.path.getsize(path) == 0:
+    store = node.ledger
+    if store.tip() is not None:
         return False
-    try:
-        con = sqlite3.connect(f"file:{os.path.abspath(path)}?mode=ro", uri=True)
-        try:
-            mx = con.execute("SELECT MAX(block_height) FROM transactions").fetchone()[0]
-        finally:
-            con.close()
-        return mx is not None and int(mx) >= 1
-    except Exception:
-        return False
-
-
-def lost_ledger_blockstore_tip(node):
-    """Mainnet startup guard: the SQLite ledger is gone but the LMDB block store still holds the chain.
-
-    Returns the block store's tip height when (a) this is a mainnet node, (b) a SQLite file the node
-    reads at startup (``hyper_path``; ``ledger_path`` too in full-ledger mode) is missing / empty / has
-    no ``transactions`` rows, and (c) the per-ledger block store (``kvstore.store_path(ledger_path,
-    "blockstore")``) exists with at least one block. Otherwise None.
-
-    Why: the SQLite trio is still the node's source of truth (doc/26 — the block store is a forward
-    mirror, SQLite-free operation is the unbuilt stages 3-5). With the SQLite files deleted, every
-    automatic startup path recreates them: ``check_integrity`` -> ``bootstrap`` (peer snapshot, then
-    ``bootstrap_url``) writes ~46 GB back, or ``sync_from_genesis`` rebuilds them from block 1, and a
-    failed download crash-loops under systemd. A populated block store means the operator deleted the
-    ledger deliberately (or lost it) on a node that has the chain — that is a decision, not a fresh
-    install, so the node must stop and say so instead of silently re-downloading."""
-    version = str(getattr(node, "version", "") or "")
-    if "testnet" in version or "regnet" in version or getattr(node, "is_testnet", False) \
-            or getattr(node, "is_regnet", False):
-        return None
-    paths = [getattr(node, "hyper_path", None)]
-    if getattr(node, "full_ledger", True):
-        paths.append(getattr(node, "ledger_path", None))
-    if all(_sqlite_has_blocks(p) for p in paths if p):
-        return None
-    import kvstore
-    bs_path = kvstore.store_path(node.ledger_path, "blockstore")
-    if not os.path.isdir(bs_path) or not os.path.exists(os.path.join(bs_path, "data.mdb")):
-        return None
-    try:
-        import block_store
-        store = block_store.BlockStore(bs_path, readonly=True)
-        try:
-            tip = store.tip()
-        finally:
-            store.close()
-    except Exception:
-        return None
-    return tip if tip and tip >= 1 else None
-
-
-def guard_lost_ledger(node):
-    """Refuse to start (exit ``LEDGER_LOST_EXIT_CODE``) when ``lost_ledger_blockstore_tip`` fires: no
-    peer snapshot, no ``bootstrap_url`` download, no ``sync_from_genesis`` rebuild. Must run before
-    ``seed_genesis`` / the hyperblock clone / ``check_integrity``."""
-    tip = lost_ledger_blockstore_tip(node)
-    if tip is None:
-        return
-    import kvstore
-    bs_path = kvstore.store_path(node.ledger_path, "blockstore")
-    msg = (
-        f"CRITICAL: the SQLite ledger ({node.hyper_path}, {node.ledger_path}) is missing or empty, but the "
-        f"LMDB block store {bs_path} holds the chain up to block {tip}. The node still needs the SQLite "
-        f"ledger to run (doc/26: the block store is a mirror; SQLite-free operation is not built yet). "
-        f"Refusing to auto-bootstrap (peer snapshot / bootstrap_url download / sync_from_genesis would "
-        f"recreate tens of GB of SQLite files). Options: restore ledger.db + hyper.db; or, to resync on "
-        f"purpose, move {bs_path} aside and start again. Exiting with status {LEDGER_LOST_EXIT_CODE}.")
-    try:
-        node.logger.app_log.critical(msg)
-    except Exception:
-        pass
-    print(msg, flush=True)
-    raise SystemExit(LEDGER_LOST_EXIT_CODE)
+    diff = regnet.REGNET_DIFF if getattr(node, "is_regnet", False) else 1
+    store.commit_block(ledger_genesis.GENESIS_HEIGHT, ledger_genesis.GENESIS_BLOCK_HASH, ledger_genesis.rows(),
+                       difficulty=diff, fork_height=None)
+    store.set_allocations(ledger_genesis.allocations(node))
+    node.logger.app_log.warning("Status: seeded the genesis block into a fresh ledger")
+    return True
 
 
 def bootstrap(node):
-    # TODO: Candidate for single user mode
-    # doc/30: when syncing from genesis, never download a snapshot — seed the genesis block and let
-    # catch-up build the chain from block 1. Single choke point for every bootstrap call site.
-    if getattr(node, "sync_from_genesis", False):
-        node.logger.app_log.warning("Status: sync_from_genesis set — seeding genesis instead of bootstrapping")
-        seed_genesis(node)
-        return
-    try:
-        # Extract into the ledger's own directory (the default mainnet ledger lives in static/).
-        dest_dir = os.path.dirname(node.ledger_path) or "."
-        for pattern in ('*.db-wal', '*.db-shm'):
-            for f in glob.glob(os.path.join(dest_dir, pattern)):
-                os.remove(f)
-                print(f, "deleted")
-
-        archive_path = node.ledger_path + ".tar.gz"
-
-        # Source resolution, local first: an operator can drop the ledger archive in place (handy when
-        # the download host is unreachable, as the historical fixed host became). Only download when no
-        # local archive is available, and from a CONFIGURABLE url rather than a single hardcoded host.
-        local_archive = getattr(node, "bootstrap_file", "") or ""
-        if local_archive and os.path.exists(local_archive):
-            node.logger.app_log.warning(f"Status: Bootstrapping from local archive {local_archive}")
-            archive_path = local_archive
-        elif os.path.exists(archive_path):
-            node.logger.app_log.warning(f"Status: Bootstrapping from existing archive {archive_path}")
-        else:
-            _fetched = False
-            if getattr(node, "bootstrap_p2p", False):   # doc/43: try peers (sha256-verified) before the central host
-                try:
-                    import snapshot_p2p
-                    _cands = snapshot_p2p.candidates(node)
-                    _got = snapshot_p2p.fetch_from_peers(node, _cands, archive_path) if _cands else None
-                    if _got:
-                        node.logger.app_log.warning(
-                            f"Status: P2P snapshot verified (height {_got[1]['height']}, "
-                            f"sha256 {_got[1]['sha256'][:12]}) — bootstrapping from peers")
-                        _fetched = True
-                    else:
-                        node.logger.app_log.warning("Status: P2P snapshot unavailable; falling back to bootstrap_url")
-                except Exception as _e:
-                    node.logger.app_log.warning(f"Status: P2P snapshot attempt failed ({_e}); falling back to bootstrap_url")
-            if not _fetched:
-                url = getattr(node, "bootstrap_url", "") or "https://bismuth.cz/ledger.tar.gz"
-                node.logger.app_log.warning(f"Status: No local bootstrap archive; downloading ledger from {url}")
-                download_file(url, archive_path)
-
-        with tarfile.open(archive_path) as tar:
-
-            def is_within_directory(directory, target):
-                abs_directory = os.path.abspath(directory)
-                abs_target = os.path.abspath(target)
-                prefix = os.path.commonprefix([abs_directory, abs_target])
-                return prefix == abs_directory
-
-            def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
-                for member in tar.getmembers():
-                    member_path = os.path.join(path, member.name)
-                    if not is_within_directory(path, member_path):
-                        raise Exception("Attempted Path Traversal in Tar File")
-                tar.extractall(path, members, numeric_owner=numeric_owner)
-
-            safe_extract(tar, dest_dir)
-        node.logger.app_log.warning(f"Status: Bootstrap ledger extracted into {dest_dir}/")
-
-    except Exception as e:
-        node.logger.app_log.warning(
-            f"Status: Bootstrapping failed ({e}). Provide a local archive via the 'bootstrap_file' "
-            f"config option (or drop it at {node.ledger_path}.tar.gz), or set a reachable 'bootstrap_url'.")
-        raise
-
-
-def check_integrity(node, database):
-    # TODO: Candidate for single user mode
-    # check ledger integrity
-
-    if not os.path.exists("static"):
-        os.mkdir("static")
-
-    with sqlite3.connect(database) as ledger_check:
-        if node.trace_db_calls:
-            ledger_check.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"CHECK_INTEGRITY"))
-
-        ledger_check.text_factory = str
-        l = ledger_check.cursor()
-
-        try:
-            l.execute("PRAGMA table_info('transactions')")
-            redownload = False
-        except:
-            redownload = True
-
-        if len(l.fetchall()) != 12:
-            node.logger.app_log.warning(
-                f"Status: Integrity check on database {database} failed, bootstrapping from the website")
-            redownload = True
-
-    if redownload and node.is_mainnet:
-        bootstrap(node)
-
-
-def sequencing_check(node, db_handler):
-    # TODO: Candidate for single user mode
-    try:
-        with open("sequencing_last", 'r') as filename:
-            sequencing_last = int(filename.read())
-
-    except:
-        node.logger.app_log.warning("Sequencing anchor not found, going through the whole chain")
-        sequencing_last = 0
-
-    node.logger.app_log.warning(f"Status: Testing chain sequencing, starting with block {sequencing_last}")
-
-    chains_to_check = [node.ledger_path, node.hyper_path]
-
-    for chain in chains_to_check:
-        conn = sqlite3.connect(chain)
-        if node.trace_db_calls:
-            conn.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"SEQUENCE-CHECK-CHAIN"))
-        c = conn.cursor()
-
-        # try/finally so a SQL error or a failing index rollback in the loop below can't leak this
-        # per-chain connection (a leaked handle keeps the ledger file locked, notably on Windows).
-        try:
-            # perform test on transaction table
-            y = None
-            # Egg: not sure block_height != (0 OR 1)  gives the proper result, 0 or 1  = 1. not in (0, 1) could be better.
-            for row in c.execute(
-                    "SELECT block_height FROM transactions WHERE reward != 0 AND block_height > 1 AND block_height >= ? ORDER BY block_height ASC",
-                    (sequencing_last,)):
-                y_init = row[0]
-
-                if y is None:
-                    y = y_init
-
-                if row[0] != y:
-
-                    for chain2 in chains_to_check:
-                        conn2 = sqlite3.connect(chain2)
-                        if node.trace_db_calls:
-                            conn2.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"SEQUENCE-CHECK-CHAIN2"))
-                        c2 = conn2.cursor()
-                        node.logger.app_log.warning(f"Status: Chain {chain} transaction sequencing error at: {row[0]}. {row[0]} instead of {y}")
-                        c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (row[0], -row[0],))
-                        conn2.commit()
-                        c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0],))
-                        conn2.commit()
-
-                        # rollback indices to the SAME boundary as the ledger DELETE above (row[0], the ACTUAL
-                        # break) and _rebuild_derived_state below — NOT y (the EXPECTED height). On a
-                        # duplicate-height break y is one past row[0], so rolling these height-keyed side
-                        # indexes to y stranded height-row[0] entries ABOVE the ledger cut, which then
-                        # double-count tokens/aliases when the resync re-digests row[0] (token inflation wedge).
-                        _cut = row[0]
-                        db_handler.tokens_rollback(node, _cut)
-                        db_handler.aliases_rollback(node, _cut)
-                        # the ledger DELETE above cuts at row[0]; rebuild the derived projections to the
-                        # SAME boundary (they re-execute from the ledger).
-                        _rebuild_derived_state(node, db_handler, _cut - 1)
-                        # rollback indices
-
-                        node.logger.app_log.warning(f"Status: Due to a sequencing issue at block {y}, {chain} has been rolled back and will be resynchronized")
-                        conn2.close()  # don't leak this connection (the misc-error branch below already closes its conn2)
-                    break
-
-                y = y + 1
-
-            # perform test on misc table
-            y = None
-
-            # Bound the difficulty (misc) scan to the same recent tail the transactions scan above already
-            # uses (>= sequencing_last anchor) instead of re-reading every misc row from 300000 to the tip
-            # on EVERY boot — the dominant cost of the startup sequencing scan on a large mainnet ledger.
-            # Deep history below the anchor is immutable and was validated on the boot that advanced the
-            # anchor; any NEW gap/dup lives at/after it (and the live autoheal loop guards the tip). When no
-            # anchor file exists (sequencing_last == 0) this is max(300000, 0) == 300000 — unchanged, so a
-            # first/unanchored boot still does the original full difficulty scan (no regression).
-            misc_floor = max(300000, sequencing_last)
-
-            for row in c.execute("SELECT block_height FROM misc WHERE block_height > ? ORDER BY block_height ASC",
-                                 (misc_floor,)):
-                y_init = row[0]
-
-                if y is None:
-                    y = y_init
-                    # print("assigned")
-                    # print(row[0], y)
-
-                if row[0] != y:
-                    # print(row[0], y)
-                    for chain2 in chains_to_check:
-                        conn2 = sqlite3.connect(chain2)
-                        if node.trace_db_calls:
-                            conn2.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"SEQUENCE-CHECK-CHAIN2B"))
-                        c2 = conn2.cursor()
-                        node.logger.app_log.warning(
-                            f"Status: Chain {chain} difficulty sequencing error at: {row[0]}. {row[0]} instead of {y}")
-                        # Delete positive rows AND every negative-height mirror row generically (block_height
-                        # <= -row[0]) — matching the transactions branch above. The old code enumerated only
-                        # "Development Reward" and "Hypernode Payouts" negative mirrors, so the generic
-                        # negative mirrors for any other sink address survived above
-                        # the cut as orphans and were re-credited by the balance-index rebuild below —
-                        # balance-index inflation. One generic delete covers all mirror addresses.
-                        c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?",
-                                   (row[0], -row[0],))
-                        conn2.commit()
-                        c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0],))
-                        conn2.commit()
-                        conn2.close()
-
-                        # rollback indices to the ACTUAL break (row[0]), matching the ledger DELETE and
-                        # _rebuild_derived_state — NOT y (the expected height); see the transactions branch.
-                        _cut = row[0]
-                        db_handler.tokens_rollback(node, _cut)
-                        db_handler.aliases_rollback(node, _cut)
-                        _rebuild_derived_state(node, db_handler, _cut - 1)   # VM/root to the ledger cut
-                        # rollback indices
-
-                        node.logger.app_log.warning(f"Status: Due to a sequencing issue at block {y}, {chain} has been rolled back and will be resynchronized")
-                    break
-
-                y = y + 1
-
-            node.logger.app_log.warning(f"Status: Chain sequencing test complete for {chain}")
-        finally:
-            conn.close()
-
-        if y:
-            with open("sequencing_last", 'w') as filename:
-                filename.write(str(y - 1000))  # room for rollbacks
-
-
-def detect_recent_sequence_break(db_handler, tip, window=2000):
-    """READ-ONLY: scan the most recent `window` coinbase heights for a gap or duplicate — the corruption a
-    crash / block-churn leaves at the TIP. Returns the height to cut back to (first divergence from a
-    strictly-consecutive run), or None if the recent tail is clean. Cheap (one indexed range, ~`window`
-    rows); deep-history breaks remain the startup sequencing_check's full-scan job."""
-    tip = int(tip or 0)
-    if tip < 3:
-        return None
-    lo = max(2, tip - int(window))
-    rows = db_handler.fetchall(db_handler.h,
-                               "SELECT block_height FROM transactions WHERE reward != 0 "
-                               "AND block_height >= ? AND block_height <= ? ORDER BY block_height ASC",
-                               (lo, tip))
-    expect = None
-    for (h,) in (rows or []):
-        h = int(h)
-        if expect is None:
-            expect = h
-        if h != expect:
-            return min(h, expect)   # dupe -> the repeated height; gap -> the missing height; both = the cut
-        expect += 1
-    return None
-
-
-def autoheal_live(node, db_handler, window=2000):
-    """Self-heal a sequence/dupe corruption WITHOUT a restart. Detect a break in the recent tail (read-only);
-    if found, roll the chain back to the clean prefix using the SAME rollback() blocknf uses (truncate
-    ledger+hyper + rebuild every derived projection: balance/txid index, VM state+root, tokens/aliases),
-    reset the node's in-memory tip from disk, and let the normal sync loop re-fetch the
-    discarded blocks. No-op (just the cheap recent scan) on a healthy chain. MUST be called holding
-    node.db_lock (serialised with digestion). ram=False assumed (disk is the tip source). Returns True iff
-    it repaired."""
-    tip = int(getattr(node, "last_block", 0) or 0)
-    brk = detect_recent_sequence_break(db_handler, tip, window)
-    if brk is None:
+    """Bootstrap a FRESH (empty) ledger: unless ``sync_from_genesis`` is set, try a DB-direct snapshot of a
+    peer's LMDB ledger (doc/43, tip height + hash verified; the digester re-validates forward), then fall
+    back to seeding genesis and syncing the whole chain. Returns True if a snapshot was installed (the
+    caller must reopen the ledger)."""
+    if getattr(node, "sync_from_genesis", False) or not getattr(node, "bootstrap_p2p", False):
         return False
-    node.logger.app_log.warning(
-        f"Status: AUTOHEAL — sequence/dupe break detected at height {brk} (tip {tip}); rolling back live")
-    rollback(node, db_handler, brk)
-    # reset the in-memory tip from the truncated DB (node_block_init pattern)
-    node.hdd_block = db_handler.block_height_max()
-    node.last_block = node.hdd_block
-    node.last_block_hash = db_handler.last_block_hash()
-    node.hdd_hash = node.last_block_hash
-    node.last_block_timestamp = db_handler.last_block_timestamp()
     try:
-        from difficulty import difficulty as _difficulty
-        node.difficulty = _difficulty(node, db_handler)
-    except Exception:
-        pass
-    essentials.checkpoint_set(node)
-    node.logger.app_log.warning(
-        f"Status: AUTOHEAL — rolled back to {node.last_block}; the sync loop will re-fetch the clean chain")
-    return True
+        import kvstore
+        import snapshot_p2p
+        dest = kvstore.store_path(node.ledger_path, "blockstore")
+        cands = snapshot_p2p.candidates(node)
+        tmp = dest + ".snapshot"
+        got = snapshot_p2p.fetch_db_from_peers(node, cands, tmp) if cands else None
+        if not got:
+            node.logger.app_log.warning("Status: no DB-direct snapshot available from peers; syncing from genesis")
+            return False
+        if os.path.isdir(dest):
+            shutil.rmtree(dest)
+        os.replace(tmp, dest)
+        node.logger.app_log.warning(f"Status: installed a peer ledger snapshot at height {got[1]['height']}")
+        return True
+    except Exception as e:
+        node.logger.app_log.warning(f"Status: snapshot bootstrap failed ({e}); syncing from genesis")
+        return False
+
 
 
 # ============================================================================================

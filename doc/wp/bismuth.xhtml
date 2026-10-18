@@ -484,15 +484,15 @@ consensus; here, validity is enforced by every full node as a consensus rule. Un
 <p>Storage separates canonical chain data from rebuildable projections. The chain itself is the only authoritative
 history; balances, transaction-identifier indexes, contract state, shielded notes, reward accounting, token balances,
 and alias ownership are materialized views that must be reconstructible from the chain and removable on rollback. The
-keystone is an append-only block store that holds block bodies by height in a key-value engine (LMDB, behind an
-engine-agnostic seam that also supports a portable SQLite-backed key-value fallback with identical ordering), around
-which sit key-value projections for balances, identifiers, rewards, contract state, shielded notes, and tokens.</p>
-<p>These stores are introduced conservatively. Each is written as an additive shadow alongside the older path and
-becomes authoritative only after replay verification re-derives the canonical block hashes from chain data and parity
-checks confirm it means exactly the same thing. The predecessor store of record, which the public network still uses,
-is a set of SQLite databases &#8212; an authoritative full ledger database, a hyperblock database that keeps recent blocks
-in full while compacting deep history into per-address balance snapshots, and an index database for derived data; the key-value stores run alongside it as shadows and become the read
-path as the migration completes (Section&#160;16).</p>
+keystone is a single LMDB environment that holds the block bodies by height together with every projection the
+node reads &#8212; the per-block difficulty record, signature and address-history indexes, per-address balances in
+integer units, content transaction identifiers and the public-key registry. A block and all of its projections are
+committed in one write transaction, and a reorganization is reversed in one transaction, so the store is always at a
+clean block boundary. Token balances and alias ownership live in a separate plugin-owned store that is rolled back
+with the chain.</p>
+<p>Storage is a node-internal concern and changes no consensus byte: replay verification re-derives the canonical
+block hashes from the stored chain data. A fresh node obtains the store directly from a peer as a consistent
+database image whose tip height and hash it verifies, or seeds the genesis block and synchronizes the chain.</p>
 
 <h2 id="s13">13. Networking and synchronization</h2>
 <p>The native peer-to-peer protocol frames each message as a JSON payload behind a fixed-width length header over
@@ -544,10 +544,10 @@ persisted alongside the ledger so a restart or resync replays the same height. T
 second signal: one marker governs the whole bundle.</p>
 <p>As of the date of this document, hf2 has not locked in or activated on the public network, and until it does the
 public network runs the predecessor ruleset: SHA-224 Heavy3, the feedback-controller difficulty, signature-derived
-transaction identifiers, text-form signing and block hashing, the fixed base fee, and SQLite as the store of record.
+transaction identifiers, text-form signing and block hashing, and the fixed base fee.
 The hf2 features &#8212; BLAKE2b Heavy3, LWMA difficulty, binary and integer serialization, content-addressed
 identity, recoverable secp256k1 signatures, coinbase compaction and reward maturity, the responsive base fee, the
-committed virtual-machine state root, the virtual machine, key-value storage as the read path,
+committed virtual-machine state root, the virtual machine,
 and the base-layer sender families a pre-fork node refuses (native-multisignature, NIST&#160;P-256, and ML-DSA
 senders) &#8212; are implemented and exercised on the development network and in the test suite, but a holder should not assume
 any of them is live on the public network before activation. Activation depends on miner adoption; it may be delayed

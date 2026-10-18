@@ -61,10 +61,10 @@ bootstrap so the in-repo miner uses the modernized root `connections`/`mining_he
 
 `optiexplorer.py` dropped **Flask + Tornado** for pure stdlib `http.server` (mirrors the node's
 `rest_api.py`): `GET /` serves a dark, dependency-free, auto-refreshing dashboard; `GET /api/stats`
-returns `{ network, pool, miners, payouts, pending }`. It **no longer scans `static/ledger.db`** — network
+returns `{ network, pool, miners, payouts, pending }`. It **never reads the ledger** — network
 height/difficulty, hf2 fork status, and the pool's rewards/payouts come from the node REST
 (`/api/status`, `/api/difficulty`, `/api/fork`, `/api/address/<pool>/transactions`), cached 20 s; per-miner
-state still comes from `shares.db`. The dashboard shows a sha224↔blake2b PoW badge and a
+state comes from the pool's LMDB store (`poolstore/`, `pool/pool_store.py`). The dashboard shows a sha224↔blake2b PoW badge and a
 pre-fork/locked-in/active HF2 card. Deps pruned (no flask/tornado) — Stage 5.
 
 ## 5. What's verified vs needs live validation

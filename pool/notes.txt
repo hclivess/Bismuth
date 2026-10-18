@@ -25,9 +25,9 @@ hf2 readiness (see doc/39)
 Web explorer (optiexplorer.py, port 9080)
 - Pure stdlib http.server now — NO Flask, NO Tornado (dropped from requirements). Serves a dark
   auto-refreshing dashboard at / and a JSON API at /api/stats.
-- Does NOT scan static/ledger.db anymore — network height/difficulty/hashrate/block-time, peers, mempool,
+- Never reads the ledger — network height/difficulty/hashrate/block-time, peers, mempool,
   hf2 fork status, and the pool's coinbase rewards/payouts all come from the node REST (cached 20s).
-  Pool/miner/share state comes from shares.db / archive.db.
+  Pool/miner/share state comes from the pool's LMDB store (poolstore/, pool_store.py).
 
 Node communication: 100% REST API (no legacy socket to the node)
 - optipoolware.py talks to the node ONLY over the REST API now (the _node_get/_node_post helpers); there

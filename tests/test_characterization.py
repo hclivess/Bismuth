@@ -3,10 +3,11 @@ Characterization tests for consensus-critical pure-ish functions.
 
 These pin the *current* outputs so behavior-preserving refactors (e.g. extracting magic numbers into
 named constants) can be proven not to change consensus. No running node required: difficulty() is
-driven against a synthetic in-memory ledger.
+driven against a synthetic temp LMDB ledger.
 """
-import sqlite3
+import tempfile
 
+import block_store
 import difficulty
 import mining_heavy3
 from essentials import fee_calculate
@@ -22,37 +23,25 @@ class _Node:
     last_block_ago = 0
 
 
-class _DB:
-    def __init__(self, conn):
-        self.conn = conn
-        self.c = conn.cursor()
-
-    def execute(self, cursor, query):
-        cursor.execute(query)
-
-    def execute_param(self, cursor, query, param):
-        cursor.execute(query, param)
-
-
-def _ledger(gaps, diff="65"):
-    """Build an in-memory ledger: block 1 at a fixed base ts, then `gaps` inter-block seconds."""
-    conn = sqlite3.connect(":memory:")
-    cur = conn.cursor()
-    cur.execute("CREATE TABLE transactions (block_height INTEGER, timestamp, address, recipient, "
-                "amount, signature, public_key, block_hash, fee, reward, operation, openfield)")
-    cur.execute("CREATE TABLE misc (block_height INTEGER, difficulty)")
+def _ledger(path, gaps, diff="65"):
+    """Build a temp LMDB ledger: block 1 at a fixed base ts, then `gaps` inter-block seconds."""
+    store = block_store.BlockStore(path, map_size=1 << 28, sync=False)
     ts = 1500000000.0
     for height, gap in enumerate([0] + list(gaps), start=1):
         ts += gap
-        cur.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (height, "%.2f" % ts, "a", "r", "0", "s%d" % height, "p", "b", "0", "1", "0", ""))
-        cur.execute("INSERT INTO misc VALUES (?,?)", (height, diff))
-    conn.commit()
-    return conn
+        store.commit_block(height, "%056x" % height,
+                           [(str(height), "%.2f" % ts, "a", "r", "0", "s%d" % height, "p", "b", "0", "1", "0", "")],
+                           difficulty=diff)
+    return store
 
 
 def _difficulty(gaps):
-    return difficulty.difficulty(_Node(), _DB(_ledger(gaps)))
+    with tempfile.TemporaryDirectory() as d:
+        store = _ledger(d + "/ledger", gaps)
+        try:
+            return difficulty.difficulty(_Node(), store)
+        finally:
+            store.close()
 
 
 def test_difficulty_equilibrium_60s():

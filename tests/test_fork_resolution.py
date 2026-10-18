@@ -317,19 +317,14 @@ class _Peers:
 
 
 class _DB:
-    """Ledger stand-in: {height: (hash, [tx tuples])}; rows() emulate SELECT * order."""
+    """Ledger stand-in (DbHandler + its .store): {height: (hash, [tx tuples])}."""
     def __init__(self, chain):
         self.chain = dict(chain)
-        self.h = self
-        self.c = self
+        self.store = self
         self.calls = []
-        self._q = None
-    def execute_param(self, cur, sql, params):
-        self._q = (sql, params)
-    def fetchone(self):
-        sql, params = self._q
-        h = int(params[0])
-        return (self.chain[h][0],) if h in self.chain else None
+    def block_hash(self, height):
+        h = int(height)
+        return self.chain[h][0] if h in self.chain else None
     def block_max_ram(self):
         t = max(self.chain)
         return {"block_height": t, "block_hash": self.chain[t][0]}
@@ -390,14 +385,12 @@ def harness(monkeypatch):
     def fake_error(node, db, sdef, peer_ip, error):
         node.peers.warning(sdef, peer_ip, "Rejected block", 2)
         raise ValueError("Chain: digestion aborted")
-    import digest, tokensv2, mempool as mp
+    import digest, mempool as mp
     monkeypatch.setattr(digest, "process_block_data", fake_process)
     monkeypatch.setattr(digest, "BlockProcessor", lambda node, db, ip: None)
     monkeypatch.setattr(digest, "handle_processing_error", fake_error)
     monkeypatch.setattr(chain_ops.essentials, "checkpoint_set", lambda node: None)
-    monkeypatch.setattr(chain_ops, "_rebuild_derived_state", lambda node, db, keep: None)
     monkeypatch.setattr(chain_ops, "rollback", lambda node, db, h: db.rollback_under(h))
-    monkeypatch.setattr(tokensv2, "tokens_update", lambda node, db: None)
 
     class _MP:
         lock = threading.Lock()

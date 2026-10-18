@@ -251,8 +251,7 @@ Notes:
 After `to_db`, the parsed ops are applied to the sidecar (`shieldedv1.apply_block`, called from
 `digest.py` after `to_db`): notes inserted, **key images recorded** (stage 2 — §12; the stage-1
 "nullifiers recorded" wording is obsolete) and pool flows updated. Each redeem writes a consensus payout
-row `SHIELD_SINK → to` via `db_handler.shield_payout` (a negative-height mirror row, exactly like
-`vm_payout`/dev rewards), so the sink's ledger balance tracks the pool and rolls back with the chain.
+row `SHIELD_SINK → to` via `db_handler.shield_payout`, so the sink's ledger balance tracks the pool and rolls back with the chain.
 
 **Supply invariant:** `Σ unspent note.amt == ledger_balance(SHIELD_SINK)` at every height. Mints credit
 the pool and the sink together; redeems debit both; spends conserve. Because amounts are transparent,
@@ -262,7 +261,7 @@ this is publicly auditable — there is no path to undetected inflation (contras
 
 ## 7. Sidecar state (per-ledger, reorg-safe)
 
-> **The sidecar is an LMDB store, not SQLite** (`shieldedv1.ShieldedState`). The schema below describes
+> **The sidecar is an LMDB store** (`shieldedv1.ShieldedState`). The schema below describes
 > the live stage-2 layout (key images, not nullifiers); the stage-1 `nullifiers`-table description that
 > earlier drafts carried is obsolete. §12 cross-references this section.
 

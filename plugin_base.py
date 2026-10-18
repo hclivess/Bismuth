@@ -6,7 +6,7 @@ The legacy ``plugins.PluginManager`` discovers plugins by magic function names (
 ``BismuthPlugin``, override the lifecycle/handler methods you need, and the manager drives them. A plugin is:
 
   * **optional** — load it or don't; the node runs identically without it;
-  * **self-contained** — it owns its storage (LMDB, NO SQLite) and derived state in its own data dir;
+  * **self-contained** — it owns its storage (LMDB) and derived state in its own data dir;
   * **consensus-inert** — it only ever builds a derived projection of already-validated blocks; it can never
     change a block hash or accept/reject a tx.
 
@@ -29,14 +29,18 @@ class PluginContext:
         logger      : the app logger (``.warning`` / ``.info`` / ``.error``).
         data_dir    : a directory the plugin owns for its stores (namespaced per ledger by the manager, so a
                       regnet run can never hand its derived state to a mainnet node — the doc/18 pollution class).
-        ledger_path : path to the canonical ledger (for a historical backfill scan).
+        ledger_path : path of the canonical ledger (its LMDB env is ``kvstore.store_path(ledger_path,
+                      "blockstore")``); per-ledger store namespacing keys off it.
+        ledger      : the node's ledger ``BlockStore`` (or a ``DbHandler`` wrapping it), when the manager has
+                      one — the historical backfill scan reads it.
         config      : the node config object (read-only as far as the plugin is concerned).
         is_regnet / is_testnet / is_mainnet : net-type booleans.
     """
 
     def __init__(self, logger, data_dir, ledger_path, config=None,
-                 is_regnet=False, is_testnet=False, is_mainnet=True):
+                 is_regnet=False, is_testnet=False, is_mainnet=True, ledger=None):
         self.logger = logger
+        self.ledger = ledger
         self.data_dir = data_dir
         self.ledger_path = ledger_path
         self.config = config
@@ -49,38 +53,52 @@ class PluginContext:
         os.makedirs(self.data_dir, exist_ok=True)
         return os.path.join(self.data_dir, name)
 
-    def scan_ledger_operations(self, from_height, operations=None, openfield_like=None):
-        """Yield ledger rows ``(block_height, timestamp, address, recipient, signature, operation, openfield)``
-        with ``block_height >= from_height`` (block order), filtered to ``operations`` (a set/list) and/or an
-        ``openfield`` SQL ``LIKE`` pattern — a plugin's one-time HISTORICAL backfill (incremental upkeep goes
-        through ``on_block`` instead, which needs no ledger read at all).
+    def ledger_store(self):
+        """The node's ledger ``block_store.BlockStore`` — the injected ``ledger`` if the manager passed one,
+        else the process-wide handle for ``ledger_path`` (``block_store.open_ledger`` never opens an LMDB env
+        twice per process, so this shares the node's store)."""
+        if self.ledger is not None:
+            return getattr(self.ledger, "store", None) if not hasattr(self.ledger, "blocks_in_range") \
+                else self.ledger
+        import block_store
+        import kvstore
+        return block_store.open_ledger(kvstore.store_path(self.ledger_path, "blockstore"))
 
-        Reads the ledger through a fresh READ-ONLY cursor; it never writes and never holds the node's db lock.
-        (Pre-fork the ledger is SQLite; post-fork this is the seam that points at the LMDB block store — the
-        plugin's OWN storage is LMDB either way, doc/26.)
+    def scan_ledger_operations(self, from_height, operations=None, openfield_prefix=None):
+        """Yield ledger rows ``(block_height, timestamp, address, recipient, signature, operation, openfield)``
+        with ``block_height >= from_height`` (block order, then in-block order), non-coinbase only, keeping a
+        row when its ``operation`` is in ``operations`` (a set/list) OR its ``openfield`` starts with
+        ``openfield_prefix`` (with neither filter, every non-coinbase row) — a plugin's one-time HISTORICAL
+        backfill (incremental upkeep goes through ``on_block`` instead, which needs no ledger read at all).
+
+        Reads the LMDB ledger (``BlockStore.blocks_in_range``) through read transactions; it never writes.
+        Rows come back typed (block_height int, timestamp numeric, the rest text).
         """
-        import sqlite3
-        conn = sqlite3.connect(self.ledger_path, timeout=1)
-        try:
-            conn.text_factory = str
-            cur = conn.cursor()
-            clauses = ["block_height >= ?"]
-            params = [int(from_height)]
-            if operations:
-                ops = list(operations)
-                clauses.append("operation IN (%s)" % ",".join("?" * len(ops)))
-                params.extend(ops)
-            if openfield_like:
-                clauses.append("openfield LIKE ?")
-                params.append(openfield_like)
-            cur.execute(
-                "SELECT block_height, timestamp, address, recipient, signature, operation, openfield "
-                "FROM transactions WHERE " + " AND ".join(clauses) +
-                " AND reward = 0 ORDER BY block_height ASC;", params)
-            for row in cur.fetchall():
-                yield row
-        finally:
-            conn.close()
+        store = self.ledger_store()
+        tip = store.tip()
+        if tip is None:
+            return
+        ops = set(operations) if operations else None
+        prefix = str(openfield_prefix) if openfield_prefix else None
+        for _h, rows in store.blocks_in_range(max(0, int(from_height)), int(tip)):
+            for r in rows:
+                if not reward_is_zero(r[9]):
+                    continue
+                op, openfield = str(r[10]), str(r[11])
+                if ops is not None or prefix is not None:
+                    if not ((ops is not None and op in ops) or (prefix is not None and openfield.startswith(prefix))):
+                        continue
+                yield (r[0], r[1], r[2], r[3], r[5], op, openfield)
+
+
+def reward_is_zero(reward) -> bool:
+    """True for a non-coinbase row's reward in any stored form (0, 0.0, '0', '0.0', '0E-8', '', None)."""
+    if reward is None or reward == "":
+        return True
+    try:
+        return float(reward) == 0
+    except (TypeError, ValueError):
+        return False
 
 
 class BismuthPlugin:

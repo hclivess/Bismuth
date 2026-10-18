@@ -19,8 +19,8 @@ What it does:
   `ed25519` sdist build break on Python 3.12, the default on Ubuntu 24.04).
 - Installs + enables the **`bismuth-node` systemd service** (`scripts/install-node-service.sh`) — no more
   `screen`/cron; systemd handles restart-on-failure and restart-on-reboot, with a graceful SIGTERM stop.
-- The node **downloads the ledger bootstrap automatically** on first start
-  (`https://bismuth.cz/ledger.tar.gz`) — initial sync takes a while.
+- The node **bootstraps its LMDB ledger automatically** on first start — a tip-verified DB-direct
+  snapshot streamed from peers (doc/43), else a sync from genesis — initial sync takes a while.
 
 Notes:
 

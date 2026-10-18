@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
 """doc/30 — discover candidate from-genesis validation exceptions from a ledger COPY.
 
-Walks a ledger and reports the blocks a from-genesis VERIFYING replay would choke
-on, emitting a ready-to-use validation_exceptions JSON file (the shape
+Walks an LMDB ledger env (``block_store.BlockStore``) and reports the blocks a from-genesis VERIFYING
+replay would choke on, emitting a ready-to-use validation_exceptions JSON file (the shape
 ``validation_exceptions.load`` consumes).
 
 Detectors (all operate on a COPY, never the live ledger):
   * duplicate   — a signature in more than one block (cross-block replay) or twice
-                  in one block. EXACT, SQL.
+                  in one block. EXACT, from the ledger's signature index.
   * timestamp   — a block whose coinbase timestamp is <= the previous block's
-                  (out-of-order / hand-inserted block). EXACT, SQL + scan.
-  * overspend   — a spend whose sender balance goes negative on a forward replay
-                  from genesis (manual coin-rescue / balance edit). CANDIDATE —
-                  the replay tracks consensus credit/debit (amount+reward to the
-                  recipient, amount+fee from the sender, plus the negative-height
-                  Development/Hypernode mirror-reward rows as credits); verify each
-                  hit against the running node before trusting it.
+                  (out-of-order / hand-inserted block). EXACT, block scan.
+  * overspend   — an address whose lifetime credits (amount+reward received) minus
+                  debits (amount+fee sent) is negative (manual coin-rescue / balance
+                  edit). From the ledger's balance index. CANDIDATE — verify each hit
+                  against the running node before trusting it.
   * signature   — a transaction whose signature fails cryptographic verification
                   (re-verified with the pre-fork scheme, which is what the whole
                   current mainnet chain uses). EXACT, parallel across cores.
@@ -24,15 +22,12 @@ NOT batch-detectable: PoW (Heavy3 is memory-hard — re-verifying millions of bl
 is infeasible). Surface any PoW waiver with the iterative real-sync method in
 doc/30 instead.
 
-The synthetic mirror-reward rows (block_height < 0, address "Development Reward" /
-"Hypernode Payouts") are NEVER digest-validated, so they are excluded from the
-signature/duplicate/overspend-as-sender checks — but included as balance CREDITS.
-
-SAFETY: refuses to open the live production ledger (<repo>/static/ledger.db). Copy
-it first:  sqlite3 static/ledger.db ".backup /tmp/ledger_copy.db"
+SAFETY: refuses to open the live production ledger env (<repo>/static/blockstore-ledger.db).
+Take a consistent online copy first (LMDB MVCC snapshot, safe while the node runs):
+    python3 -c "import block_store as b; b.BlockStore('static/blockstore-ledger.db', readonly=True).store.copy_to('/tmp/ledger_copy')"
 
 Usage:
-    python3 tools/find_validation_exceptions.py --ledger /path/copy.db \
+    python3 tools/find_validation_exceptions.py --ledger /tmp/ledger_copy \
         [--duplicates] [--timestamps] [--overspend] [--check-signatures] \
         [--jobs N] [--start 1] [--out exceptions.json]
     (with no detector flags, runs duplicates+timestamps+overspend; signatures is
@@ -41,7 +36,6 @@ Usage:
 import argparse
 import json
 import os
-import sqlite3
 import sys
 from decimal import Decimal, ROUND_HALF_EVEN
 
@@ -49,11 +43,14 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
+import block_store
+import kvstore
 import validation_exceptions as V
 
-PROD_LEDGER = os.path.join(ROOT, "static", "ledger.db")
+PROD_LEDGER = kvstore.store_path(os.path.join(ROOT, "static", "ledger.db"), "blockstore")
 SCALE = Decimal(10) ** 8
 Q8 = Decimal("0.00000001")
+_PLACEHOLDERS = ("Development Reward", "Hypernode Payouts", "genesis")
 
 
 def _refuse_prod(path):
@@ -62,13 +59,12 @@ def _refuse_prod(path):
     except OSError:
         same = False
     if same or os.path.realpath(path) == os.path.realpath(PROD_LEDGER):
-        sys.exit("REFUSING to scan the live production ledger (%s). Copy it first:\n"
-                 "  sqlite3 static/ledger.db \".backup /tmp/ledger_copy.db\"\n"
-                 "then run against the copy." % PROD_LEDGER)
+        sys.exit("REFUSING to scan the live production ledger (%s). Copy it first (see --help / the module "
+                 "docstring), then run against the copy." % PROD_LEDGER)
 
 
 def _ro(path):
-    return sqlite3.connect("file:%s?mode=ro" % os.path.abspath(path), uri=True)
+    return block_store.BlockStore(path, readonly=True)
 
 
 def _units(x):
@@ -90,35 +86,59 @@ def _add(reg, height, check, reason, signature=None):
 
 
 # ------------------------------------------------------------------- duplicate ----
-def find_duplicates(conn, start):
+def find_duplicates(store, start):
+    """Walk the signature index (keys ``sig[:56] 0x00 height idx``, so equal signatures are adjacent) and
+    confirm each multi-entry group against the full signature of the stored rows."""
     reg = {}
-    cur = conn.cursor()
-    sys.stderr.write("  [duplicate] cross-block ...\n"); sys.stderr.flush()
-    cur.execute("SELECT signature, MIN(block_height), MAX(block_height) FROM transactions "
-                "WHERE block_height >= ? AND signature NOT IN ('', '0') "
-                "GROUP BY signature HAVING COUNT(DISTINCT block_height) > 1", (start,))
-    for sig, lo, hi in cur.fetchall():
-        _add(reg, hi, V.DUPLICATE, "cross-block replay of %s (first @%s)" % (str(sig)[:12], lo), sig)
-    sys.stderr.write("  [duplicate] in-block ...\n"); sys.stderr.flush()
-    cur.execute("SELECT block_height, signature, COUNT(*) c FROM transactions "
-                "WHERE block_height >= ? AND signature NOT IN ('', '0') "
-                "GROUP BY block_height, signature HAVING c > 1", (start,))
-    for h, sig, c in cur.fetchall():
-        _add(reg, h, V.DUPLICATE, "in-block duplicate signature x%d" % c, sig)
+    sys.stderr.write("  [duplicate] signature index ...\n"); sys.stderr.flush()
+
+    def flush(group, txn, cache):
+        if len(group) < 2:
+            return
+        by_sig = {}
+        for h, idx in group:
+            r = store._row_at(txn, h, idx, cache)
+            if r is not None:
+                by_sig.setdefault(str(r[block_store.SIG]), []).append(h)
+        for sig, hs in by_sig.items():
+            if len(hs) < 2:
+                continue
+            heights = sorted(set(hs))
+            if len(heights) > 1:
+                _add(reg, heights[-1], V.DUPLICATE,
+                     "cross-block replay of %s (first @%s)" % (sig[:12], heights[0]), sig)
+            for h in heights:
+                c = hs.count(h)
+                if c > 1:
+                    _add(reg, h, V.DUPLICATE, "in-block duplicate signature x%d" % c, sig)
+
+    with store.store.txn() as txn:
+        cur_prefix, group, cache = None, [], {}
+        for k, _v in txn.iterate(store.sig):
+            prefix = bytes(k[:-11])
+            h, idx = block_store._split_pos(k)
+            if prefix != cur_prefix:
+                flush(group, txn, cache)
+                cur_prefix, group = prefix, []
+                if len(cache) > 4096:
+                    cache.clear()
+            if h >= start:
+                group.append((h, idx))
+        flush(group, txn, cache)
     return reg
 
 
 # ------------------------------------------------------------------- timestamp ----
-def find_timestamps(conn, start):
+def find_timestamps(store, start, end):
     reg = {}
-    cur = conn.cursor()
     sys.stderr.write("  [timestamp] scanning coinbase order ...\n"); sys.stderr.flush()
     # one coinbase (reward != 0) per block carries the block timestamp
-    cur.execute("SELECT block_height, timestamp FROM transactions "
-                "WHERE block_height >= ? AND reward != 0 ORDER BY block_height", (start,))
     prev_h = prev_ts = None
-    for h, ts in cur:
-        ts = Decimal(str(ts))
+    for h, rows in store.blocks_in_range(start, end):
+        cb = next((r for r in reversed(rows) if block_store.is_coinbase_row(r)), None)
+        if cb is None:
+            continue
+        ts = Decimal(str(cb[block_store.TS]))
         if prev_ts is not None and h == prev_h + 1 and ts <= prev_ts:
             _add(reg, h, V.TIMESTAMP, "block ts %s <= prev(%s) %s" % (ts, prev_h, prev_ts))
         prev_h, prev_ts = h, ts
@@ -126,40 +146,26 @@ def find_timestamps(conn, start):
 
 
 # ------------------------------------------------------------------- overspend ----
-def find_overspends(conn, start):
+def find_overspends(store, start):
     """Exact net-balance footprint: an address whose lifetime credits (amount+reward
     received) minus debits (amount+fee sent) is NEGATIVE could only get there via a
-    manual ledger edit — no validated spend can overspend. This is the precise
-    overspend footprint (the noisy per-block forward replay was dropped: it can't
-    model consensus's "confirmed-balance, no same-block credit" semantics and so
-    produces false positives). It reports the offending ADDRESSES; pinpointing the
-    exact block needs the iterative real-sync (doc/30). The synthetic placeholder
-    senders on the mirror-reward rows ("Development Reward" / "Hypernode Payouts")
-    are pure debit artifacts, never real spenders, and are excluded."""
+    manual ledger edit — no validated spend can overspend. Read straight from the
+    ledger's balance index. It reports the offending ADDRESSES (at the first block
+    where each sends, a starting point); pinpointing the exact block needs the
+    iterative real-sync (doc/30). Placeholder senders are excluded."""
     reg = {}
-    cur = conn.cursor()
     sys.stderr.write("  [overspend] net-balance footprint ...\n"); sys.stderr.flush()
-    cur.execute(
-        "WITH cred AS (SELECT recipient a, SUM(amount+reward) v FROM transactions GROUP BY recipient), "
-        "     deb  AS (SELECT address   a, SUM(amount+fee)    v FROM transactions GROUP BY address) "
-        "SELECT a, bal FROM ("
-        "  SELECT COALESCE(cred.a,deb.a) a, COALESCE(cred.v,0)-COALESCE(deb.v,0) bal "
-        "  FROM cred LEFT JOIN deb ON cred.a=deb.a "
-        "  UNION SELECT deb.a, COALESCE(cred.v,0)-COALESCE(deb.v,0) FROM deb LEFT JOIN cred ON cred.a=deb.a) "
-        "WHERE bal < -0.00000001")
-    placeholders = ("Development Reward", "Hypernode Payouts", "genesis")
     found = 0
-    for (addr, bal) in cur.fetchall():
-        if str(addr) in placeholders:
+    for addr, (cred, rew, deb, fee) in store.iter_balances():
+        units = cred + rew - deb - fee
+        if units >= -1 or addr in _PLACEHOLDERS:
             continue
         found += 1
-        # locate the first block where this address sends (a starting point to investigate)
-        cur2 = conn.cursor()
-        cur2.execute("SELECT MIN(block_height) FROM transactions WHERE address=? AND block_height>=?",
-                     (addr, start))
-        h = cur2.fetchone()[0] or start
+        first = store.address_rows(addr, role="sender", reverse=False, limit=1, lo=start)
+        h = first[0][block_store.H] if first else start
+        bal = Decimal(units) / SCALE
         _add(reg, h, V.OVERSPEND, "address %s nets %s (manual balance edit?)" % (str(addr)[:16], bal))
-    sys.stderr.write("    %d real net-negative addresses (excluding mirror placeholders)\n" % found)
+    sys.stderr.write("    %d real net-negative addresses (excluding placeholders)\n" % found)
     sys.stderr.flush()
     return reg
 
@@ -171,35 +177,37 @@ def _verify_worker(args):
     import digest_tx
     from polysign.signerfactory import SignerFactory
     from essentials import MAX_TX_SIGNATURE_LEN, MAX_TX_PUBKEY_LEN
-    conn = _ro(db_path)
-    cur = conn.cursor()
-    cur.execute("SELECT block_height, timestamp, address, recipient, amount, signature, public_key, "
-                "operation, openfield FROM transactions WHERE block_height >= ? AND block_height < ? "
-                "AND signature NOT IN ('', '0')", (lo, hi))
+    store = _ro(db_path)
     out = []
-    for (h, ts, addr, rec, amt, sig, pub, op, of) in cur:
-        rts = "%.2f" % digest_tx.quantize_two(ts)
-        ramt = "%.8f" % digest_tx.quantize_eight(amt)
-        try:
-            SignerFactory.verify_tx_signature(
-                False, rts, str(addr)[:56], str(rec)[:56], ramt,
-                str(op)[:30], str(of)[:100000],
-                str(sig)[:MAX_TX_SIGNATURE_LEN], str(pub)[:MAX_TX_PUBKEY_LEN])
-        except Exception as e:
-            out.append((h, str(sig)[:24], str(e)[:50]))
-    conn.close()
+    try:
+        for _h, rows in store.blocks_in_range(lo, hi - 1):
+            for (h, ts, addr, rec, amt, sig, pub, _bh, _fee, _rew, op, of) in rows:
+                if str(sig) in ("", "0"):
+                    continue
+                rts = "%.2f" % digest_tx.quantize_two(ts)
+                ramt = "%.8f" % digest_tx.quantize_eight(amt)
+                try:
+                    SignerFactory.verify_tx_signature(
+                        False, rts, str(addr)[:56], str(rec)[:56], ramt,
+                        str(op)[:30], str(of)[:100000],
+                        str(sig)[:MAX_TX_SIGNATURE_LEN], str(pub)[:MAX_TX_PUBKEY_LEN])
+                except Exception as e:
+                    out.append((h, str(sig)[:24], str(e)[:50]))
+    finally:
+        store.close()
     return out
 
 
 def find_bad_signatures(db_path, start, end, jobs):
-    from multiprocessing import Pool
+    import multiprocessing
     reg = {}
     step = max(1000, (end - start) // (jobs * 8) + 1)   # ~8 chunks per worker for load balance
     ranges = [(db_path, lo, min(lo + step, end + 1)) for lo in range(start, end + 1, step)]
     sys.stderr.write("  [signature] re-verifying %d height-chunks across %d workers ...\n"
                      % (len(ranges), jobs)); sys.stderr.flush()
     done = 0
-    with Pool(jobs) as p:
+    # spawn, not fork: an LMDB env must never be inherited across fork — each worker opens its own
+    with multiprocessing.get_context("spawn").Pool(jobs) as p:
         for res in p.imap_unordered(_verify_worker, ranges):
             for (h, sig, err) in res:
                 _add(reg, h, V.SIGNATURE, "signature verify failed: %s" % err, sig)
@@ -224,7 +232,8 @@ def _merge(into, other):
 
 def main():
     ap = argparse.ArgumentParser(description="Discover from-genesis validation exceptions (doc/30).")
-    ap.add_argument("--ledger", required=True, help="path to a ledger COPY (never the live static/ledger.db)")
+    ap.add_argument("--ledger", required=True,
+                    help="path to an LMDB ledger env COPY (never the live static/blockstore-ledger.db)")
     ap.add_argument("--start", type=int, default=1)
     ap.add_argument("--duplicates", action="store_true")
     ap.add_argument("--timestamps", action="store_true")
@@ -242,18 +251,20 @@ def main():
     if not (args.duplicates or args.timestamps or args.overspend or args.check_signatures):
         args.duplicates = args.timestamps = args.overspend = True
 
-    conn = _ro(args.ledger)
-    end = conn.execute("SELECT MAX(block_height) FROM transactions").fetchone()[0]
+    store = _ro(args.ledger)
+    end = store.tip()
+    if end is None:
+        sys.exit("empty ledger: %s" % args.ledger)
     sys.stderr.write("scanning %s (heights %d..%d)\n" % (args.ledger, args.start, end)); sys.stderr.flush()
 
     reg = {}
     if args.duplicates:
-        _merge(reg, find_duplicates(conn, args.start))
+        _merge(reg, find_duplicates(store, args.start))
     if args.timestamps:
-        _merge(reg, find_timestamps(conn, args.start))
+        _merge(reg, find_timestamps(store, args.start, end))
     if args.overspend:
-        _merge(reg, find_overspends(conn, args.start))
-    conn.close()
+        _merge(reg, find_overspends(store, args.start))
+    store.close()
     if args.check_signatures:
         _merge(reg, find_bad_signatures(args.ledger, args.start, end, args.jobs))
 

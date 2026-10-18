@@ -10,7 +10,7 @@ next to the ledger so a restart reloads it and only the cheap incremental top-up
 These tests run fully in-process with a lightweight fake node (no node subprocess, no real ledger), so
 they are fast and deterministic. They assert: the on-disk round-trip, that a storage-mode mismatch is
 ignored, that _supply serves a preloaded cache WITHOUT touching the DB (no full scan), and that a
-background compute writes the file and the value reloads.
+background compute (over a temp LMDB ledger) writes the file and the value reloads.
 """
 import json
 import os
@@ -41,12 +41,6 @@ def _fake_node(tmp_path, intmode=True):
         ledger_path=ledger_path,
         ledger_integer_amounts=intmode,
         hdd_block=10,
-        # attributes a real compute (DbHandler) would read; harmless here:
-        index_db=os.path.join(str(tmp_path), "index.db"),
-        hyper_path=ledger_path,
-        ram=False,
-        ledger_ram_file="file:ledger_ram?mode=memory&cache=shared",
-        trace_db_calls=False,
         logger=SimpleNamespace(app_log=_Log()),
     )
 
@@ -67,7 +61,8 @@ def test_save_then_load_roundtrips_as_decimal(tmp_path):
     assert os.path.exists(path), "supply cache file should be written"
     raw = json.load(open(path))
     # circ persisted as a STRING (no float drift), height/intmode preserved.
-    assert raw == {"height": 42, "circ": "32486232.62370550", "intmode": True}
+    assert raw == {"height": 42, "circ": "32486232.62370550", "intmode": True,
+                   "basis": rest_api.SUPPLY_CACHE_BASIS}
     assert isinstance(raw["circ"], str)
 
     # Fresh node (cache not yet in memory) reloads the exact Decimal value.
@@ -135,40 +130,41 @@ def test_supply_serves_preloaded_cache_without_full_scan(tmp_path):
 
 
 def test_supply_compute_persists_and_reloads(tmp_path, monkeypatch):
-    # Drive the background compute with a fake DbHandler returning deterministic sums, so we exercise
-    # the real persist path (write supply_cache.json) and then reload without coupling to DB internals.
+    # Drive the background compute over a real temp LMDB ledger (reward 1 + 10, one 0.01 fee burned), so we
+    # exercise the real sum + persist path (write the cache file) and then reload it.
+    import amounts
+    import block_store
+    monkeypatch.setattr(amounts, "LEDGER_INTEGER", False)
     node = _fake_node(tmp_path, intmode=True)
-    node.hdd_block = 55
+    store = block_store.BlockStore(os.path.join(str(tmp_path), "blockstore-ledger.db"), map_size=1 << 26)
+    a, b = "a" * 56, "b" * 56
+    store.commit_block(1, "%056x" % 1, [("1", "1000", "genesis", a, "0", "g", "pk", "%056x" % 1,
+                                         "0", "1", "1", "genesis")])
+    store.commit_block(2, "%056x" % 2, [("2", "1002", a, b, "0.5", "s2", "pk", "%056x" % 2, "0.01", "0", "0", ""),
+                                        ("2", "1002", a, a, "0", "cb2", "pk", "%056x" % 2, "0", "10", "0", "n")])
+    node.ledger = store
+    node.hdd_block = 2
 
-    class _FakeDB:
-        def __init__(self, *a, **k):
-            self.h = object()
+    try:
+        rest_api.start_supply_compute(node)
+        # Wait for the daemon thread to finish (near-instant).
+        deadline = time.time() + 10
+        while getattr(node, "_supply_computing", False) and time.time() < deadline:
+            time.sleep(0.02)
+        assert not getattr(node, "_supply_computing", False), "compute thread did not finish"
 
-        def fetchall(self, cursor, sql, *a):
-            if "block_height >= 0" in sql:
-                return [[3_248_623_262_370_550]]   # base: SUM(reward)-SUM(fee), integer units
-            return [[0]]                           # mirror: SUM(amount) over negative heights
+        # In-memory cache set...
+        expected = Decimal("10.99000000")       # 1 + 10 rewards - 0.01 fee
+        assert node._supply_cache["height"] == 2
+        assert node._supply_cache["circ"] == expected
+        # the incremental top-up agrees with the full pass
+        assert amounts.to_decimal(rest_api.supply_units_range(store, 0, 2)) == expected
 
-        def close(self):
-            pass
-
-    monkeypatch.setattr(rest_api.dbhandler, "DbHandler", _FakeDB)
-
-    rest_api.start_supply_compute(node)
-    # Wait for the daemon thread to finish (regnet-style: near-instant).
-    deadline = time.time() + 10
-    while getattr(node, "_supply_computing", False) and time.time() < deadline:
-        time.sleep(0.02)
-    assert not getattr(node, "_supply_computing", False), "compute thread did not finish"
-
-    # In-memory cache set...
-    assert node._supply_cache["height"] == 55
-    expected = Decimal("32486232.62370550")  # 3_248_623_262_370_550 units / 1e8
-    assert node._supply_cache["circ"] == expected
-
-    # ...and persisted to disk so a future restart skips the scan.
-    path = rest_api.supply_cache_path(node)
-    assert os.path.exists(path)
-    reloaded = rest_api.load_supply_cache(_fake_node(tmp_path, intmode=True), intmode=True)
-    assert reloaded["height"] == 55
-    assert reloaded["circ"] == expected
+        # ...and persisted to disk so a future restart skips the compute.
+        path = rest_api.supply_cache_path(node)
+        assert os.path.exists(path)
+        reloaded = rest_api.load_supply_cache(_fake_node(tmp_path, intmode=True), intmode=True)
+        assert reloaded["height"] == 2
+        assert reloaded["circ"] == expected
+    finally:
+        store.close()

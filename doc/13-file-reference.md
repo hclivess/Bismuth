@@ -8,15 +8,16 @@ imported library; *script* = run directly.
 | File | Kind | Description |
 |---|---|---|
 | `node.py` | script | the full node (entry point); startup, threading, TCP server, command dispatch; `verify` is **fork-aware** (`node.py:1254`) — at/after `fork_height` single-sig rows route through `SignerFactory.verify_tx_signature` (recoverable-over-txid, pubkey dropped) (doc/29) |
-| `node_init.py` | module | node bootstrap/init helpers lifted from `node.py` by DI: `setup_net_type`, `node_block_init`, `ram_init`, `initial_db_check`, `load_keys`, `add_indices` |
+| `node_init.py` | module | node bootstrap/init helpers lifted from `node.py` by DI: `setup_net_type`, `open_ledger` (open the LMDB ledger; fresh install → peer snapshot or genesis; refuses an old schema and names `scripts/upgrade_ledger.py`; applies the fixed allocations), `node_block_init`, `load_keys` |
 | `node_stop.py` | script | sends `stop` to a local node |
 | `digest.py` | module | block validation/commit pipeline (consensus core): the `BlockProcessor` engine + `digest_block`/`process_block_data` orchestration + helpers |
 | `digest_tx.py` | module | block/tx data model lifted from `digest`: `Transaction`/`MinerTransaction`/`Block` value objects + the consensus quantizers (`quantize_two`/`quantize_eight`, which differ from `quantizer.py`) |
-| `chain_ops.py` | module | chain-maintenance ops lifted from `node.py` by DI: `rollback`, `recompress_ledger`, `ledger_check_heights`, `blocknf` (block-not-found rollback), plus boot/validation `bootstrap`, `check_integrity`, `sequencing_check` |
+| `chain_ops.py` | module | chain-maintenance ops lifted from `node.py` by DI: `rollback` (ledger + every index in one LMDB transaction, then the plugin stores), `blocknf` (measured fork resolution, doc/47), `seed_genesis`, `bootstrap` (DB-direct peer snapshot, doc/43), and the doc/35 difficulty-divergence detector + guarded self-heal |
+| `fork_resolution.py` | module | measured fork resolution ported from nado (tri-state ancestor probes, possession-before-rollback, one-shot tie-break, corroborated deep reorgs) (doc/47) |
+| `validation_exceptions.py` | module | historical validation-exception registry + block-hash checkpoints for from-genesis sync (doc/30) |
 | `fork.py` | module | hardfork heights & post-fork reward validation |
-| `genesis.py` | script | one-shot chain bootstrap (creates `ledger.db`); legacy wallet format |
+| `ledger_genesis.py` | module | the canonical genesis block (height 1, seeded into a fresh ledger) + `MAINNET_ALLOCATIONS`, the fixed Development Reward / Hypernode Payouts balance totals |
 | `options.py` | module | config loader (imported as `config` in the node) |
-| `application_directories.py` | module | tiny path helper (not used by the node) |
 | `log.py` | module | logger setup: rotating file handler + optional ANSI-coloured console output (`log_color`) |
 | `libs/node.py`, `libs/logger.py`, `libs/keys.py`, `libs/client.py` | modules | data-holder classes (`Node`, `Logger`, `Keys`, `Client`) |
 
@@ -31,36 +32,26 @@ imported library; *script* = run directly.
 | `difficulty_lwma.py` | module | hf2 LWMA retarget — symmetric/delicate/calculable; pure + **live fork-gated**: at/after `node.fork_height` `difficulty.py` (`difficulty.py:101`) routes its output through `lwma_next_difficulty` (doc/18) |
 | `fork.py` | module | hardfork heights + post-fork reward validation; **+ the deterministic signal-activated `dynamic_fork_height` scheduler** (doc/18) — **live**: `digest.py` (`digest.py:448`) runs it each digest and persists the locked height (replayed at startup) |
 | `hmac_drbg.py` | module | HMAC-DRBG (SHA512) that seeds `heavy3a.bin` |
-| `bismuth_serialize.py` | module | the FROZEN consensus byte forms (signing buffer, block hash) centralised — the boundary storage/API rework must not move (doc/16); **+ hf2 stage-0** `signature_buffer_v2`/`tx_id_v2` (native-integer + binary pre-image, dormant, caller-gated on `fork_height`) folded into the single hf2 fork (doc/29) |
+| `bismuth_serialize.py` | module | the FROZEN consensus byte forms (signing buffer, block hash) centralised — the boundary storage/API rework must not move; **+ hf2 stage-0** `signature_buffer_v2`/`tx_id_v2` (native-integer + binary pre-image, dormant, caller-gated on `fork_height`) folded into the single hf2 fork (doc/29) |
 | `gpuminer/` | dir | vendored Heavy3 GPU miners — CUDA (kbkminer) + OpenCL (`opencl_alt/`); coupled to the PoW (`gpuminer/README.md`) |
 
 ## Storage
 
 | File | Kind | Description |
 |---|---|---|
-| `dbhandler.py` | module | `DbHandler` — SQLite connection lifecycle + low-level SQL plumbing + canonical `sql_trace_callback`; composes the two mixins below |
-| `dbhandler_queries.py` | module | `DbQueriesMixin` — read-only ledger/index queries (heights, hashes, aliases, balances) |
-| `dbhandler_write.py` | module | `DbWriteMixin` — ledger write & rollback ops (block commit, drive flush, dev/hn rewards, index rollbacks) |
-| `block_store.py` | module | LMDB append-only block-body store (`BlockStore`) — phase-7 scalable storage foundation; lossless mirror of the ledger (`build_from_sqlite`/`verify_against_sqlite`), height-keyed with a hash→height index and reorg `rollback` |
-| `storage_backend.py` | module | the storage READ/WRITE seam (doc/26 stages 3–4): one block/tx interface, `SqliteBackend` + `LmdbBackend` (+ `LmdbWriteBackend`) with `cross_check` — the strangler-fig route off SQLite |
-| `token_index.py` | module | token+alias derived index on **LMDB** (`TokenIndex`) — post-fork successor to the SQLite `index.db` projection (doc/26 stage 2); owned by the `tokens_aliases` plugin (doc/27), flag `token_index` |
-| `balance_index.py` | module | maintained O(1) per-address balance index (`BalanceIndex`) in integer units — bit-matches `ledger_balance3`; phase-7 replacement for the full-scan balance |
-| `balance_cache.py` | module | per-`(address, height)` memo over the authoritative balance — O(1) repeat reads between blocks, invalidated on a new block |
-| `amounts.py` | module | exact integer (atomic-unit) ↔ legacy-string amount conversion (doc/16 phase 2) — keeps consensus/legacy-API strings byte-identical |
-| `migrate_amounts.py` | script | one-off TEXT→INTEGER ledger amount migration + replay verification (doc/16 phase 2) |
-| `db_helpers.py` | module | `retry_db` — the shared retry-until-it-works DB loop (replaces the per-call-site copies) |
-| `db_migrations.py` | module | versioned, idempotent SQLite schema migrations (`user_version`-tracked steps) |
-| `replay_verify.py` | script | recompute every block hash at the consensus boundary (`bismuth_serialize.block_hash`) vs the stored chain — storage-rework safety net |
-| `_lmdb_demo.py` | script | real-scale proof: build the LMDB `BlockStore` from the live mainnet ledger, verify lossless + consensus-faithful, measure size |
-| `reward_chain.py` | module | reward sidechain (`RewardChain`) — lifts the locally-minted dev/hypernode reward 'mirror' rows out of the main ledger into a height-keyed store (phase-5; balance-preserving) |
+| `block_store.py` | module | **the ledger**: ONE LMDB environment (`BlockStore`, `blockstore-<ledger name>`) — sub-dbs `blocks`, `hashes`, `pk`/`pkr` (pubkey dedup), `diff`, `sig`, `addr`, `bal`, `txid`, `pkref`, `meta`; `commit_block` / `rollback` are one transaction each; `typed_row` restores the column types; `reindex` rebuilds every index from the blocks; `stream_snapshot` serves the doc/43 snapshot (doc/05) |
+| `dbhandler.py` | module | `DbHandler` — thin thread-safe facade over the shared `BlockStore` with the semantic read helpers the node calls (`last_block_hash`, `pubkeyget`, `blocksync` …), `commit_block` and `rollback_under` |
+| `kvstore.py` | module | the LMDB layer: `open_store` / `KVStore` / `Codec` (msgpack, big-endian height keys) and `store_path` (per-ledger store naming) (doc/36) |
+| `token_index.py` | module | token+alias derived index on its own per-ledger LMDB store (`TokenIndex`), owned by the always-on `tokens_aliases` plugin (doc/27) |
+| `amounts.py` | module | exact integer (atomic-unit) ↔ legacy-string amount conversion — keeps consensus/legacy-API strings byte-identical |
+| `txrec.py`, `sigbytes.py`, `addrbytes.py`, `txfields.py` | modules | post-fork true-bytes tx record codecs (one packed `txrec` per tx; raw signature / address / numeric-field encodings) (doc/40) |
+| `sync_codec.py` | module | compact binary encoding of the REST sync payload (doc/40) |
+| `replay_verify.py` | script | recompute every block hash at the consensus boundary (`bismuth_serialize.block_hash`) vs the stored chain |
 | `db_hashes.py` | module | static known-good early-block hash table |
-| `ledger_queries.py` | module | `LedgerQueries` classmethod helpers (plugins/hypernodes) |
-| `balances.py` | module | `balanceget` — authoritative mempool-aware balance for the `balanceget*` socket commands (lifted from `node.py` by DI) |
-| `ledger_explorer.py` | script | early standalone block explorer (unmaintained) |
+| `balances.py` | module | `balanceget` — authoritative mempool-aware balance for the `balanceget*` socket commands, from the ledger's `bal` entry (lifted from `node.py` by DI) |
+| `snapshot_p2p.py` | module | DB-direct ledger snapshot: serve `/api/snapshot[/info]` from the live LMDB env (`env.copyfd`), fetch + tip-verify one from peers (doc/43) |
 | `quantizer.py` | module | `Decimal` rounding helpers (2/8/10 dp) |
-| `mempool.py` | module | `Mempool` — DB plumbing + consensus admission (`merge`, `space_left_for_tx`); composes the query mixin |
-| `mempool_queries.py` | module | `MempoolQueriesMixin` — mempool read/reporting & maintenance (`mp_get`, `status`, `tx_to_send`, `sig_check`, `purge`/`clear`…) |
-| `mempool_sql.py` | module | mempool SQL statements + tuning constants (re-exported by `mempool` via `import *`) |
+| `mempool.py` | module | `Mempool` — the in-memory pending-tx pool (signature-keyed, insertion-ordered) + admission (`merge`, `space_left_for_tx`) |
 
 ## Modernization
 
@@ -68,14 +59,6 @@ imported library; *script* = run directly.
 |---|---|---|
 | `fee_dynamics.py` | module | dynamic/EIP-1559-style fee schedule (post-fork, gated) — see doc/18 |
 | `difficulty_lwma.py` | module | fork-gated LWMA retarget (also listed under Consensus/PoW) — pure; live at/after `node.fork_height` (doc/18) |
-
-## Shielded value (doc/22)
-
-| File | Kind | Description |
-|---|---|---|
-| `shieldedv1.py` | module | stages 1+2: stealth addresses + linkable ring signatures (key images), `shield:mint/spend/redeem` consensus validation/apply + the LMDB `ShieldedState`; dispatches v1/v2/v3 |
-| `ringct.py` | module | stage 3: RingCT confidential amounts — Pedersen commitments + 2-column MLSAG; the v3 note/spend formats (doc/22 §13) |
-| `bulletproof.py` | module | aggregatable Bulletproof range proofs (batch-verifiable) backing RingCT outputs |
 
 ## Networking
 
@@ -91,12 +74,13 @@ imported library; *script* = run directly.
 | `peers_reputation.py` | module | per-peer reputation (proven valid-PoW deliveries) — drives reward/penalize, reputation-weighted tip, and the rollback-consensus gate |
 | `worker.py` | module | outbound per-peer sync thread |
 | `rpcconnections.py` | module | client-side `Connection` class (for wallets/scripts) |
-| `hyperlane.py` | module | placeholder hyperlane manager (stub); `attic/hyperlane_asyncio.py` is the retired asyncio variant |
+| `tor_manager.py` | module | Tor lifecycle (off / external / managed, ephemeral v3 onion) (doc/38) |
 | `rest_api.py` | module | read-only modern REST/JSON API server (status/blocks/balance/tx/peers); `/headers/range` (headers-first) + `/blocks/range?format=sync` (consensus-faithful digester tuples) + `/api/stats/{summary,monthly,tx_per_month,new_addresses,rich_list,top_miners,largest_txs,market,difficulty,geo}` (delegated to `rest_stats`) |
 | `rest_stats.py` | module | explorer stats payloads (doc/15): cheap on-demand `network_summary`/`difficulty_series` + background-cached `tx_per_month` (full-ledger histogram) + best-effort `geo_nodes` peer geolocation (gated `rest_api_geo`) |
 | `rest_client.py` | module | stdlib REST client: capability discovery + parallel block fetch (`parallel_fetch`/`parallel_fetch_sync`) + `fetch_headers` for headers-first quick sync |
 | `api_sync.py` | module | capability-gated, fail-soft headers-first chain-segment fetch (`sync_segment`) — the seam between `rest_client` (transport) and the digester (consensus) |
-| `rpc_bitcoin.py` | module | bitcoind-compatible JSON-RPC adapter (flag `rpc_bitcoin`, off, :8332): ~32 methods — chain/header/mempool/mining/network reads, getrawtransaction/getbalance/estimatesmartfee, gated sendrawtransaction/submitblock; post-hf2 content-txids over block_store; honest -32601 for UTXO/Script/PSBT/wallet |
+| `api_sync_worker.py` | module | the opt-in `api_sync` catch-up loop: pulls the chain from a peer's REST API into the digester |
+| `rpc_bitcoin.py` | module | bitcoind-compatible JSON-RPC adapter (flag `rpc_bitcoin`, off, :8332): ~32 methods — chain/header/mempool/mining/network reads, getrawtransaction/getbalance/estimatesmartfee, gated sendrawtransaction/submitblock; post-hf2 content-txids over the LMDB ledger; honest -32601 for UTXO/Script/PSBT/wallet |
 | `rpc_ethereum.py` | module | `eth_*` compatibility adapter (flag `rpc_ethereum`, off, :8545): 42 methods incl. eth_call/getCode/getStorageAt/estimateGas over the RISC-V `vm_state`; bounded by *literal* EVM compat (not MetaMask), ROADMAP/DIVERGENCE -32601 for unbacked |
 | `transport.py` | module | HTTP transport codecs (gzip/br) negotiated via `Accept-Encoding`; zero hard native deps |
 
@@ -110,7 +94,6 @@ imported library; *script* = run directly.
 | `apihandler_tx.py` | module | `TxApiMixin` — transaction read API (`api_gettransaction*`) |
 | `block_format.py` | module | pure block→JSON formatters (`blockstojson` / `blocktojsondiffs`), extracted from `apihandler` |
 | `commands.py` | script | CLI wrapper over node socket commands |
-| `check_tx.py` | script | report a txid's status (reads the DBs directly) |
 | `legacy_sync_probe.py` | script | read-only diagnostic: verifies live wire/protocol compatibility with legacy mainnet peers (handshake / version / peer-list / block-height negotiation) |
 | `attic/demo_getstatus.py`, `attic/demo_getaddresssince.py` | scripts | single-command examples (retired to `attic/`; use the REST API) |
 | `cmd_addpeers.py`, `cmd_hn_reg_round.py`, `cmd_hn_last_block_ts.py` | scripts | peer add / hypernode-plugin queries |
@@ -133,12 +116,9 @@ imported library; *script* = run directly.
 
 | File | Kind | Description |
 |---|---|---|
-| `tokensv2.py` | module | token issue/transfer indexing |
-| `aliases.py` / `aliasesv2.py` | modules | alias indexing (v1 `alias=` / v2 `alias:register`); the `tokens_aliases` plugin (doc/27) implements mutable-ownership evolution ops: `alias:register` (claim), `alias:transfer` (owner-only, recipient in openfield), `alias:free` (owner-only release) |
-| `staking.py` | module | offline-staking proof of concept (experimental) |
 | `plugins.py` | module | `PluginManager` (action/filter hooks) |
 | `plugin_base.py` | module | modern plugin framework (doc/27): typed `BismuthPlugin` base (`setup`/`backfill`/`on_block`/`on_rollback` + service/REST/peer-command surfaces) |
-| `plugins/tokens_aliases/` | package | the tokens+aliases MODERN plugin — owns the LMDB `TokenIndex`; core defers to it when `token_index` is on (doc/27) |
+| `plugins/tokens_aliases/` | package | the tokens+aliases plugin, always on — the node's only token/alias path: owns the LMDB `TokenIndex`, the `token:issue`/`token:transfer`, `alias=` and `alias:register`/`alias:transfer`/`alias:free` ops, and their socket/REST queries (doc/27) |
 | `regnet.py` | module | regression-test network |
 
 ## No-GUI / helper scripts
@@ -148,7 +128,6 @@ imported library; *script* = run directly.
 | `send_nogui_noconf.py` | script | build/sign/submit a transaction without prompts |
 | `send_csv.py` | script | batch payouts from `rewards.csv` (wraps `send_nogui_noconf.py`) |
 | `balance_nogui.py` | script | print an address balance breakdown |
-| `attic/rewards_reindex.py`, `attic/rewards_test.py` | scripts | one-off dev-reward backfill / check (retired to `attic/`) |
 
 ## Config & data
 
@@ -157,9 +136,10 @@ imported library; *script* = run directly.
 
 ## Tests, tooling, assets
 
-`tests/` (see [12](12-tooling-build-tests.md)), `static/` (snapshot/maintenance tooling + web assets),
-`install_node.sh` (full node installer: deps + systemd unit; `scripts/install-node-service.sh` +
-`scripts/snapshot.py` companions), `scripts/rebuild_block_store.py` (backfill the LMDB block store
-from the SQLite ledger — `build`/`verify`/`compact`/`info`; resumable, ledger opened read-only, safe to run
-against a live node under `nice`/`ionice`; doc/26), `_mkbootstrap.sh` (ledger-snapshot/bootstrap builder),
-`graphics/`, `auto-install/`, `compile_nuitka.cmd`, `setup.iss`, `.travis.yml`, `pytest.ini`, `doc/`.
+`tests/` (see [12](12-tooling-build-tests.md)), `static/` (runtime data: the LMDB ledger
+`blockstore-<ledger>` and per-ledger sidecars, + web assets), `install_node.sh` (full node installer:
+deps + systemd unit; `scripts/install-node-service.sh` companion), `scripts/upgrade_ledger.py` (upgrade a
+pre-LMDB-only block store to the current ledger schema: difficulty replay anchored on peers'
+`/api/stats/difficulty`, then `BlockStore.reindex`; node stopped; doc/05), `scripts/migrate_config.py`
+(`config.txt` → `config.toml`), `graphics/`, `auto-install/`, `compile_nuitka.cmd`, `setup.iss`,
+`.travis.yml`, `pytest.ini`, `doc/`.

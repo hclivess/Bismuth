@@ -35,7 +35,7 @@ send(sdef, data):  header = str(len(json)).zfill(10);  sendall(header + json)
 | `sendsync` / `sync` | drive the next sync round |
 | `blockheight` | exchange block heights; decide who is ahead |
 | `blocksfnd` / `blockscf` / `blocksrj` | "I have blocks" / "send them" / "rejected" (longest-chain or most-common rule) |
-| `blocknf` / `blocknfhb` | "your hash not found" (fork signal); `hb` variant = from a hyperblock node |
+| `blocknf` / `blocknfhb` | "your hash not found" (fork signal); `hb` variant = legacy wire value, handled identically |
 | `nonewblk` | tips match → exchange mempool |
 | `mempool` | followed by the sender's mempool transactions |
 | `block` | a freshly mined block (miner → node; mainnet requires ≥5 connections and within 3 blocks of consensus) |
@@ -113,6 +113,6 @@ before it was attic'd — see [14](14-known-issues-and-improvements.md).
 Every loop (worker, ConnectionManager, miner, main) honours the `node.IS_STOPPING` flag. It is raised
 two ways: the localhost/whitelisted **`stop` socket command** (see [08](08-api-and-commands.md)), and a
 **`SIGTERM`/`SIGINT` handler** installed in `node.py` (`_graceful_stop` → `IS_STOPPING = True`). On
-either, the main loop waits for `db_lock` to free (so an in-flight block finishes writing to **both**
-`ledger.db` and `hyper.db`), closes Heavy3, and exits — preventing a `kill`/Ctrl-C from terminating
-mid-write and leaving the ledger/hyper heights split.
+either, the main loop waits for `db_lock` to free (so an in-flight block finishes its LMDB commit),
+closes Heavy3, and exits. Even a hard kill cannot split state: every block commit is one LMDB
+transaction, so the ledger reopens at a clean block boundary.

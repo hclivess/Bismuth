@@ -8,7 +8,34 @@ import base64
 import amounts
 import block_format
 import connections
+import block_store
 from polysign.signerfactory import SignerFactory
+
+
+def _store(db_handler, node=None):
+    """The LMDB ledger (``block_store.BlockStore``) behind a DbHandler (or the node's, as a fallback)."""
+    store = getattr(db_handler, "store", None)
+    if store is None and node is not None:
+        store = getattr(node, "ledger", None)
+    return store
+
+
+def _parts_upto(store, address, max_block_height):
+    """(credited amount, rewards, debited amount, fees) in integer units counting only blocks
+    <= ``max_block_height``: the maintained balance entry minus the address's rows above that height."""
+    parts = list(store.balance_parts(address))
+    tip = store.tip()
+    if tip is None or max_block_height < 1:
+        return 0, 0, 0, 0
+    if max_block_height < tip:
+        for r in store.address_rows(address, lo=int(max_block_height) + 1):
+            if str(r[block_store.RECIP]) == address:
+                parts[0] -= block_store.units(r[block_store.AMOUNT])
+                parts[1] -= block_store.units(r[block_store.REWARD])
+            if str(r[block_store.ADDR]) == address:
+                parts[2] -= block_store.units(r[block_store.AMOUNT])
+                parts[3] -= block_store.units(r[block_store.FEE])
+    return tuple(parts)
 
 
 class AddressApiMixin:
@@ -33,18 +60,17 @@ class AddressApiMixin:
                 connections.send(socket_handler, info)
                 return
             try:
-                db_handler.execute_param(db_handler.h,
-                                        ('SELECT block_height FROM transactions WHERE address= ? or recipient= ? LIMIT 1;'),
-                                        (address,address))
-                _ = db_handler.h.fetchone()[0]
-                # no exception? then we have at least one known tx
-                info['known'] = True
-                db_handler.execute_param(db_handler.h, ('SELECT public_key FROM transactions WHERE address= ? and reward = 0 LIMIT 1;'), (address,))
-                try:
-                    info['pubkey'] = db_handler.h.fetchone()[0]
-                    info['pubkey'] = base64.b64decode(info['pubkey']).decode('utf-8')
-                except Exception as e:
-                    self.app_log.warning(e)
+                store = _store(db_handler, getattr(self, "node", None))
+                if store.address_rows(address, reverse=False, limit=1):
+                    # at least one known tx
+                    info['known'] = True
+                    try:
+                        pubkey = store.first_pubkey(address)
+                        if pubkey is None:
+                            raise ValueError(f"no public key on the ledger for {address}")
+                        info['pubkey'] = base64.b64decode(pubkey).decode('utf-8')
+                    except Exception as e:
+                        self.app_log.warning(e)
 
             except Exception as e:
                 self.app_log.warning(e)
@@ -71,9 +97,8 @@ class AddressApiMixin:
         starting_block = connections.receive(socket_handler)
         limit = connections.receive(socket_handler)
 
-        # Coerce and clamp both client-supplied bounds. A negative limit becomes SQLite
-        # "LIMIT -1" (unbounded), so clamp to [0, 500]; a non-int/negative starting_block
-        # would either error or scan the whole history.
+        # Coerce and clamp both client-supplied bounds: limit to [0, 500] (a negative limit must never mean
+        # "unbounded"); a non-int/negative starting_block would either error or scan the whole history.
         try:
             limit = min(500, max(0, int(limit)))
             starting_block = max(0, int(starting_block))
@@ -81,14 +106,8 @@ class AddressApiMixin:
             connections.send(socket_handler, [])
             return
 
-        db_handler.execute_param(db_handler.h, ("SELECT * FROM transactions "
-                                                "WHERE ? IN (address, recipient) "
-                                                "AND block_height >= ? "
-                                                "ORDER BY block_height "
-                                                "ASC LIMIT ?"),
-                                 (address, starting_block, limit,))
-
-        result = db_handler.h.fetchall()
+        store = _store(db_handler, getattr(self, "node", None))
+        result = store.address_rows(address, reverse=False, lo=starting_block, limit=limit) if limit else []
         blocks = block_format.blockstojson(result)
         connections.send(socket_handler, blocks)
 
@@ -111,16 +130,14 @@ class AddressApiMixin:
         print('api_getaddresssince', since_height, min_confirmations, address)
         try:
             try:
-                db_handler.execute(db_handler.h, "SELECT MAX(block_height) FROM transactions")
+                store = _store(db_handler, getattr(self, "node", None))
                 # what is the max block height to consider ?
-                block_height = min(db_handler.h.fetchone()[0] - min_confirmations, since_height+720)
-                db_handler.execute_param(db_handler.h,
-                                        ('SELECT * FROM transactions WHERE block_height > ? AND block_height <= ? '
-                                         'AND ((address = ?) OR (recipient = ?)) ORDER BY block_height ASC'),
-                                        (since_height, block_height, address, address))
-                info = [amounts.display_row(r) for r in db_handler.h.fetchall()]
+                block_height = min(store.tip() - min_confirmations, since_height+720)
+                rows = (store.address_rows(address, reverse=False, lo=since_height + 1, hi=block_height)
+                        if block_height > since_height else [])
+                info = [amounts.display_row(r) for r in rows]
             except Exception as e:
-                print("Exception api_getaddresssince:".format(e))
+                print("Exception api_getaddresssince: {}".format(e))
                 raise
             connections.send(socket_handler, {'last': block_height, 'minconf': min_confirmations, 'transactions': info})
         except Exception as e:
@@ -135,25 +152,13 @@ class AddressApiMixin:
         :return:
         """
         try:
-            db_handler.execute(db_handler.h, "SELECT MAX(block_height) FROM transactions")
+            store = _store(db_handler, getattr(self, "node", None))
             # what is the max block height to consider ?
-            max_block_height = db_handler.h.fetchone()[0] - minconf
-            # calc balance up to this block_height
-            db_handler.execute_param(db_handler.h, "SELECT sum(amount)+sum(reward) FROM transactions WHERE recipient = ? and block_height <= ?;", (address, max_block_height))
-            credit = db_handler.h.fetchone()[0]
-            if not credit:
-                credit = 0
-            # debits + fee - reward
-            db_handler.execute_param(db_handler.h, "SELECT sum(amount)+sum(fee) FROM transactions WHERE address = ? and block_height <= ?;", (address, max_block_height))
-            debit = db_handler.h.fetchone()[0]
-            if not debit:
-                debit = 0
+            max_block_height = store.tip() - minconf
+            # calc balance up to this block_height: credit (amount + reward) - debit (amount + fee)
+            credited, rewards, debited, fees = _parts_upto(store, address, max_block_height)
             # keep as float
-            # balance = '{:.8f}'.format(credit - debit)
-            if amounts.LEDGER_INTEGER:
-                balance = float(amounts.to_decimal(credit) - amounts.to_decimal(debit))
-            else:
-                balance = credit - debit
+            balance = float(amounts.to_decimal(credited + rewards - debited - fees))
         except Exception as e:
             # self.app_log.warning(e)
             raise
@@ -175,7 +180,7 @@ class AddressApiMixin:
             minconf = connections.receive(socket_handler)
             if minconf < 1:
                 minconf = 1
-            # TODO: Better to use a single sql query with all addresses listed?
+            # TODO: read the tip once for all the addresses?
             for address in addresses:
                 balance += self._get_balance(db_handler, address, minconf)
             # print('api_getbalance', addresses, minconf,':', balance)
@@ -192,16 +197,11 @@ class AddressApiMixin:
         """
         try:
             # TODO : for this one and _get_balance, request max block height out of the loop and pass it as a param to alleviate db load
-            db_handler.execute(db_handler.h, "SELECT MAX(block_height) FROM transactions")
+            store = _store(db_handler, getattr(self, "node", None))
             # what is the max block height to consider ?
-            max_block_height = db_handler.h.fetchone()[0] - minconf
+            max_block_height = store.tip() - minconf
             # calc received up to this block_height
-            db_handler.execute_param(db_handler.h, "SELECT sum(amount) FROM transactions WHERE recipient = ? and block_height <= ?;", (address, max_block_height))
-            credit = db_handler.h.fetchone()[0]
-            if not credit:
-                credit = 0
-            if amounts.LEDGER_INTEGER:
-                credit = float(amounts.to_decimal(credit))
+            credit = float(amounts.to_decimal(_parts_upto(store, address, max_block_height)[0]))
         except Exception as e:
             # self.app_log.warning(e)
             raise
@@ -222,7 +222,7 @@ class AddressApiMixin:
             minconf = connections.receive(socket_handler)
             if minconf < 1:
                 minconf = 1
-            # TODO: Better to use a single sql query with all addresses listed?
+            # TODO: read the tip once for all the addresses?
             for address in addresses:
                 received += self._get_received(db_handler, address, minconf)
             print('api_getreceived', addresses, minconf,':', received)
@@ -276,7 +276,7 @@ class AddressApiMixin:
             if minconf < 1:
                 minconf = 1
             include_empty = connections.receive(socket_handler)
-            # TODO: Better to use a single sql query with all addresses listed?
+            # TODO: read the tip once for all the addresses?
             for address in addresses:
                 temp = self._get_balance(db_handler, address, minconf)
                 if include_empty or temp >0:

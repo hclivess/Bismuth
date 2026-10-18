@@ -46,8 +46,8 @@ def test_coinbase_v2_slot_overflow_is_clean_valueerror():
 
 # --- finding 1: dynamic-fee weight window must be deterministic (fail closed on a gap) -----------------
 def test_recent_block_weights_strict_fails_closed_on_gap():
-    pytest.importorskip("lmdb")
     import tempfile, os
+    import block_store
     from block_store import BlockStore
 
     def _row(h, i, bh):
@@ -57,9 +57,11 @@ def test_recent_block_weights_strict_fails_closed_on_gap():
     d = tempfile.mkdtemp()
     s = BlockStore(os.path.join(d, "bs"), map_size=64 * 1024 * 1024)
     try:
-        for h in (4, 5, 6, 8):                               # deliberate GAP at height 7
+        for h in (4, 5, 6, 7, 8):
             bh = "hash%08d" % h
-            s.put_block(h, bh, [_row(h, i, bh) for i in range(2)])
+            s.commit_block(h, bh, [_row(h, i, bh) for i in range(2)])
+        with s.store.txn(write=True) as t:                   # deliberate GAP at height 7 (a damaged store)
+            t.delete(s.blocks, block_store._hk(7))
         # non-strict (diagnostic): silently skips the missing height -> a SHORT window (the bug's mechanism)
         lax = s.recent_block_weights(8, window=5, strict=False)
         assert len(lax) == 4                                # 4,5,6,8 (7 skipped)

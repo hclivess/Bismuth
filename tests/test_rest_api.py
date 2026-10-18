@@ -148,10 +148,18 @@ def test_rest_balance_matches_socket_and_is_cached(client):
 def test_rest_transaction(client):
     client.mine(1)
     txid = client.send(client.address, 1.0)
-    client.mine(1)
-    time.sleep(0.3)
-    code, body = _get(f"/transaction/{txid}")
-    assert code == 200
+    # poll for inclusion (under suite load the tx can miss the very next block): mine until it is served
+    code, body = None, None
+    for _ in range(10):
+        client.mine(1)
+        time.sleep(0.3)
+        try:
+            code, body = _get(f"/transaction/{txid}")
+            break
+        except urllib.error.HTTPError as e:
+            if e.code != 404:
+                raise
+    assert code == 200, "tx %s never became queryable" % txid
     assert body["recipient"] == client.address
     assert float(body["amount"]) == 1.0
 
@@ -180,12 +188,10 @@ def test_rest_unknown_endpoint_404(client):
 
 
 def test_rest_block_reads_post_fork_use_lmdb(client):
-    # doc/26 stage 3: post-fork the REST block-BODY reads come from the LMDB block_store (regnet has
-    # block_store=True), with a SQLite fallback. Mine until hf2 is active (so node.last_block >=
-    # node.fork_height -> the seam picks the LMDB backend), then read blocks every which way and assert
-    # they're correct. This deterministically pins the LMDB-served path; data parity with SQLite is proven
-    # separately by storage_backend.cross_check. (Kept LAST in this file: it advances the chain past the
-    # fork, and we don't want that burst of mining to race the timing-sensitive tx-inclusion test above.)
+    # The REST block-BODY reads come from the LMDB ledger. Mine until hf2 is active (post-fork blocks are
+    # stored in the true-bytes txrec form), then read blocks every which way and assert they're correct.
+    # (Kept LAST in this file: it advances the chain past the fork, and we don't want that burst of mining
+    # to race the timing-sensitive tx-inclusion test above.)
     assert _wait_rest()
     _, fk = _get("/fork")
     deadline = time.time() + 40
@@ -200,7 +206,7 @@ def test_rest_block_reads_post_fork_use_lmdb(client):
     code, body = _get(f"/block/height/{tip}")
     assert code == 200 and body["block_height"] == tip and body["transactions"]
 
-    # by hash: the hash comes from the (SQLite) header endpoint, the body is read by hash (LMDB) — and the
+    # by hash: the hash comes from the header endpoint, the body is read by hash — and the
     # two body reads must be byte-identical (same source, same format_raw_tx)
     _, hdr = _get(f"/headers/range/{tip}/{tip}")
     bhash = hdr["headers"][0]["block_hash"]

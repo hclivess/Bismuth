@@ -1,10 +1,40 @@
 # Changelog — 2026-06 session (commit-anchored)
 
 Engineering changelog for the work landed this session on `hclivess` main. Each entry is
-**what / why / verification**, anchored to real commit hashes (`git log --oneline`). Honest
-about shipped-vs-deferred: the SQLite→LMDB *consensus reads* and the lockstep SQLite write
-path remain deliberately on SQLite (doc/26 defers them); the storage work below is the
-engine-seam stage, not the SQLite retirement.
+**what / why / verification**, anchored to real commit hashes (`git log --oneline`). Entries are
+dated records of the tree as it stood; the storage entries below predate the LMDB-only ledger
+(2026-10-18, top), which superseded them.
+
+---
+
+## 2026-10-18 — The ledger is LMDB-only (doc/05, 26)
+
+**What:** SQLite is gone from the node — every database, query, option and helper. The whole ledger is
+ONE LMDB environment, `blockstore-<ledger name>` (mainnet: `static/blockstore-ledger.db`), holding the
+sub-databases `blocks`, `hashes`, `pk`/`pkr` (pubkey dedup), `diff` (per-block difficulty), `sig`
+(`signature[:56]` index), `addr` (address history), `bal` (per-address credited amount / rewards /
+debited amount / fees in integer units), `txid` (post-fork content txids), `pkref` (post-fork pubkey
+registry) and `meta` (schema, tx count, allocations). `BlockStore.commit_block` writes a block and every
+index entry in one write transaction; `rollback` reverses a reorg in one transaction. The mempool is
+in memory. Tokens and aliases live only in `plugins/tokens_aliases` (its own LMDB store, always on).
+
+**Retired with it:** `ledger.db`/`hyper.db`/`index.db`/`mempool.db`, hyperblocks, RAM mode, the
+`misc` difficulty table, commit markers and reconcile, the separate balance/txid/pubkey/reward/difficulty
+stores, the `ledger.tar.gz` bootstrap, and the options `hyper_path`, `hyper_recompress`, `full_ledger`,
+`ram`, `mempool_ram`, `mempool_path`, `trace_db_calls`, `autoheal(_interval)`,
+`bootstrap_url`, `bootstrap_file`, `snapshot_path`, `block_store`, `balance_index(_consensus)`,
+`txid_index_consensus`, `pk_registry_consensus`, `parity_strict`, `token_index`, `rebuild_db`.
+
+**Mirror rows removed:** the negative-height Development Reward / Hypernode Payouts rows are no longer
+synthesized. Their concluded totals are fixed balance allocations (`ledger_genesis.MAINNET_ALLOCATIONS`,
+stored in `meta` "alloc"), so both addresses' balances still equal the network's.
+
+**Bootstrap / upgrade:** a fresh node takes a DB-direct LMDB snapshot from a peer (doc/43, tip hash
+verified) or seeds the genesis block (`ledger_genesis`) and syncs. An existing block store built before
+this change is upgraded in place with `scripts/upgrade_ledger.py <store> --anchor <REST node>`: the
+difficulty history is replayed with `difficulty.retarget`, anchored on peers' published
+`/api/stats/difficulty`, then `BlockStore.reindex` rebuilds every index. The node refuses to start on an
+old schema and names the command to run.
 
 ---
 
@@ -147,18 +177,17 @@ up the new defaults and the boot log line then; detect was already safe-by-defau
 ## 3. Engine-agnostic KVStore seam + all 8 LMDB store migrations (doc/26 storage stage 1)
 
 **What:** `kvstore.py` — one small engine-agnostic KV interface + an `open_store(backend, path,
-*, dbs, map_size)` factory (`backend ∈ {lmdb, mdbx, sqlite-kv}`), with a `Codec` centralizing
+*, dbs, map_size)` factory (`backend ∈ {lmdb, mdbx}` plus a stdlib test backend, since removed), with a `Codec` centralizing
 value (de)serialization (msgpack + JSON fallback, byte-identical to the stores' existing format).
 The node's 8 LMDB stores previously each called `lmdb.open()`/`env.begin()` directly with no
 shared chokepoint; switching the KV engine meant touching 8 files. All 8 now open through the
-factory, so an **LMDB ↔ MDBX ↔ sqlite-kv swap is a one-arg factory change** across the whole
-layer. `sqlite-kv` is always available (WAL + per-txn connections, honoring many-readers /
-one-writer) and exists to *prove* swappability without an MDBX binding; `mdbx` is wired with a
-lazy import.
+factory, so an **engine swap is a one-arg factory change** across the whole layer. A second,
+stdlib-only backend proved swappability without an MDBX binding (removed with the LMDB-only
+ledger); `mdbx` is wired with a lazy import.
 
 | Commit | What |
 | --- | --- |
-| `d6078e58` | The `kvstore.py` seam (interface + factory + `Codec` + lmdb/sqlite-kv/mdbx backends) + migrate `reward_chain` (store 1/8, lowest-risk: non-consensus, rebuildable) |
+| `d6078e58` | The `kvstore.py` seam (interface + factory + `Codec` + engine backends) + migrate `reward_chain` (store 1/8, lowest-risk: non-consensus, rebuildable) |
 | `40a1f646` | Migrate `txid_index` (store 2/8) + add `KVTxn.drop()` to the seam |
 | `b660bc4f` | Migrate the remaining 6 — `balance_index`, `vm_state`, `token_index`, `shieldedv1`, `block_store`, `scripts/snapshot` — + add `KVTxn.count()` and `KVStore.copy_to()` |
 
@@ -167,17 +196,16 @@ migration becomes a configuration choice instead of an 8-file edit, without chan
 formats or consensus behavior.
 
 **Verification:** each store keeps its **public API and on-disk byte format unchanged**, so its
-pre-existing parity/rebuild/rollback test passes unmodified; new `backend_swappable[lmdb|sqlite-kv]`
-tests run the *same* store on both engines and assert identical results; on-disk bytes pinned
+pre-existing parity/rebuild/rollback test passes unmodified; new `backend_swappable`
+tests ran the *same* store on both engines and assert identical results; on-disk bytes pinned
 byte-identical against a raw-lmdb read; a best-of-N perf gate confirms the LMDB wrapper is a thin
 passthrough (range ~+7%, get within noise). `tests/test_kvstore.py` plus the per-store tests:
 **full storage suite 62 passed**; no `import lmdb` / `lmdb.open()` remains in any store file
 (only `kvstore.py`'s `LmdbKVStore` adapter).
 
-**Honest scope (deferred):** the consensus SQL paths (`ledger_balance3`,
-`_signature_exists_in_ledger`) and the SQLite `commit_marker`/ATTACH/WAL lockstep write path are
-**byte-untouched** and stay deliberately on SQLite (doc/26 defers them; inflation risk). This is
-the engine-seam stage, not the SQLite retirement.
+**Scope at the time:** the consensus balance and duplicate-signature reads and the lockstep write
+path still ran on the pre-LMDB relational ledger; this was the engine-seam stage. The 2026-10-18 entry
+(top) completed the move: the ledger is LMDB-only.
 
 ---
 
@@ -211,7 +239,7 @@ deliberately off in the normal suite; the prod node stayed synced throughout.
 
 ---
 
-## 5. Prod slow-resume fix + heavy-query audit (doc/37)
+## 5. Prod slow-resume fix + heavy-query audit
 
 A mainnet restart took ~13 min to resume syncing. Root-caused from the boot log (the recompression guess
 was **refuted** — skipped in ~2 ms) to two unrelated causes, both fixed, then a codebase-wide audit of
@@ -221,7 +249,7 @@ similar heavy queries (worse as the chain grows post-fork).
 | --- | --- |
 | `196f8998` | worker.py: cap the outbound dial at `DIAL_TIMEOUT=5s` (clearnet) — a dead peer no longer hangs the worker in `connect()` for the OS SYN-retry window (~127s), the ~9.6 min "stuck 1 block behind" phase. chain_ops.sequencing_check: bound the `misc` difficulty scan to `max(300000, sequencing_last)` instead of re-reading 300000→tip every boot (~3.5 min). |
 | `9324ffaa` | Behaviour-preserving scan-narrowing: `balance_index`/`txid_index` rebuilds `SELECT *`→only the needed columns (the dominant boot cost; no longer drags every row's pubkey/sig blobs through Python); REST `/api/transaction` signature fallback → `TXID4_Index` seek instead of a full-table `LIKE`; `balanceget` 3→2 full-history scans. |
-| `cc559849` | **doc/37** — the standing heavy-query reference: index baseline, fixes, the `ledger_balance3` consensus guardrail, deferred items with rationale, the post-fork degradation watchlist, and 2 correctness blockers (recompress not integer-safe; balances blanket-except). |
+| `cc559849` | **doc/37** (since deleted with the relational ledger) — the heavy-query reference: index baseline, fixes, the `ledger_balance3` consensus guardrail, deferred items with rationale, the post-fork degradation watchlist, and 2 correctness blockers (recompress not integer-safe; balances blanket-except). |
 
 **Verification:** storage parity 18/18 + balanceget/tx-lookup/REST 40/40; the full suite stayed green; prod synced throughout (audit was source-only — no prod-ledger scan).
 
@@ -250,5 +278,5 @@ similar heavy queries (worse as the chain grows post-fork).
   abstracted). Its design is also captured in `kvstore.py`'s module docstring and framed as storage
   stage 1 of doc/26.
 - Cross-references: poker → doc/28, 32, 33, 34; difficulty self-heal → doc/35; KVStore seam → doc/36;
-  storage → doc/26 (and the SQLite→LMDB canonical migration / storage stages tracked in doc/17, 26).
+  storage → doc/05 (the LMDB ledger) and doc/26 (the completed migration).
 - The full session map lives in **[doc/00-architecture-overview.md](00-architecture-overview.md)**.

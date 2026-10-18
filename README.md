@@ -8,7 +8,7 @@ validates blocks, maintains the ledger, talks to peers, mines, and serves wallet
 > validate identically. Every change is replay-verified (the chain is re-hashed end-to-end through a
 > frozen serialization boundary) and gated by the test suite, so storage, networking and APIs can be
 > modernized safely behind a fixed consensus layer. See the [Roadmap](#roadmap) and
-> [`doc/16`](doc/16-database-rework-plan.md).
+> [`doc/05`](doc/05-database-and-ledger.md).
 >
 > For production, use a tagged release — `main` may be ahead of what's network-validated.
 
@@ -17,6 +17,25 @@ validates blocks, maintains the ledger, talks to peers, mines, and serves wallet
 ## Quickstart
 
 Requires **Python 3.8+** (developed/tested on 3.12).
+
+### One-command install (Debian/Ubuntu) — recommended
+
+```bash
+git clone https://github.com/hclivess/bismuth.git && cd bismuth
+sudo ./install_node.sh
+```
+
+`install_node.sh` installs the system + Python dependencies (LMDB, ed25519 with the Python 3.12 build
+fix, secp256k1), verifies every import, writes and enables the `bismuth-node` systemd service and starts
+it. A fresh node bootstraps its LMDB ledger from a peer's DB-direct snapshot (doc/43) and syncs the rest.
+Flags: `--no-start`, `--restart`, `--deps-only`, `--no-apt`, `--regnet`, `--tor`, `--service-name NAME`,
+`--user USER` (`./install_node.sh --help`). Idempotent — re-run it after a `git pull`.
+
+Upgrading a node whose block store predates the LMDB-only ledger: stop it and run
+`python3 scripts/upgrade_ledger.py static/blockstore-ledger.db --anchor http://<a synced REST node>:5659`
+(the node refuses to start on an old schema and prints this command; the installer warns too).
+
+### Manual
 
 ```bash
 # 1. install dependencies
@@ -33,13 +52,14 @@ python3 node_stop.py
 
 Don't babysit a `screen`/`nohup`. Install the node as a systemd service — it survives reboots, restarts
 on failure, and stops **gracefully** (systemd sends `SIGTERM`, the node finishes its in-flight block and
-drains `db_lock`, so `ledger.db`/`hyper.db` stay consistent):
+drains `db_lock`; every block commit is one atomic LMDB transaction anyway):
 
 ```bash
-sudo bash scripts/install-node-service.sh
+sudo ./install_node.sh                    # deps + service (full installer, above)
+sudo bash scripts/install-node-service.sh # service only, deps already installed
 ```
 
-The installer auto-detects the repo dir, `python3`, and user; gracefully stops any node already running
+The service-only installer auto-detects the repo dir, `python3`, and user; gracefully stops any node already running
 on `:5658`; writes `/etc/systemd/system/bismuth-node.service`; and enables + starts it. After that:
 
 ```bash
@@ -105,8 +125,8 @@ socket sync. Full REST API reference: [`doc/15`](doc/15-rest-api.md).
 | Consensus serialization | `bismuth_serialize.py` | **frozen** signing/block-hash byte forms; the boundary everything hides behind |
 | Block processing | `digest.py` | validates and applies blocks |
 | PoW / difficulty | `mining_heavy3.py`, `difficulty` | Heavy3 hashing |
-| Ledger / storage | `dbhandler.py`, `amounts.py`, SQLite | integer atomic-unit storage behind the frozen boundary (opt-in) |
-| Schema migrations | `db_migrations.py` | ordered, `PRAGMA user_version`-tracked |
+| Ledger / storage | `block_store.py`, `dbhandler.py`, `amounts.py`, LMDB | one LMDB environment: blocks, difficulty, signature/address/balance/txid indexes, committed atomically per block |
+| Ledger upgrade | `scripts/upgrade_ledger.py` | brings an older block store to the current schema (difficulty replay + reindex) |
 | Mempool | `mempool.py` | pending transactions |
 | Networking (legacy) | `node.py`, `connections.py` | length-prefixed JSON over sockets |
 | Networking (modern) | `rest_api.py`, `rest_client.py`, `transport.py` | HTTP API + parallel fetch + compression |
@@ -126,19 +146,21 @@ Full design docs are in [`doc/`](doc/) — start with [`doc/01-overview.md`](doc
 | [07 Mempool](doc/07-mempool.md) | [08 API & commands](doc/08-api-and-commands.md) | [09 Crypto, wallets, keys](doc/09-crypto-wallets-keys.md) |
 | [10 Features](doc/10-features.md) | [11 Configuration](doc/11-configuration.md) | [12 Tooling, build, tests](doc/12-tooling-build-tests.md) |
 | [13 File reference](doc/13-file-reference.md) | [14 Known issues & improvements](doc/14-known-issues-and-improvements.md) | [15 REST API](doc/15-rest-api.md) |
-| [16 Database rework plan](doc/16-database-rework-plan.md) | [17 Roadmap](doc/17-roadmap.md) | |
+| [17 Roadmap](doc/17-roadmap.md) | [26 Storage migration](doc/26-storage-postfork.md) | |
 
 ---
 
 ## Roadmap
 
-Detailed plan: [`doc/17-roadmap.md`](doc/17-roadmap.md). Database deep-dive: [`doc/16`](doc/16-database-rework-plan.md).
+Detailed plan: [`doc/17-roadmap.md`](doc/17-roadmap.md). Database deep-dive: [`doc/05`](doc/05-database-and-ledger.md).
 
 **✅ Done**
 - **Frozen consensus boundary** — signing-buffer and block-hash byte forms extracted into
   `bismuth_serialize.py` and characterization-locked, so storage/transport can change without touching
   consensus.
-- **Schema versioning & migrations** — ordered, `user_version`-tracked (`db_migrations.py`).
+- **LMDB-only ledger** — one LMDB environment holds the chain, the difficulty record and every index
+  (signature, address history, balances, content txids); a block commits — and a reorg rolls back — in one
+  atomic transaction. LMDB end to end.
 - **Integer atomic-unit storage** — exact integer amounts behind the frozen boundary, replay-verified
   (every block hash byte-identical), **live on regnet** behind `ledger_integer_amounts` (default off).
 - **Modern HTTP layer** — read-only REST API; capability discovery (reachable = capable); parallel,
@@ -147,17 +169,12 @@ Detailed plan: [`doc/17-roadmap.md`](doc/17-roadmap.md). Database deep-dive: [`d
 **◑ In progress / next**
 - Wire the parallel REST fetch into the **actual sync path**, so nodes catch up over the HTTP API
   instead of the serial, blocking socket loop.
-- **Incremental balance index** — O(1) maintained credit/debit, bit-matching the authoritative sum.
-- **Explicit reward & pruning model** — replace negative-height "mirror" rows and `Hyperblock` string
-  rows with real columns/tables.
 
 **🗺️ Planned**
 - **Consensus hard fork** — sign/hash native integer units + a binary tx encoding (deleting the
-  `'%.8f'`/`'%.2f'` string conversions, all tagged `# HARDFORK (doc/16)`), and adopt a bounded,
+  `'%.8f'`/`'%.2f'` string conversions, all tagged `# HARDFORK`), and adopt a bounded,
   content-derived **txid** (nado-style BLAKE2b, the signature signs the txid).
 - **Deprecate the blocking socket protocol** in favour of the HTTP API for node-to-node traffic.
-- **Storage-engine evaluation** — modernize SQLite usage, benchmark, and consider a KV store
-  (LMDB/RocksDB) for block bodies while keeping SQLite for queryable indexes — decided on data.
 - **Repository reorganization** — group modules, retire dead files.
 
 ---

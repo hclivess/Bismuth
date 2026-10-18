@@ -1,6 +1,6 @@
 """hf2 Stage-4 TRUE-BYTES signature codec (doc/40 — signatures domain).
 
-The transaction ``signature`` field is carried on the wire and in the legacy SQLite ledger as a
+The transaction ``signature`` field is carried on the wire (and in pre-fork ledger rows) as a
 base64 (RSA/ECDSA/ED25519/secp256r1/ML-DSA/multisig) or lowercase-hex (the hf2 recoverable
 secp256k1 form) TEXT string. Inside a *binary* store (the LMDB ``block_store`` msgpack value) that
 base64 inflation (~1.33x) buys nothing — it is an A-hex-class regression in disguise. Post-fork this

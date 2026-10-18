@@ -7,8 +7,8 @@ data dirs (NEVER prod ledger / 5658-5659 / systemd). Regnet ``difficulty()`` is 
 is wrong while node A serves a healthy (REGNET_DIFF) ``/api/difficulty``.
 
 Because the detector + heal logic is a pure function of (node.difficulty, peers, sidecar) we drive the
-heal STATE MACHINE in-process against the live REST endpoints — no need to corrupt a running node's misc
-row and reboot it. Assertions (doc/35 test plan):
+heal STATE MACHINE in-process against the live REST endpoints — no need to corrupt a running node's recorded
+difficulty and reboot it. Assertions (doc/35 test plan):
   * detector resolves A's rest_port via /api/capabilities, height-matches, returns diverged=True vs a
     healthy A and diverged=False when local==A;
   * ONE diverged cycle does NOT heal (debounce N_confirm=3);
@@ -31,8 +31,6 @@ import time
 import urllib.request
 
 import pytest
-
-pytest.importorskip("lmdb")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -66,9 +64,7 @@ def _start_node(datadir, sock_port, rest_port, extra_env):
     env["BISMUTH_REGNET_PORT"] = str(sock_port)
     env["BISMUTH_REST_API_PORT"] = str(rest_port)
     env["BISMUTH_REGNET_DB"] = os.path.join(datadir, "regmode.db")
-    env["BISMUTH_REGNET_INDEX"] = os.path.join(datadir, "index_reg.db")
     env["BISMUTH_REGNET_PEERS"] = os.path.join(datadir, "peers_reg.txt")
-    env["BISMUTH_MEMPOOL_PATH"] = os.path.join(datadir, "mempool.db")
     env.update(extra_env)
     log = open(os.path.join(datadir, "node.log"), "w")
     proc = subprocess.Popen([sys.executable, "node.py", "regnet2"], cwd=ROOT,

@@ -9,10 +9,10 @@ The hf2 consensus serialization ALREADY normalizes the amount string form: ``blo
 ``tx_id_v2_s`` funnel every amount through ``_v2_units`` (integer atomic units), so ``'0'`` and
 ``'0.00000000'`` produce the IDENTICAL block hash and txid (verified). Likewise the post-fork signature
 signs the content txid (amount-form-independent). So the storage layer does NOT need to preserve the
-legacy SQLite byte-form of a money field — it only needs CONSENSUS EQUIVALENCE. We therefore store the
+legacy text byte-form of a money field — it only needs CONSENSUS EQUIVALENCE. We therefore store the
 integer units (varint) and reconstruct the canonical string on read. ``'0'`` reconstructs as
 ``'0.00000000'`` (decimal mode) — a deliberate, consensus-safe normalization, NOT a bug. This is the
-"resolved for hf2" form, free of the per-field BARE/FIXED8/RAWTEXT render-mode tag the byte-for-byte-SQLite
+"resolved for hf2" form, free of the per-field BARE/FIXED8/RAWTEXT render-mode tag a byte-for-byte text
 approach would have needed.
 
 Storage mode (``amounts.LEDGER_INTEGER``) is read LIVE and is the ONLY thing the reconstruction depends on

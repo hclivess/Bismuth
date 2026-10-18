@@ -1,12 +1,8 @@
-"""Token (v2) + alias derived index on **LMDB** — the post-fork successor to the SQLite ``index.db``
-(doc/26 storage rearchitecture, stage 2; NO SQLite post-fork).
+"""Token (v2) + alias derived index on **LMDB** (doc/26 storage rearchitecture, stage 2), owned by the
+``plugins/tokens_aliases`` plugin (doc/27).
 
-``tokens`` and ``aliases`` were always the most cleanly *separable* part of the SQLite trio: their own
-file (``index.db``), a derived projection of the ledger, never consensus. This module re-homes that
-projection in an embedded LMDB env: same
-public *behaviour* (the balances/holders/alias maps callers see are byte-identical), height-ordered
-secondary keys so a reorg rollback is a range delete, and atomic per-op write txns. The SQLite ``tokens``
-/ ``aliases`` row tables and their SUM/GROUP-BY queries are replaced by *materialized* indexes:
+A derived projection of the ledger, never consensus: height-ordered secondary keys so a reorg rollback is a
+range delete, atomic per-op write txns, and *materialized* indexes in place of per-query aggregation:
 
   meta       : b"tok_anchor"/b"alias_anchor" -> last-indexed height; b"seq" -> monotonic op counter
   tokreg     : token                         -> {h,ts,issuer,txid,supply}   (issuance; first name wins)
@@ -27,21 +23,16 @@ The overspend rule that decides whether a transfer is recorded is preserved EXAC
 ``credit: block_height < h`` / ``debit: block_height <= h`` asymmetry (you cannot re-spend tokens received
 in the same block) — so the same transfers are accepted/rejected and the same balances result.
 
-This is a derived, rebuildable index: it never touches the canonical ledger and has no effect on
-consensus. It is built incrementally from ``token_anchor()`` / ``alias_anchor()`` by the scanners in
-``tokensv2`` / ``aliases`` (a fresh store has anchor 0 → first pass backfills the whole chain).
+It never touches the canonical ledger. It is built incrementally from ``token_anchor()`` /
+``alias_anchor()`` by the plugin (``backfill`` over the LMDB ledger, then ``on_block``); a fresh store has
+anchor 0, so the first pass backfills the whole chain.
 
-Migrated onto the engine-agnostic KV abstraction (``kvstore.open_store``, doc/26 storage stage 1): the 11
-sub-dbs are opened through ``KVStore`` and every ``env.begin()``/cursor becomes a ``store.txn()``/``KVTxn``
-call, so the underlying engine (LMDB<->MDBX<->sqlite-kv) is a one-arg ``backend=`` choice. The public method
-surface AND the on-disk byte format are UNCHANGED: keys stay the same raw byte layout (token\0party\0HQ,
-big-endian heights, ...) and the values stay JSON / decimal-string / b"" bytes EXACTLY as before — the JSON
-values are written via ``json.dumps`` with the identical separators, NOT routed through ``Codec`` (which is
-msgpack), so a running node reads its existing LMDB files unchanged. Ordered prefix/range scans go through
-``KVTxn.iterate``/``range`` (which forward the raw lmdb cursor, same byte order), and the per-db entry count
-in ``stats()`` uses ``KVStore.stat(db)`` (available on both backends).
+The sub-dbs are opened through ``kvstore.open_store`` (LMDB). Keys are raw byte layouts (token\0party\0HQ,
+big-endian heights, ...) and values are JSON / decimal-string / b"" bytes (JSON via ``json.dumps`` with
+fixed separators, not ``Codec``/msgpack). Ordered prefix/range scans go through ``KVTxn.iterate``/``range``,
+and the per-db entry count in ``stats()`` uses ``KVStore.stat(db)``.
 
-Deps: ``kvstore`` (which needs ``lmdb`` for the default backend). Values are JSON (small, readable).
+Deps: ``kvstore`` (``lmdb``). Values are JSON (small, readable).
 """
 import json
 import os
@@ -238,8 +229,8 @@ class TokenIndex:
         return cred - deb
 
     def tokens_user(self, address: str):
-        """DISTINCT tokens an address has touched (sender OR recipient) — shape matches the SQLite fetchall
-        the node iterates: a list of 1-tuples ``[(token,), ...]``."""
+        """DISTINCT tokens an address has touched (sender OR recipient), as the list of 1-tuples
+        ``[(token,), ...]`` the wire command iterates."""
         prefix = address.encode() + _SEP
         out = []
         with self.store.txn() as txn:
@@ -436,7 +427,7 @@ class TokenIndex:
         return self._aliases_for(address)
 
     def aliasget(self, address: str):
-        """All aliases of an address as the SQLite shape ``[[alias], ...]``; ``[[address]]`` if none."""
+        """All aliases of an address as the wire shape ``[[alias], ...]``; ``[[address]]`` if none."""
         rows = [[a] for a in self._aliases_for(address)]
         return rows if rows else [[address]]
 
@@ -500,9 +491,7 @@ class TokenIndex:
 def open_for(ledger_path: str) -> "TokenIndex":
     """Open the LMDB token/alias index NAMESPACED BY LEDGER FILENAME — tokenindex-<ledger> — so a regnet
     run can never hand its token/alias projection to a mainnet node (the doc/18 pollution class),
-    namespaced per ledger. A stale pre-LMDB ``index.db`` is NOT touched here: it is a shared legacy file
-    (tokens/aliases/staking) retired only when the whole SQLite trio is dropped; this store is the separate
-    post-fork home for the tokens/aliases projection, rebuilt from the ledger by the scanners."""
+    rebuilt from the ledger by the tokens_aliases plugin."""
     base = os.path.basename(ledger_path) or "ledger.db"
     path = os.path.join(os.path.dirname(ledger_path) or ".", "tokenindex-%s" % base)
     return TokenIndex(path)

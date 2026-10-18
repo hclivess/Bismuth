@@ -6,7 +6,7 @@ directory. If you are new, read this, then [`01`](01-overview.md) (what Bismuth 
 [`02`](02-architecture-and-threads.md) (startup + threads).
 
 > Two other "start here" docs exist and are intentionally kept: [`00-overview.md`](00-overview.md) is
-> the **modernization** status table (what is shadow/inert/wired), and [`01-overview.md`](01-overview.md)
+> the **modernization** status table (what is active/inert/wired), and [`01-overview.md`](01-overview.md)
 > is the conceptual intro. This file is the **architecture map** — the subsystem topology and where each
 > doc lives.
 
@@ -19,8 +19,8 @@ server, and API server at once. Transactions are 8-field tuples (`timestamp, sen
 amount, signature, public_key, operation, openfield`); the `operation`/`openfield` pair is a generic
 data channel that features (tokens, aliases, shielded value, VM contracts) ride on top of without
 changing the base tuple. PoW is memory-hard "Heavy3"; signatures default to RSA-4096 via the vendored
-`polysign` abstraction. Networks: mainnet (`5658`, `static/ledger.db`), testnet (`2829`), regnet
-(`3030`, mint-on-demand). See [`01`](01-overview.md), [`02`](02-architecture-and-threads.md).
+`polysign` abstraction. Networks: mainnet (`5658`, `ledger_path` `static/ledger.db` → LMDB ledger
+`static/blockstore-ledger.db`), testnet (`2829`), regnet (`3030`, mint-on-demand). See [`01`](01-overview.md), [`02`](02-architecture-and-threads.md).
 
 ```
                          ┌──────────────────────── node.py ────────────────────────┐
@@ -30,65 +30,53 @@ changing the base tuple. PoW is memory-hard "Heavy3"; signatures default to RSA-
                          │           │     ├ mining_heavy3 (PoW verify)             │
   REST clients ────────► │ rest_api  │     ├ difficulty / difficulty_lwma (retarget)│
   (HTTP :5659, opt-in)   │ (aiohttp) │     ├ polysign / SignerFactory (sig verify)  │
-                         │           │     ├ DbHandler (SQLite trio + index)        │
-                         │           │     └ LMDB stores (shadow/projections)       │
-                         │  Mempool ◄┘     vm_engine · ShieldedState · token_index  │
+                         │           │     └ DbHandler → BlockStore (LMDB ledger)   │
+                         │  Mempool ◄┘     (in memory)       token_index (plugin)   │
                          │  ConnectionManager → worker() threads → outbound sync     │
                          └───────────────────────────────────────────────────────────┘
 ```
 
 The consensus pipeline is `digest.py` (`digest_block`): take `db_lock`, validate every tx
 (signature → balance/overspend → double-spend), verify PoW against current difficulty, compute the
-reward, write the block, prune the mempool, advance the tip. See [`03`](03-consensus-blocks-digest.md).
+reward, commit the block (one LMDB transaction), prune the mempool, advance the tip. See [`03`](03-consensus-blocks-digest.md).
 
 ---
 
 ## 2. Subsystem map (honest status)
 
-### Storage — SQLite trio + LMDB projections + the engine-agnostic KVStore seam
-**State: hybrid. SQLite is still canonical for consensus reads + the lockstep write path; LMDB
-projections are proven and run in parity-strict shadow on regnet; full cutover is deferred.**
+### Storage — one LMDB ledger
+**State: complete. The ledger is ONE LMDB environment on every network; there is no other database.**
 
-- **The legacy "H1/H2/H3" SQLite trio** (`dbhandler.py`): `ledger.db` (full history), `hyper.db`
-  (hyperblock roll-ups + recent blocks), a mode-dependent working cursor, plus `index.db`
-  (tokens/aliases) and `mempool.db`. This is the live 23 GB prod store and remains **authoritative**.
-  The two consensus reads that still hit SQLite are the overspend check (`ledger_balance3`) and the
-  duplicate-signature replay scan. See [`05`](05-database-and-ledger.md), [`16`](16-database-rework-plan.md).
-- **LMDB stores (8)** — each a rebuildable, height-keyed, reorg-safe projection or the content-addressed
-  block store: `block_store.py` (canonical-target block bodies, pubkey-deduped), `balance_index.py`
-  (O(1) balances), `txid_index.py` (content-txid → height, the malleability-tight dedup key),
-  `reward_chain.py` (locally-minted rewards, retires negative-height mirror rows), `shieldedv1.py`
-  (notes/key-images/flows), `vm_state.py` (contract code/storage/custody balances), `token_index.py`
-  (tokens + alias-evolution side-index), and the snapshot/scripts store. **Shielded and token/alias
-  storage are fully migrated off SQLite** (doc/26 stages 1–2, shipped). Block store + balance index +
-  txid index run in **parity-strict shadow/primary** on the regnet proving suite (proven
-  consensus-faithful), default **off** on mainnet so the byte output is identical.
-- **The KVStore engine seam** ([`36`](36-kvstore-engine-seam.md), `kvstore.py`): one small interface +
-  an `open_store(backend, path, dbs=...)` factory so the KV engine is a single-arg choice
-  (`lmdb` | `mdbx` | `sqlite-kv`). **All 8 LMDB stores were migrated onto it** (each now calls
-  `open_store` instead of `lmdb.open()` directly — confirmed in `block_store/balance_index/vm_state/
-  reward_chain/token_index/shieldedv1/txid_index`). A centralized `Codec` (msgpack with the same JSON
-  fallback the stores used) keeps the on-disk format byte-identical so the existing parity tests still
-  hold; the LMDB wrapper is a thin passthrough (measured few-% overhead). `sqlite-kv` is always
-  available (stdlib); `mdbx` is imported lazily.
-- **The SQLite → LMDB migration** ([`26`](26-storage-postfork.md)): stages 1–4 foundations shipped
-  (LMDB shielded + token/alias stores; read seam + REST/socket block-read migration; write seam as
-  additive shadow; balance + txid parity bake-ins proven in `primary`). **Deferred:** flip the
-  canonical write to LMDB and retire the `commit_marker`/`ATTACH` lockstep, sync-without-hyperblocks,
-  and deleting the trio — these need a two-node + crash-recovery harness. Endgame: single LMDB store
-  canonical, **post-fork only**; legacy SQLite keeps working pre-fork for old peers.
+- **The ledger** (`block_store.py`, `blockstore-<ledger name>`): sub-dbs `blocks` (height → block hash +
+  tx rows; post-fork one packed `txrec` per tx), `hashes` (block hash → height), `pk`/`pkr` (pubkey
+  dedup), `diff` (per-block difficulty), `sig` (signature[:56] index), `addr` (address history), `bal`
+  (per-address credited / rewards / debited / fees in integer units), `txid` (post-fork content txid),
+  `pkref` (post-fork pubkey registry) and `meta` (schema, tx count, fixed allocations).
+  `commit_block` writes a block and all of that in ONE write transaction; `rollback` reverses a reorg
+  in one transaction — a crash always leaves a clean block boundary. Every consensus read (overspend
+  balance, duplicate signature, difficulty) is an O(1) or ordered-range LMDB read. `dbhandler.py` is a
+  thin facade over it. See [`05`](05-database-and-ledger.md).
+- **Allocations, not reward rows.** The concluded Development Reward / Hypernode Payouts totals are
+  fixed balance allocations (`ledger_genesis.MAINNET_ALLOCATIONS`, meta `alloc`).
+- **Bootstrap + upgrade.** A fresh node takes a tip-verified DB-direct snapshot from peers
+  ([`43`](43-p2p-snapshot.md)) or seeds genesis and syncs; an older-schema store is upgraded with
+  `scripts/upgrade_ledger.py` (the node refuses to start until it is).
+- **The mempool** is in memory; **tokens/aliases** live in the `tokens_aliases` plugin's own LMDB store.
+- **`kvstore.py`** ([`36`](36-kvstore-engine-seam.md)): the LMDB layer — `open_store`, a thin txn
+  passthrough, the msgpack `Codec` and per-ledger `store_path` naming. Migration record:
+  [`26`](26-storage-postfork.md).
 
 ### Consensus, digest, difficulty + the #23 self-heal
 **State: live core unchanged; difficulty self-heal autoheal-on by default, soaked on regnet.**
 
 - **Digest/validation** (`digest.py`, `digest_tx.py`, `chain_ops.py`): the authoritative validate +
-  commit pipeline; reorg/rollback rolls back the ledger and **all** aux stores in sync
-  (`chain_ops._rollback_aux_stores`). See [`03`](03-consensus-blocks-digest.md).
+  commit pipeline; reorg/rollback rolls back the ledger and every index in one LMDB transaction, then
+  the plugin stores (`chain_ops.rollback`). See [`03`](03-consensus-blocks-digest.md).
 - **Difficulty controller** (`difficulty.py`): a PID-style retarget recursive on the *stored* previous
   value, 60 s target. The fork-gated **LWMA** retarget (`difficulty_lwma.py`) replaces its output past
   `node.fork_height` (`difficulty.py:106-112`); inert until a fork activates. See [`04`](04-pow-and-difficulty.md).
 - **#23 difficulty-divergence detector + guarded self-heal** ([`35`](35-difficulty-divergence-selfheal.md)):
-  fixes a self-reinforcing corrupted-`misc` fixed point (a node mining at the wrong difficulty). A
+  fixes a self-reinforcing corrupted stored-difficulty fixed point (a node mining at the wrong difficulty). A
   300 s daemon polls height-matched peers' `/api/difficulty`, takes the median, and on a debounced,
   supermajority-confirmed divergence heals by writing a clamped `rollback_to` target and restarting so
   `difficulty()` re-derives from a clean base. **`diff_divergence_detect` and `diff_divergence_autoheal`
@@ -134,11 +122,10 @@ operations, if any appear on chain, are stored as ordinary inert transaction dat
 secp256k1). Storage is on LMDB (doc/26 stage 1). See [`22`](22-shielded.md), audit in [`25`](25-security-audit.md).
 
 ### Tokens / aliases plugin
-**State: shipped as an optional plugin, config-gated, owns its own LMDB store (inert on mainnet pre-fork).**
+**State: shipped, always on, owns its own LMDB store.**
 
-Tokens and aliases are out of node core into `plugins/tokens_aliases` (no SQLite, owns its LMDB store
-via `token_index.py`); core defers to it. Gated by the `token_index` flag (default off; on in the
-regnet test config). Aliases gained mutable ownership (register/transfer/free). See [`27`](27-plugins.md),
+Tokens and aliases are out of node core into `plugins/tokens_aliases` (owns its LMDB store via
+`token_index.py`, rolled back on every reorg path); it is the node's only token/alias path. Aliases gained mutable ownership (register/transfer/free). See [`27`](27-plugins.md),
 storage in [`26`](26-storage-postfork.md) §2.
 
 ### Browser wallet / injected provider
@@ -176,23 +163,22 @@ post-quantum pivot held in reserve in [`20`](20-post-quantum.md); HD/BIP32-39 + 
 | Doc | Topic |
 |---|---|
 | [00-architecture-overview.md](00-architecture-overview.md) | **This file** — architecture map + pointer to every doc |
-| [00-overview.md](00-overview.md) | Modernization status table (shadow / inert / wired) |
+| [00-overview.md](00-overview.md) | Modernization status table (active / inert / wired) |
 | [01-overview.md](01-overview.md) | What Bismuth is: networks, tx model, high-level architecture, entry points |
 | [02-architecture-and-threads.md](02-architecture-and-threads.md) | Node startup sequence, threading model, locks, shared state |
 | [03-consensus-blocks-digest.md](03-consensus-blocks-digest.md) | Block digestion pipeline, tx validation, rewards/fees, ledger schema |
 | [04-pow-and-difficulty.md](04-pow-and-difficulty.md) | Heavy3 PoW, HMAC-DRBG lookup file, difficulty retarget, LWMA gate |
-| [05-database-and-ledger.md](05-database-and-ledger.md) | `DbHandler`, the SQLite databases & schemas, RAM/hyper modes, quantizer |
+| [05-database-and-ledger.md](05-database-and-ledger.md) | The LMDB ledger: sub-dbs, atomic commit/rollback, typed rows, allocations, upgrade script |
 | [06-networking-protocol.md](06-networking-protocol.md) | Wire protocol, P2P command catalog, worker lifecycle, peers/ban logic |
-| [07-mempool.md](07-mempool.md) | Mempool schema, acceptance rules, `merge()`, size tiers & fees, locking |
+| [07-mempool.md](07-mempool.md) | In-memory mempool, acceptance rules, `merge()`, size tiers & fees, locking |
 | [08-api-and-commands.md](08-api-and-commands.md) | Legacy socket API (`api_*`), core commands, `commands.py` CLI |
 | [09-crypto-wallets-keys.md](09-crypto-wallets-keys.md) | Address/key derivation, signing/verification, polysign, fee formula |
-| [10-features.md](10-features.md) | Tokens, staking PoC, plugin hooks, regnet (feature layers) |
+| [10-features.md](10-features.md) | Tokens, plugin hooks, regnet (feature layers) |
 | [11-configuration.md](11-configuration.md) | `config.txt` reference (every key), mandatory message, peers files |
-| [12-tooling-build-tests.md](12-tooling-build-tests.md) | Send/balance scripts, test suite, snapshot tooling, build & CI |
+| [12-tooling-build-tests.md](12-tooling-build-tests.md) | Send/balance scripts, test suite, ledger tooling, build & CI |
 | [13-file-reference.md](13-file-reference.md) | Accurate per-file index of the whole tree |
 | [14-known-issues-and-improvements.md](14-known-issues-and-improvements.md) | Verified bugs, fragile wiring, refactor/upgrade list |
 | [15-rest-api.md](15-rest-api.md) | The modern, parallel REST/JSON API (**on by default**, reads only; writes need `rest_api_write`) |
-| [16-database-rework-plan.md](16-database-rework-plan.md) | Storage-layer modernization design/roadmap (the deep-dive) |
 | [17-roadmap.md](17-roadmap.md) | Modernization roadmap: phases, shipped vs planned, refactor history |
 | [18-hardfork-hf2.md](18-hardfork-hf2.md) | The bundled `hf2` fork: signal-activated scheduler, the consensus change set |
 | [20-post-quantum.md](20-post-quantum.md) | Post-quantum signatures: ML-DSA signer, the PQ fork path (held in reserve) |
@@ -200,22 +186,21 @@ post-quantum pivot held in reserve in [`20`](20-post-quantum.md); HD/BIP32-39 + 
 | [22-shielded.md](22-shielded.md) | Shielded value: stealth addresses, ring signatures, RingCT confidential amounts |
 | [23-hd-multisig.md](23-hd-multisig.md) | BIP32/BIP39 HD wallets and M-of-N multisig (native signer + VM vault) |
 | [25-security-audit.md](25-security-audit.md) | Adversarial security audit: findings, fixes, regression tests |
-| [26-storage-postfork.md](26-storage-postfork.md) | Post-fork storage rearchitecture: retiring SQLite for one LMDB store |
+| [26-storage-postfork.md](26-storage-postfork.md) | Storage migration record: the ledger is LMDB-only (complete) |
 | [27-plugins.md](27-plugins.md) | Modern plugin framework; the `tokens_aliases` plugin (tokens/aliases out of core) |
 | [29-hf2-serialization-v2.md](29-hf2-serialization-v2.md) | hf2 binary/integer serialization (authoritative spec) |
 | [30-genesis-sync-exceptions.md](30-genesis-sync-exceptions.md) | From-genesis sync & historical validation-exception registry |
 | [31-accuser.md](31-accuser.md) | The Accuser: detect/prove/propagate miner equivocation (finality substitutes) |
 | [33-browser-wallet.md](33-browser-wallet.md) | Browser wallet + injected `window.bismuth` provider (non-custodial) |
 | [35-difficulty-divergence-selfheal.md](35-difficulty-divergence-selfheal.md) | #23 difficulty-divergence detector + guarded self-heal |
-| [36-kvstore-engine-seam.md](36-kvstore-engine-seam.md) | Engine-agnostic KV store seam (`kvstore.py`, `open_store` factory; all 8 LMDB stores migrated) |
+| [36-kvstore-engine-seam.md](36-kvstore-engine-seam.md) | The LMDB layer (`kvstore.py`: `open_store`, `Codec`, per-ledger `store_path`) |
 | [CHANGELOG-2026-06.md](CHANGELOG-2026-06.md) | Commit-anchored engineering changelog for the 2026-06 session (poker, #23 self-heal, KVStore seam) |
 | [README.md](README.md) | Doc-set intro + index (note: index currently lists 00–28 only) |
 
 > **Index gap:** `README.md`'s index stops at doc 28, so docs 29–36 and the changelog are not yet
 > linked there — this file ([`00-architecture-overview.md`](00-architecture-overview.md)) is the
-> complete, current index. The engine-agnostic **KVStore DB seam** (`kvstore.py`) now has its own
-> page at [`36`](36-kvstore-engine-seam.md) (it is also referenced from each store's header and from
-> doc/26 "storage stage 1").
+> complete, current index. The LMDB layer (`kvstore.py`) has its own page at
+> [`36`](36-kvstore-engine-seam.md).
 
 ---
 

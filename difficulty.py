@@ -9,6 +9,7 @@ returned value is the threshold ``digest`` checks the proof of work against,
 this calculation is consensus-critical and must be deterministic across nodes.
 """
 
+import block_store
 from decimal import Decimal
 import regnet
 import math
@@ -27,50 +28,83 @@ DIFF_DROP_TIME = Decimal(180)        # seconds before the broadcast difficulty b
 MIN_DIFFICULTY = 50                  # difficulty floor
 
 
+def _ledger(db_handler):
+    return block_store.as_ledger(db_handler)
+
+
+def coinbase_ts(store, height):
+    """The mining-tx timestamp of block ``height`` (typed: float/int, as the ledger column holds it)."""
+    cb = store.coinbase(int(height))
+    return None if cb is None else cb[1]
+
+
 def _recent_solvetimes(db_handler, block_height, window):
-    """The last ~window inter-block solvetimes (seconds), oldest→newest, from the miner-tx (reward!=0)
-    timestamps — exactly the data the legacy controller already reads. Fed to the LWMA retarget."""
-    db_handler.execute_param(
-        db_handler.c,
-        "SELECT timestamp FROM transactions WHERE block_height > ? AND reward != 0 ORDER BY block_height ASC",
-        (block_height - window - 1,))
-    ts = [float(r[0]) for r in db_handler.c.fetchall()]
+    """The last ~window inter-block solvetimes (seconds), oldest->newest, from the miner-tx timestamps of
+    the blocks above block_height - window - 1. Fed to the LWMA retarget."""
+    store = _ledger(db_handler)
+    first = store.first() or 1
+    lo = max(int(first), int(block_height) - int(window))
+    ts = []
+    for h in range(lo, int(block_height) + 1):
+        t = coinbase_ts(store, h)
+        if t is not None:
+            ts.append(float(t))
     return [ts[i] - ts[i - 1] for i in range(1, len(ts))]
+
+
+def retarget(diff_block_previous, timestamp_last, timestamp_before_last, timestamp_1441, timestamp_1440):
+    """The legacy PID retarget: the next required difficulty from the previous recorded difficulty and the
+    four window timestamps (all Decimal). Returns (difficulty, hashrate, diff_adjustment, block_time).
+    Pure — the live node and the history rebuild share it."""
+    block_time_prev = (timestamp_before_last - timestamp_1441) / DIFFICULTY_WINDOW
+    block_time = Decimal(timestamp_last - timestamp_1440) / DIFFICULTY_WINDOW
+    hashrate = pow(2, diff_block_previous / Decimal(2.0)) / (
+            block_time * math.ceil(28 - diff_block_previous / Decimal(16.0)))
+    difficulty_new = Decimal(
+        (2 / math.log(2)) * math.log(hashrate * TARGET_BLOCK_TIME * math.ceil(28 - diff_block_previous / Decimal(16.0))))
+    difficulty_new = difficulty_new - KD_GAIN * (block_time - block_time_prev)
+    diff_adjustment = (difficulty_new - diff_block_previous) / DIFF_ADJUST_DIVISOR
+    if diff_adjustment > MAX_DIFF_ADJUST:
+        diff_adjustment = MAX_DIFF_ADJUST
+    return quantize_ten(diff_block_previous + diff_adjustment), hashrate, diff_adjustment, block_time
+
+
+def window_timestamps(store, block_height, first=None):
+    """(ts_last, ts_before_last, ts_1441, ts_1440) as Decimal for the retarget after block ``block_height``."""
+    first = (store.first() or 1) if first is None else first
+    ts_last = Decimal(coinbase_ts(store, block_height))
+    prev = coinbase_ts(store, block_height - 1) if block_height - 1 >= first else None
+    ts_before_last = ts_last if prev is None else Decimal(prev)
+    # the first two mining txs above block_height - 1441 (clamped to the first stored block)
+    lo = max(int(first), int(block_height) - DIFFICULTY_WINDOW)
+    t1441 = coinbase_ts(store, lo)
+    t1440 = coinbase_ts(store, lo + 1) if lo + 1 <= block_height else None
+    ts_1441 = Decimal(t1441)
+    ts_1440 = ts_1441 if t1440 is None else Decimal(t1440)
+    return ts_last, ts_before_last, ts_1441, ts_1440
+
+
+def recorded(difficulty):
+    """The form a computed difficulty is recorded in (10 dp, as the PoW check stores it)."""
+    return float('%.10f' % difficulty)
 
 
 def difficulty(node, db_handler):
     try:
         fork = Fork()
+        store = _ledger(db_handler)
 
-        db_handler.execute(db_handler.c, "SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 2")
-        result = db_handler.c.fetchone()
-
-        timestamp_last = Decimal(result[1])
-        block_height = int(result[0])
+        block_height = store.tip()
+        timestamp_last, timestamp_before_last, timestamp_1441, timestamp_1440 = window_timestamps(store, block_height)
 
         node.last_block_timestamp = timestamp_last
-        #node.last_block = block_height do not fetch this here, could interfere with block saving
-
-        previous = db_handler.c.fetchone()
-
         node.last_block_ago = int(time.time() - int(timestamp_last))
 
-        # Failsafe for regtest starting at block 1}
-        timestamp_before_last = timestamp_last if previous is None else Decimal(previous[1])
-
-        db_handler.execute_param(db_handler.c, (
-            "SELECT timestamp FROM transactions WHERE block_height > ? AND reward != 0 ORDER BY block_height ASC LIMIT 2"),
-                                 (block_height - DIFFICULTY_WINDOW - 1,))
-        timestamp_1441 = Decimal(db_handler.c.fetchone()[0])
-        block_time_prev = (timestamp_before_last - timestamp_1441) / DIFFICULTY_WINDOW
-        temp = db_handler.c.fetchone()
-        timestamp_1440 = timestamp_1441 if temp is None else Decimal(temp[0])
-        block_time = Decimal(timestamp_last - timestamp_1440) / DIFFICULTY_WINDOW
-
-        db_handler.execute(db_handler.c, "SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1")
-        diff_block_previous = Decimal(db_handler.c.fetchone()[0])
+        _dh, _dtext = store.last_difficulty()
+        diff_block_previous = Decimal(_dtext)
 
         time_to_generate = timestamp_last - timestamp_before_last
+        block_time = Decimal(timestamp_last - timestamp_1440) / DIFFICULTY_WINDOW
 
         if node.is_regnet:
             # TEST-ONLY divergence injection for the #23 regnet soak (doc/35): BISMUTH_TEST_DIFF_OFFSET shifts
@@ -81,23 +115,9 @@ def difficulty(node, db_handler):
             return (float('%.10f' % _rd), float('%.10f' % (_rd - 8)), float(time_to_generate),
                     float(_rd), float(block_time), float(0), float(0), block_height)
 
-        hashrate = pow(2, diff_block_previous / Decimal(2.0)) / (
-                block_time * math.ceil(28 - diff_block_previous / Decimal(16.0)))
-        # Calculate new difficulty for the desired block time
+        difficulty, hashrate, diff_adjustment, block_time = retarget(
+            diff_block_previous, timestamp_last, timestamp_before_last, timestamp_1441, timestamp_1440)
         target = TARGET_BLOCK_TIME
-        ##D0 = diff_block_previous
-        difficulty_new = Decimal(
-            (2 / math.log(2)) * math.log(hashrate * target * math.ceil(28 - diff_block_previous / Decimal(16.0))))
-        # Feedback controller
-        Kd = KD_GAIN
-        difficulty_new = difficulty_new - Kd * (block_time - block_time_prev)
-        diff_adjustment = (difficulty_new - diff_block_previous) / DIFF_ADJUST_DIVISOR  # reduce by factor of 720
-
-        if diff_adjustment > MAX_DIFF_ADJUST:
-            diff_adjustment = MAX_DIFF_ADJUST
-
-        difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
-        difficulty = difficulty_new_adjusted
 
         # hf2: past the activation height the LWMA retarget replaces the legacy controller's output
         # (symmetric, delicate, deterministically calculable — doc/18). Inert until a fork is signalled
@@ -138,12 +158,12 @@ def difficulty(node, db_handler):
         return (
             float('%.10f' % difficulty), float('%.10f' % diff_dropped), float(time_to_generate), float(diff_block_previous),
             float(block_time), float(hashrate), float(diff_adjustment),
-            block_height)  # need to keep float here for database inserts support
+            block_height)
     except Exception as e:
         # The [24,...] sentinel (below MIN_DIFFICULTY) is ONLY valid for a genuinely empty/bootstrap
         # chain (new chain / fresh regnet), where the window queries legitimately return no rows.
-        # On a MATURE chain a transient failure here (SQLite "database is locked"/"disk I/O error",
-        # a None fetch, a bug in the LWMA branch) must NOT silently collapse the acceptance threshold
+        # On a MATURE chain a transient failure here (a store read error, a None fetch, a bug in the LWMA
+        # branch) must NOT silently collapse the acceptance threshold
         # to 24 — digest feeds diff[0] straight into the PoW check, so that would validate trivially
         # mined blocks. Fail closed instead so the digest attempt is retried rather than accepted.
         tip = getattr(node, "last_block", 0) or 0

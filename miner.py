@@ -99,7 +99,7 @@ def _build_block(node, mined):
     """Assemble [pending mempool txs..., coinbase] in the exact shape the digester expects. ``mined`` is
     what mine_nonce returned: post-fork the bare PoW nonce; pre-fork the openfield (prefix+nonce)."""
     block_send = []
-    for m in mp.MEMPOOL.fetchall(mp.SQL_SELECT_TX_TO_SEND)[:MAX_TX_PER_BLOCK]:
+    for m in mp.MEMPOOL.transactions()[:MAX_TX_PER_BLOCK]:
         block_send.append((str(m[0]), str(m[1][:56]), str(m[2][:56]), '%.8f' % float(m[3]),
                            str(m[4]), str(m[5]), str(m[6]), str(m[7])))
     ts = '%.2f' % time.time()

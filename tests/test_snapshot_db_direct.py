@@ -20,7 +20,7 @@ import pytest
 pytest.importorskip("lmdb")  # DB-direct streaming is LMDB-only (env.copyfd)
 
 import snapshot_p2p as sp
-from block_store import BlockStore
+from block_store import BlockStore, typed_row
 
 SMALL = 64 * 1024 * 1024  # 64 MiB map is plenty for tests
 
@@ -36,9 +36,14 @@ def _block(h, ntx=2):
     return h, bh, [_row(h, i, bh) for i in range(ntx)]
 
 
+def _typed(h):
+    return [typed_row(r) for r in _block(h)[2]]
+
+
 def _populate(path, heights):
     s = BlockStore(path, map_size=SMALL)
-    s.put_blocks([_block(h) for h in heights])
+    for h in range(min(heights), max(heights) + 1):     # commit_block appends contiguously (tip+1)
+        s.commit_block(*_block(h))
     return s
 
 
@@ -62,9 +67,9 @@ def test_stream_snapshot_reopens_identical(tmp_path):
     copy = BlockStore(str(dest), map_size=SMALL, readonly=True, sync=False)
     try:
         assert copy.tip() == 8
-        assert copy.count() == 5
-        assert [h for h, _ in copy.blocks_in_range(1, 8)] == [1, 2, 3, 7, 8]
-        assert copy.get_block(7) == _block(7)[2]          # block-for-block identical
+        assert copy.count() == 8
+        assert [h for h, _ in copy.blocks_in_range(1, 8)] == list(range(1, 9))
+        assert copy.get_block(7) == _typed(7)             # block-for-block identical
         assert copy.block_hash(8) == "hash00000008"
     finally:
         copy.close()
@@ -79,7 +84,8 @@ def test_stream_is_point_in_time(tmp_path):
     try:
         with open(dest / "data.mdb", "wb") as f:
             src.stream_snapshot(f)
-        src.put_blocks([_block(h) for h in (4, 5, 6)])     # writer races on after the snapshot
+        for h in (4, 5, 6):                               # writer races on after the snapshot
+            src.commit_block(*_block(h))
         assert src.tip() == 6
     finally:
         src.close()
@@ -98,7 +104,7 @@ def test_db_snapshot_info(tmp_path):
                         "height": 5, "tip_hash": "hash00000005"}
     finally:
         src.close()
-    assert sp.db_snapshot_info(_Node(None)) is None      # no block store -> fall back to tarball path
+    assert sp.db_snapshot_info(_Node(None)) is None      # no ledger -> nothing to serve
 
 
 def _serve(node, tamper_tip_hash=None):
@@ -149,7 +155,7 @@ def test_fetch_db_from_peers_roundtrip(tmp_path):
         copy = BlockStore(dest, map_size=SMALL, readonly=True, sync=False)
         try:
             assert copy.tip() == 9
-            assert copy.get_block(9) == _block(9)[2]      # streamed straight from the live DB, identical
+            assert copy.get_block(9) == _typed(9)         # streamed straight from the live DB, identical
         finally:
             copy.close()
     finally:

@@ -11,7 +11,7 @@ full-difficulty broadcast) when pool mining. Standalone tool, separate from the
 node and not covered by the test suite.
 """
 
-import base64, sqlite3, hashlib, time, socks, keys, sys, connections, re, options, traceback
+import base64, hashlib, time, socks, keys, sys, connections, re, options, traceback
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 from Crypto import Random
@@ -37,7 +37,6 @@ debug_conf = config.debug_conf
 node_ip_conf = config.node_ip_conf
 purge_conf = config.purge_conf
 pause_conf = config.pause_conf
-ledger_path_conf = config.ledger_path_conf
 ban_threshold = config.ban_threshold
 tor_conf = config.tor_conf
 debug_level_conf = config.debug_level_conf
@@ -48,14 +47,12 @@ pool_percentage_conf = config.pool_percentage_conf
 mining_threads_conf = config.mining_threads_conf
 diff_recalc_conf = config.diff_recalc_conf
 pool_conf = config.pool_conf
-ram_conf = config.ram_conf
 pool_address = config.pool_address_conf
 version = config.version_conf
 
 if "testnet" in version:
     port = 2829
     peerlist = "peers_test.txt"
-    ledger_path_conf = "static/test.db"
 else:
     peerlist = "peers.txt"
 
@@ -115,67 +112,36 @@ def nodes_block_submit(block_send):
             threading.Thread( target=send_thread, args=(k, v, ) ).start()
 
 def check_uptodate(interval):
-    """Block until the local ledger's newest block is within ``interval`` seconds of now."""
-    # check if blocks are up to date
+    """Block until the node's newest block (its last coinbase, via the ``blocklast`` command) is within
+    ``interval`` seconds of now."""
     while sync_conf == 1:
-        conn = sqlite3.connect(ledger_path_conf)  # open to select the last tx to create a new hash from
-        conn.text_factory = str
-        c = conn.cursor()
-
-        execute(c, ("SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
-        timestamp_last_block = c.fetchone()[0]
-        time_now = str(time.time())
-        last_block_ago = float(time_now) - float(timestamp_last_block)
+        try:
+            s_node = socks.socksocket()
+            s_node.settimeout(10)
+            if tor_conf == 1:
+                s_node.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+            s_node.connect((node_ip_conf, int(port)))
+            try:
+                connections.send(s_node, "blocklast", 10)
+                timestamp_last_block = connections.receive(s_node, 10)[1]
+            finally:
+                s_node.close()
+        except Exception as e:
+            print("Could not query the node for its last block ({}), retrying".format(e))
+            time.sleep(5)
+            continue
+        last_block_ago = time.time() - float(timestamp_last_block)
 
         if last_block_ago > interval:
             print("Local blockchain is {:,.2f} minutes behind ({:,.2f} seconds), waiting for sync to complete".format(int(last_block_ago) / 60, last_block_ago))
             time.sleep(5)
         else:
             break
-        conn.close()
-        # check if blocks are up to date
 
 
 def bin_convert(string):
     """Convert a hex string to its binary-digit string representation."""
     return ''.join(format(ord(x), '8b').replace(' ', '0') for x in string)
-
-
-def execute(cursor, what):
-    """Run a SQL statement, retrying until it succeeds (tolerant of busy/slow DBs)."""
-    # secure execute for slow nodes
-    passed = 0
-    while passed == 0:
-        try:
-            # print cursor
-            # print what
-
-            cursor.execute(what)
-            passed = 1
-        except Exception as e:
-            print("Retrying database execute due to {}".format(e))
-            time.sleep(0.1)
-            pass
-            # secure execute for slow nodes
-    return cursor
-
-
-def execute_param(cursor, what, param):
-    """Run a parameterised SQL statement, retrying until it succeeds."""
-    # secure execute for slow nodes
-    passed = 0
-    while passed == 0:
-        try:
-            # print cursor
-            # print what
-            cursor.execute(what, param)
-            passed = 1
-        except Exception as e:
-            print("Retrying database execute due to {}".format(e))
-            time.sleep(0.1)
-            pass
-            # secure execute for slow nodes
-    return cursor
 
 
 def miner(privatekey_readable, public_key_hashed, address, miners, resultQueue):

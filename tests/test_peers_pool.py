@@ -93,6 +93,27 @@ def test_can_connect_to_refuses_dialing_self():
     assert p.can_connect_to("185.184.192.210", 5658) is True
 
 
+def test_can_connect_to_refuses_our_public_ip_even_when_node_ip_is_loopback(monkeypatch):
+    # mainnet regression (2026-10-18): config node_ip=127.0.0.1, peers gossiped our PUBLIC IP back, the
+    # node dialed itself and reported "Consensus height = 100%" off its own vote while 61 blocks forked
+    import peers_pool
+    monkeypatch.setattr(peers_pool, "_OWN_ADDRESSES", frozenset({"127.0.0.1", "localhost", "198.51.100.9"}))
+    p = _PeersStub()
+    p.config.node_ip = "127.0.0.1"
+    assert p.can_connect_to("198.51.100.9", 5658) is False
+    assert p.can_connect_to("198.51.100.9", 9999) is True          # another service on our host
+    assert p.can_connect_to("185.184.192.210", 5658) is True
+
+
+def test_own_addresses_covers_loopback_and_the_default_route():
+    import peers_pool
+    peers_pool._OWN_ADDRESSES = None
+    own = peers_pool.own_addresses()
+    assert {"127.0.0.1", "localhost"} <= own
+    assert peers_pool.own_addresses() is own                      # computed once
+    assert "185.184.192.210" not in own
+
+
 def test_del_try_removes_entry_and_is_safe_on_missing():
     p = _PeersStub()
     p.tried["1.2.3.4:5658"] = (2, time() + 999)

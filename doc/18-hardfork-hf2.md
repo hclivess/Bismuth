@@ -1,6 +1,6 @@
 # 18 — The `hf2` hard fork (automatic, signal-activated)
 
-> Companion to [`16-database-rework-plan.md`](16-database-rework-plan.md) and the roadmap
+> Companion to the storage doc [`05-database-and-ledger.md`](05-database-and-ledger.md) and the roadmap
 > [`17-roadmap.md`](17-roadmap.md). This collects everything that **changes consensus** into one
 > deliberately-scheduled event, and separates it from the work that does not.
 
@@ -38,7 +38,7 @@ blocks (unchanged).
 
 ## What `hf2` bundles
 
-### A. Serialization & storage (the `# HARDFORK (doc/16)` sites) — design ready
+### A. Serialization & storage (the `# HARDFORK` sites) — design ready
 Sign/hash **native integer units + a binary/struct tx encoding**, a bounded **content-hash txid**
 (`blake2b(tx_content)`, replacing the `signature[:56]` slice), and **canonical sig/pubkey encoding**
 (public key by reference — 1:1 with the address — and raw bytes, not base64). This is the bulk of a
@@ -124,38 +124,35 @@ secp256k1 senders.
     content-hash txid for indexing/lookup; ecrecover is never applied to them. Note shielded *consensus*
     validation is not part of hf2 — it is staged behind a separate `node.shielded_fork_height` (doc/22).
 
-**6. txid computed ON READ; shape-dispatched lookup (every reader).** There is **NO `txid` DB column
-and NO migration** — the canonical content-hash txid is computed **on read** from the stored row by
-`essentials.format_raw_tx`, which rebuilds the signed `'%.8f'` amount string via `amounts.ledger_value`
-(so it is **storage-mode agnostic** — same id whether the row holds a NUMERIC float or post-fork integer
-units) and feeds the frozen six-field pre-image to `bismuth_serialize.tx_id` (= `blake2b`). Pre-fork rows
-(or callers with no `fork_height`) keep the `signature[:56]` slice byte-for-byte.
+**6. Content txid: derived from the row, indexed, shape-dispatched lookup.** The canonical
+content-hash txid is computed from the stored row by `essentials.format_raw_tx` / `block_store.txid_of`,
+which rebuild the signed `'%.8f'` amount string via `amounts.ledger_value` (so it is **storage-mode
+agnostic** — same id whether the row holds a decimal or integer units) and feed the frozen six-field
+pre-image to `bismuth_serialize.tx_id` (= `blake2b`). Pre-fork rows (or callers with no `fork_height`)
+keep the `signature[:56]` slice byte-for-byte. `commit_block` records each post-fork txid in the ledger's
+`txid` sub-db (txid → height), maintained and rolled back in the block transaction, so lookup is O(1).
 
-Lookups dispatch on the **query string shape** so both eras resolve from one code path:
+Lookups dispatch on the **query string shape** so both eras resolve from one code path
+(`rest_api._transaction`):
 
 ```
 if len(q) == 64 and all(c in "0123456789abcdef" for c in q):   # post-fork content-hash txid
-    # no signature prefix to match -> scan post-fork rows, recompute the content txid, compare
-    for row in SELECT * FROM transactions WHERE block_height >= fork_height:
-        if format_raw_tx(row, fork_height)['txid'] == q: return row
+    h = store.txid_height(q)                                    # txid sub-db -> height
+    return the row in block h whose txid_of(row) == q
 else:                                                          # legacy signature[:56] slice
-    WHERE signature LIKE ?    (q + '%')                         # indexed prefix match (unchanged)
+    store.rows_by_sig_prefix(q, limit=1)                        # sig sub-db prefix range scan
 ```
 
 A 64-hex-lowercase string is unambiguously a post-fork txid (the legacy `signature[:56]` slice is
 base64, so it contains `+/=` or uppercase and **cannot** match `^[0-9a-f]{64}$`); anything else is a
-legacy prefix. Because the id is derived, not stored, there is nothing to migrate, no new column, no
-index churn, and block hashes are untouched by construction (the txid never enters
-`bismuth_serialize.TX_FIELDS` / the block-hash pre-image). See `rest_api._transaction`
-(`rest_api.py:1163-1199`) for the live dispatch — the 64-hex branch is a BOUNDED, recent-first
-streaming scan (`txid_scan_limit`, default 250000) with an optional `?from_height` to move the window
-down, so an absent id can't drag the whole post-fork range (audit H-4).
+legacy prefix. The txid never enters `bismuth_serialize.TX_FIELDS` / the block-hash pre-image, so block
+hashes are untouched by construction.
 
 **7. The integer-amount serialization freeze (byte-stability at the fork).** The txid content is only
 byte-stable if `signature_buffer`'s `amount` (and `timestamp`) string form is frozen at the fork.
 Today every signer/verifier reconstructs `amount` as `'%.8f' % float(amount)` and `timestamp` as
 `'%.2f'` *before* calling `signature_buffer` (`wallet_helpers.py:29`, `digest_tx.py:49,56`,
-`mempool.py` buffer build). doc/16 phase 2 (integer storage) is explicitly designed to keep these
+`mempool.py` buffer build). Integer-amount storage (`ledger_integer_amounts`) is explicitly designed to keep these
 *display/consensus-edge* strings identical — storage holds integer units, but the bytes fed to
 `signature_buffer` are reconstructed via `amounts.from_units` to the **same `'%.8f'` decimal string**.
 **Decision:** the hf2 txid content keeps the existing `signature_buffer` field bytes verbatim — i.e.
@@ -184,34 +181,28 @@ uncapped, free-form miner data. (Pre-fork the nonce rode in the openfield, `mine
   the `amounts.ledger_value`-normalised `'%.8f'` amount; pre-fork rows fall back to `raw[5][:56]`.
 - `rpc_bitcoin.py` (`rpc_getblock` tx list, `rpc_getrawtransaction` txid, `getrawmempool`/`sendrawtransaction` ids) — **DONE**: emit the content txid via `essentials.format_raw_tx` / `bismuth_serialize.tx_id_v2_s` (a `_mempool_txid` helper for the no-block-height mempool/wire rows).
 - `rpc_ethereum.py` (block `transactions`, tx `hash`, `txpool_*`/pending-filter/`eth_sendRawTransaction` ids) — **DONE**: same content-txid path.
-- `tokensv2.py:88` (issue), `:153` (transfer; already has the `txid=="0" -> blake2bhash_generate`
-  fallback) and `token_index.py` consumers (txid is just an opaque key there — feed the new id).
+- the `tokens_aliases` plugin (`plugins/tokens_aliases`, doc/27) and `token_index.py` (txid is just an
+  opaque key there — feed the new id).
 - `miner.py` / `regnet.py` build the wire tx; the **signer** (wallet send path,
   `send_nogui_noconf.py:124` `txid = signature_enc[:56]`) must switch to
   `blake2b(content).hexdigest()` and sign `unhex(txid)` post-fork.
-- `ledger_explorer.py:175` (`x[5][:56]`), `web/explorer/index.html:135,163,320-322`
+- `web/explorer/index.html:135,163,320-322`
   (`.slice(0,56)` link + the `^[0-9a-fA-F]{56}$` search heuristic → add a 64-hex branch; display
   `t.txid` when present, fall back to `signature`).
-- `digest`'s block writer / `to_db` path: **unchanged** — nothing is stored for the txid; it is derived
-  on read, so the writer is storage-mode-only and the block-hash pre-image is untouched.
+- `digest`'s block writer (`commit_block`): the content txid is indexed in the ledger's `txid` sub-db for
+  lookups; it never enters the block-hash pre-image, which is untouched.
 
 **Map — every txid LOOKUP (`signature LIKE`) to shape-dispatch (file:line):**
-- `rest_api._transaction` — `rest_api.py:1163-1199` (64-hex → bounded recent-first scan of post-fork
-  rows recomputing the content txid; else `WHERE signature LIKE ? LIMIT 1`); also `_submit_transaction`
+- `rest_api._transaction` — `rest_api.py:1163-1199` (64-hex → content-txid lookup; else the
+  `signature[:56]` prefix index); also `_submit_transaction`
   (`rest_api.py:420`) returns the computed post-fork txid.
 - `apihandler_tx.api_gettransaction` (`apihandler_tx.py:31-38`), `api_gettransactionbysignature`
   (`:95-100` — this one is *by full signature*, keep as exact-signature match, but note post-fork sigs
   are hex compact), `api_gettransaction_for_recipients` (`:160-168`).
-- `rpc_bitcoin` / `rpc_ethereum` tx-by-id — **DONE**: `block_store` bounded recent-first content-txid scan (SQLite `substr(signature,1,4)` TXID4 seek only as a pre-fork fallback when no block_store).
-- `tokensv2.py:132` (the `openfield LIKE` token scan is unrelated — leave; only its `r[4][:56]` id
-  derivation changes), `tokensv2.py:190` (`SELECT txid FROM tokens WHERE txid = ?` — the `tokens`
-  side-index has its own `txid` column; feed it the computed content id, no `transactions` column
-  involved).
-- `check_tx.py:38,53` (`signature like ?`) — add the 64-hex branch (scan post-fork rows recomputing the
-  content txid, as in `rest_api._transaction`).
+- `rpc_bitcoin` / `rpc_ethereum` tx-by-id — **DONE**: resolved from the ledger's `txid` / `sig` indexes.
+- the token index keys transfers by txid — feed it the computed content id.
 - mempool ledger-dup check `mempool.py:410-416` (matches on full `signature`) — the dedup key stays the
-  full `signature` (still present and unique on every tx, recoverable single-sig included); the
-  `substr(signature,1,4)` index branch is unchanged.
+  full `signature` (still present and unique on every tx, recoverable single-sig included).
 
 **Map — the VM contract-address derivation (`vm_engine.contract_address`,
 `vm_engine.py:29-35`) — ✅ IMPLEMENTED.** The deploy address now derives from the deploy tx's CONTENT
@@ -249,10 +240,10 @@ validated public IP (no DNS-rebind TOCTOU), refuses redirects (no SSRF pivot), a
 target-port allowlist + per-IP rate limit + global concurrency cap (`rest_api.py:76-83,540-601`). The
 64-hex content-txid lookup is the bounded recent-first streaming scan noted above (audit H-4).
 
-### B. Reward-sidechain cutover — foundation built (`reward_chain.py`)
-Mint dev/hypernode rewards into the sidechain instead of negative-height mirror rows; balances read
-ledger + sidechain. *Risk: moderate* — it's balance-preserving (proven for every address on regnet),
-but it touches the consensus balance path, so it's replay- and invariant-gated.
+### B. Dev / hypernode rewards — ✅ settled, no fork item
+The dev and hypernode rewards were minted locally every 10th block until 4,380,000 and have concluded.
+Their totals are fixed balance allocations in the ledger (`ledger_genesis.MAINNET_ALLOCATIONS`, `meta`
+"alloc", doc/05); there are no synthetic reward rows and nothing for hf2 to cut over.
 
 ### C. Difficulty stepping → **LWMA** — recommended design
 Today's `difficulty.py` is a PID controller (60 s target) estimating hashrate, with an **asymmetric
@@ -290,12 +281,9 @@ W_UNIT` (`block_store.BlockStore.recent_block_weights`, `W_UNIT=1000`), a gas/vb
 block of large RingCT/VM txs prices in its real footprint, not merely how many txs it holds (the baseline
 is unchanged for all-tiny blocks, since each tiny tx is ~1 weight). `base_fee = static ×
 clamp(avg(recent_weights)/TARGET_WEIGHT, 0.5×, 10×)` over `WINDOW=20` blocks. The weight window is read
-from the **LMDB block store** (`digest.py:494-498` → `node.block_store.recent_block_weights`), **not**
-SQLite — there is no SQLite on any post-fork path, and the earlier SQLite `recent_tx_counts` /
-`recent_block_weights` helpers were removed (`essentials.py:291-293`). (This differs from the LWMA
-retarget, which still reads solvetimes from SQLite — `difficulty.py` — at a different consensus boundary.)
-The store is rolled back with the chain so the window is always canonical, making the fee consensus-
-deterministic and storage-mode-independent (integer storage, doc/16, never touches `openfield`).
+from the LMDB ledger (`node.block_store.recent_block_weights`), which is rolled back with the chain, so
+the window is always canonical and the fee consensus-deterministic and storage-mode-independent (integer
+storage never touches `openfield`).
 Manipulation-resistant: window-averaged (one block barely moves it), clamped (no runaway spike), and a
 miner who stuffs blocks to inflate the fee pays the very fees they raise — the same bounded shape as
 EIP-1559, but non-recursive so it needs no saved fee state across restarts. (`tests/test_fee_dynamics.py`,

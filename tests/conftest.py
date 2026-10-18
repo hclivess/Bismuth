@@ -53,18 +53,14 @@ def _port_open():
 
 @pytest.fixture(scope="session")
 def node_proc():
-    # Start each session from a clean regnet chain.
-    for name in ("static/regmode.db", "static/index_reg.db",
-                 "static/regmode.db-shm", "static/regmode.db-wal", "node.log"):
-        try:
-            os.remove(os.path.join(ROOT, name))
-        except OSError:
-            pass
-    # The derived LMDB stores are namespaced per ledger (kvstore.store_path), so wiping REGNET's
-    # leaves a mainnet/testnet node on the same machine untouched. These used to be shared bare dirs
-    # (static/blockstore, ...) and this reset trashed a running production node's stores.
-    for _d in ("blockstore", "balanceindex", "txidindex", "pkregistry", "tokenindex"):
+    # Start each session from a clean regnet chain: the regnet ledger + plugin stores are namespaced per
+    # ledger (kvstore.store_path), so wiping them leaves a mainnet/testnet node on the same machine untouched.
+    for _d in ("blockstore", "tokenindex"):
         shutil.rmtree(os.path.join(ROOT, "static/%s-regmode.db" % _d), ignore_errors=True)
+    try:
+        os.remove(os.path.join(ROOT, "node.log"))
+    except OSError:
+        pass
     shutil.copy(os.path.join(ROOT, "tests/config_custom.txt"),
                 os.path.join(ROOT, "config_custom.txt"))
 

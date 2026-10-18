@@ -9,7 +9,7 @@ per-element overhead — the largest single per-tx storage win left.
 
 It reuses the Stage-4 field codecs (sigbytes/addrbytes/txfields), so the wire/store share one set of
 reversible encodings. ``unpack_row`` reconstructs the EXACT 11-field row (public_key still as the dedup id;
-block_store re-expands it), so get_block / cross_check / verify_against_sqlite see byte-identical rows.
+block_store re-expands it), so get_block sees byte-identical rows.
 Gated by the CALLER on node.fork_height (post-fork blocks store txrec; pre-fork stay legacy lists).
 """
 import amounts

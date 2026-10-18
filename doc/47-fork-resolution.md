@@ -34,8 +34,8 @@ peer (height == pool max) says blocknf(<our tip hash>)     # "I don't have your 
 * **Round-trip-per-block rollbacks** turned any fork deeper than a few blocks into a rollback storm, and
   every rollback fired a flat 2-point "Rollback" strike at the peer that triggered it — an *honest* peer
   serving a *legitimate* longer chain got banned after ~15 reorgs, isolating the node (a fork driver).
-* **Silence was read as disagreement** in places (`if not client_block:` → `blocknf`), and a hyperblock
-  peer's trimmed history looked like a fork.
+* **Silence was read as disagreement** in places (`if not client_block:` → `blocknf`), and a legacy
+  pruned-history (hyperblock) peer's trimmed history looked like a fork.
 
 ## 2. The rules now (nado's, PoW-adapted)
 
@@ -50,9 +50,10 @@ peer (height == pool max) says blocknf(<our tip hash>)     # "I don't have your 
 | 7 | **No strike for an honest reorg.** The flat "Rollback" strike is legacy-only. Measured mode strikes only when a claim was *disproved* (served nothing above the ancestor, branch shorter than advertised, branch failed validation). | callers in `node.py` / `worker.py` |
 | 8 | **Verdicts are cached** per `(our tip hash, peer)` for 60 s and dropped whenever our tip changes, so a nagging peer costs one measurement per minute, and a stale `REORG` can never revert a chain we just adopted. `fork_lock` serialises measurements across peer threads; nothing is measured while a digest holds `db_lock`. | `_cache_*`, `invalidate` |
 
-Everything else stays: `rollback_depth`/checkpoint semantics, `rollback_consensus*`, hyperblock skips,
-the `rollback` plugin hook, mempool re-injection of rolled-back txs, `handle_processing_error`'s
-ledger/working heal.
+Everything else stays: `rollback_depth`/checkpoint semantics, `rollback_consensus*`, the skip for legacy
+pruned-history peers, the `rollback` plugin hook, mempool re-injection of rolled-back txs, and
+`handle_processing_error`'s tip resync (a rejected block was never committed — the commit is one atomic
+LMDB transaction).
 
 ## 3. What was deliberately NOT ported
 

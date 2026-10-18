@@ -16,9 +16,9 @@ Bismuth-native pre-signed 8-field tuple (gated by rest_api_write), not an RLP se
 
 Provided, hex-encoded the way eth_* clients expect: chain height/blocks(+by hash/index)/tx/balance reads,
 fee/sync/peer/mempool(txpool) status, synthetic receipts for value txs, and block/pending-tx polling
-filters. POST-HF2 native: ids are content-hash txids; reads prefer node.block_store (LMDB, O(1)) — the
-`transactions` SQLite table is retired. Deps: stdlib + dbhandler/essentials/mempool (same as
-rpc_bitcoin.py).
+filters. POST-HF2 native: ids are content-hash txids; every read goes to the node's ONE LMDB ledger
+(``node.ledger``, a ``block_store.BlockStore``) through its indexes. Deps: stdlib +
+dbhandler/essentials/mempool (same as rpc_bitcoin.py).
 """
 import json
 import threading
@@ -86,13 +86,13 @@ def _make_handler(node):
 
     fh = lambda: getattr(node, "fork_height", None)
 
+    def _ledger():
+        bs = getattr(node, "ledger", None)
+        return bs if bs is not None else getattr(node, "block_store", None)
+
     def _tip():
-        bs = getattr(node, "block_store", None)
-        if bs is not None:
-            t = bs.tip()
-            if t is not None:
-                return int(t)
-        return int(getattr(node, "hdd_block", 0) or 0)
+        t = _ledger().tip()
+        return int(t) if t is not None else int(getattr(node, "hdd_block", 0) or 0)
 
     def _resolve_block(tag):
         if isinstance(tag, str):
@@ -105,29 +105,16 @@ def _make_handler(node):
         return int(tag)
 
     def _rows_for_height(db, height):
-        bs = getattr(node, "block_store", None)
-        if bs is not None:
-            return bs.get_block(int(height))
-        db.execute_param(db.h, "SELECT * FROM transactions WHERE block_height = ? ORDER BY rowid",
-                         (int(height),))
-        rows = db.h.fetchall()
-        return [list(r) for r in rows] if rows else None
+        return _ledger().get_block(int(height))
 
     def _hash_for_height(db, height):
-        bs = getattr(node, "block_store", None)
-        if bs is not None:
-            return bs.block_hash(int(height))
-        rows = _rows_for_height(db, height)
-        return rows[0][7] if rows else None
+        return _ledger().block_hash(int(height))
 
     def _height_for_hash(db, block_hash):
-        bs = getattr(node, "block_store", None)
-        if bs is not None:
-            return bs.height_by_hash(block_hash)
-        db.execute_param(db.h, "SELECT block_height FROM transactions WHERE block_hash = ? LIMIT 1",
-                         (block_hash,))
-        row = db.h.fetchone()
-        return row[0] if row else None
+        try:
+            return _ledger().height_by_hash(block_hash)
+        except Exception:
+            return None
 
     def _post_fork():
         fhv = fh()
@@ -142,31 +129,27 @@ def _make_handler(node):
         return row[4][:56]
 
     def _resolve_tx_row(db, txid):
-        """12-field ledger row for a tx id. POST-HF2: bounded recent-first scan of block_store (LMDB),
-        matching the recomputed content txid — the `transactions` SQLite table is retired. The TXID4 seek
-        is a pre-fork legacy fallback for nodes without a block_store."""
+        """12-field ledger row for a tx id: POST-HF2 the content txid (the ledger's txid index -> its block),
+        else the legacy signature[:56] id or any signature prefix (the signature-prefix index)."""
         _fh = fh()
         t = txid[2:] if isinstance(txid, str) and txid.startswith("0x") else txid
-        bs = getattr(node, "block_store", None)
-        if bs is not None:
-            tip = int(bs.tip() or 0)
-            window = int(getattr(node, "rpc_txid_scan_blocks", 50000))
-            lo = max(1, tip - window + 1)
-            for h in range(tip, lo - 1, -1):
-                rows = bs.get_block(h)
-                if not rows:
-                    continue
-                for r in rows:
-                    tx = essentials.format_raw_tx(r, _fh)
-                    if tx.get("txid") == t or (len(t) < 56 and str(r[5]).startswith(t)):
-                        return r
+        if not isinstance(t, str) or not t:
             return None
+        bs = _ledger()
+        if _fh is not None:
+            try:
+                h = bs.txid_height(t)
+            except Exception:
+                h = None
+            if h is not None:
+                for r in bs.get_block(h) or ():
+                    if essentials.format_raw_tx(r, _fh).get("txid") == t:
+                        return r
         if len(t) >= 4:
-            rows = db.fetchall(db.h, "SELECT * FROM transactions WHERE substr(signature,1,4)=substr(?1,1,4) "
-                                     "AND signature LIKE ?2 LIMIT 1", (t, t + "%"))
-        else:
-            rows = db.fetchall(db.h, "SELECT * FROM transactions WHERE signature LIKE ? LIMIT 1", (t + "%",))
-        return rows[0] if rows else None
+            rows = bs.rows_by_sig_prefix(t, limit=1)
+            if rows:
+                return rows[0]
+        return None
 
     def _tx_obj(row):
         # row: 12-field ledger row -> minimal eth-style tx object (hex value, Bismuth from/to addresses).
@@ -188,9 +171,7 @@ def _make_handler(node):
             pass
 
         def _db(self):
-            return dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
-                                       node.ledger_ram_file, node.logger,
-                                       trace_db_calls=node.trace_db_calls)
+            return dbhandler.DbHandler.for_node(node)
 
         def do_POST(self):
             length = int(self.headers.get("Content-Length", 0))
@@ -300,7 +281,7 @@ def _make_handler(node):
         # ---- balances ----
         def m_eth_getBalance(self, db, p):
             # p[0] is a Bismuth address (NOT an 0x-eth address). Wei-scaled so eth clients render whole BIS.
-            bal = essentials.ledger_balance3(p[0], {}, db)
+            bal = db.store.balance(p[0])
             return _hex(int(float(bal) * _WEI))
 
         def m_eth_getTransactionCount(self, db, p):
@@ -309,15 +290,13 @@ def _make_handler(node):
             addr = p[0]
             confirmed = 0
             try:
-                row = db.fetchone(db.h, "SELECT COUNT(*) FROM transactions WHERE address = ?", (addr,))
-                confirmed = int(row[0]) if row else 0
+                confirmed = int(db.store.address_tx_count(addr, role="sender"))
             except Exception:
                 confirmed = 0
             pending = 0
             if mp.MEMPOOL is not None:
                 try:
-                    pending = len(mp.MEMPOOL.fetchall(
-                        "SELECT 1 FROM transactions WHERE address = ?", (addr,)) or [])
+                    pending = sum(1 for r in mp.MEMPOOL.by_address(addr, valid_only=False) if r[1] == addr)
                 except Exception:
                     pending = 0
             return _hex(confirmed + pending)
@@ -403,7 +382,7 @@ def _make_handler(node):
             if mp.MEMPOOL is None:
                 raise Exception("mempool not ready")
             peer_ip = self.client_address[0] if self.client_address else "127.0.0.1"
-            result = mp.MEMPOOL.merge([[str(f) for f in tx]], peer_ip, db.c, True, True)
+            result = mp.MEMPOOL.merge([[str(f) for f in tx]], peer_ip, db, True, True)
             if "Success" not in " ".join(str(x) for x in (result or [])):
                 raise Exception("tx rejected: %s" % result)
             return "0x" + _mempool_txid(tx)   # POST-HF2 content txid (0x-prefixed); NOT a 32-byte eth hash
@@ -416,7 +395,7 @@ def _make_handler(node):
         def m_txpool_content(self, db, p):
             pending = {}
             if mp.MEMPOOL is not None:
-                for r in (mp.MEMPOOL.fetchall(mp.SQL_SELECT_ALL_TXS) or []):
+                for r in (mp.MEMPOOL.wire_transactions() or []):
                     pending.setdefault(r[1], {})[_mempool_txid(r)] = {
                         "from": r[1], "to": r[2], "value": _hex(int(float(r[3]) * _WEI))}
             return {"pending": pending, "queued": {}}
@@ -424,7 +403,7 @@ def _make_handler(node):
         def m_txpool_inspect(self, db, p):
             pending = {}
             if mp.MEMPOOL is not None:
-                for r in (mp.MEMPOOL.fetchall(mp.SQL_SELECT_ALL_TXS) or []):
+                for r in (mp.MEMPOOL.wire_transactions() or []):
                     pending.setdefault(r[1], {})[_mempool_txid(r)] = "%s: %s BIS" % (r[2], r[3])
             return {"pending": pending, "queued": {}}
 
@@ -459,7 +438,7 @@ def _make_handler(node):
         def m_eth_newPendingTransactionFilter(self, db, p):
             seen = set()
             if mp.MEMPOOL is not None:
-                seen = {_mempool_txid(r) for r in (mp.MEMPOOL.fetchall(mp.SQL_SELECT_ALL_TXS) or [])}
+                seen = {_mempool_txid(r) for r in (mp.MEMPOOL.wire_transactions() or [])}
             with _flock:
                 _fseq[0] += 1
                 fid = _hex(_fseq[0])
@@ -479,7 +458,7 @@ def _make_handler(node):
                     return [h for h in out if h]
                 cur = set()
                 if mp.MEMPOOL is not None:
-                    cur = {_mempool_txid(r) for r in (mp.MEMPOOL.fetchall(mp.SQL_SELECT_ALL_TXS) or [])}
+                    cur = {_mempool_txid(r) for r in (mp.MEMPOOL.wire_transactions() or [])}
                 fresh = ["0x" + s for s in (cur - f["seen"])]
                 f["seen"] = cur
                 return fresh

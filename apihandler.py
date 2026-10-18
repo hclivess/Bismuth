@@ -30,7 +30,7 @@ class ApiHandler(BlockApiMixin, AddressApiMixin, TxApiMixin):
     def __init__(self, app_log, config=None, node=None):
         self.app_log = app_log
         self.config = config
-        self.node = node          # for the storage read seam (doc/26): LMDB block reads post-fork
+        self.node = node          # node.ledger (the LMDB BlockStore), fork_height, mempool
         # Avoid mixing answers to commands with callbacks
         self.callback_lock = threading.Lock()
         # list of sockets that asked for a callback (new block notification)
@@ -64,7 +64,7 @@ class ApiHandler(BlockApiMixin, AddressApiMixin, TxApiMixin):
         :param peers:
         :return: list of mempool tx
         """
-        txs = mp.MEMPOOL.fetchall(mp.SQL_SELECT_TX_TO_SEND)
+        txs = mp.MEMPOOL.transactions()
         connections.send(socket_handler, txs)
 
     def api_getconfig(self, socket_handler, db_handler, peers):

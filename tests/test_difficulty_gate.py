@@ -12,28 +12,29 @@ Run with: python3 -m pytest tests/test_difficulty_gate.py -v
 import difficulty
 
 
-class _FakeCursor:
-    def __init__(self, rows):
-        self._rows = rows
+class _FakeLedger:
+    """A ledger stand-in: the coinbase (miner tx) timestamps of the newest blocks ending at ``tip``."""
 
-    def fetchall(self):
-        return self._rows
+    def __init__(self, timestamps, tip=1000):
+        start = tip - len(timestamps) + 1
+        self._cb = {start + i: (start + i, float(ts)) for i, ts in enumerate(timestamps)}
 
+    def first(self):
+        return min(self._cb) if self._cb else None
 
-class _FakeDb:
-    def __init__(self, rows):
-        self.c = _FakeCursor(rows)
+    def tip(self):
+        return max(self._cb) if self._cb else None
 
-    def execute_param(self, cursor, sql, params):
-        pass  # the fake just returns its canned rows from fetchall()
+    def coinbase(self, height):
+        return self._cb.get(int(height))
 
 
 def test_recent_solvetimes_from_miner_timestamps():
     # miner-tx timestamps 100,160,260,300 -> solvetimes 60,100,40 (oldest→newest)
-    db = _FakeDb([("100",), ("160",), ("260",), ("300",)])
+    db = _FakeLedger(["100", "160", "260", "300"])
     assert difficulty._recent_solvetimes(db, block_height=1000, window=60) == [60.0, 100.0, 40.0]
 
 
 def test_recent_solvetimes_empty_or_single():
-    assert difficulty._recent_solvetimes(_FakeDb([]), 1000, 60) == []
-    assert difficulty._recent_solvetimes(_FakeDb([("100",)]), 1000, 60) == []
+    assert difficulty._recent_solvetimes(_FakeLedger([]), 1000, 60) == []
+    assert difficulty._recent_solvetimes(_FakeLedger(["100"]), 1000, 60) == []

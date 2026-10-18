@@ -1,11 +1,12 @@
 """
 Authoritative, mempool-aware address balance for the ``balanceget*`` socket commands, lifted out of
-``node.py``. Unlike ``balance_cache``/``ledger_queries`` (height-keyed authoritative cache and integer
-quick-checks), this reproduces the exact legacy six-tuple the wire protocol returns
-(balance, credit, debit, fees, rewards, balance_no_mempool) and folds in pending mempool debits. Amounts
-are read mode-aware via ``amounts.ledger_value``. Takes ``node`` explicitly (only needs
-``node.last_block`` for the mempool fee calc), so it is a clean leaf with no import cycle.
+``node.py``. It reproduces the exact legacy six-tuple the wire protocol returns
+(balance, credit, debit, fees, rewards, balance_no_mempool) from the ledger's maintained per-address
+balance entry (``BlockStore.balance_parts``, integer units, O(1)) and folds in pending mempool debits.
+Takes ``node`` explicitly (only needs ``node.last_block`` for the mempool fee calc), so it is a clean leaf
+with no import cycle.
 """
+import block_store
 from decimal import Decimal
 
 import amounts
@@ -14,88 +15,31 @@ from essentials import fee_calculate
 from quantizer import quantize_eight
 
 
+def _dec(units):
+    """Integer units -> Decimal BIS; zero renders as the legacy bare ``0`` (never ``0E-8``)."""
+    return amounts.to_decimal(units) if units else Decimal("0")
+
+
 def balanceget(node, balance_address, db_handler):
-    # TODO: To move in db_handler, call by db_handler.balance_get(address)
-    # verify balance
-
-    # node.logger.app_log.info("Mempool: Verifying balance")
-    # node.logger.app_log.info("Mempool: Received address: " + str(balance_address))
-
     base_mempool = mp.MEMPOOL.mp_get(balance_address)
 
     # include mempool fees
-
     debit_mempool = 0
-    if base_mempool:
-        for x in base_mempool:
-            debit_tx = Decimal(x[0])
-            fee = fee_calculate(x[1], x[2], node.last_block)
-            debit_mempool = quantize_eight(debit_mempool + debit_tx + fee)
-    else:
-        debit_mempool = 0
-    # include mempool fees
+    for x in base_mempool or ():
+        debit_tx = Decimal(x[0])
+        fee = fee_calculate(x[1], x[2], node.last_block)
+        debit_mempool = quantize_eight(debit_mempool + debit_tx + fee)
 
-    credit_ledger = Decimal("0")
+    store = block_store.as_ledger(db_handler)
+    credit_u, rewards_u, debit_u, fees_u = store.balance_parts(balance_address)
 
-    # HARDFORK / cleanup (doc/16): this O(history) balance reads each amount/fee/reward and converts it
-    # with amounts.ledger_value (mode-aware: integer units -> Decimal, else legacy quantize). The bare
-    # `except: <value> = 0` guards below are a code smell — a conversion error silently ZEROES a balance
-    # instead of failing loudly. Replace with the maintained integer balance index (phase 4) and narrow
-    # the exception handling once amounts are integer end-to-end.
-    # ONE recipient-side scan feeds BOTH the credit (amount) and the reward accumulators. Previously this
-    # function issued TWO separate full-history `WHERE recipient = ?` scans of the 23GB ledger (one for
-    # amount here, one for reward below); they read the identical row set, so we fetch (amount, reward)
-    # once into recipient_entries. The two accumulators keep SEPARATE try/except blocks so the failure
-    # semantics are byte-identical to before (a conversion error still zeroes only its own accumulator).
-    try:
-        db_handler.execute_param(db_handler.h, "SELECT amount, reward FROM transactions WHERE recipient = ?;", (balance_address,))
-        recipient_entries = db_handler.h.fetchall()
-    except:
-        recipient_entries = []
-
-    try:
-        for entry in recipient_entries:
-            credit_ledger = quantize_eight(credit_ledger) + amounts.ledger_value(entry[0])
-            credit_ledger = 0 if credit_ledger is None else credit_ledger
-    except:
-        credit_ledger = 0
-
-    fees = Decimal("0")
-    debit_ledger = Decimal("0")
-
-    try:
-        db_handler.execute_param(db_handler.h, "SELECT fee, amount FROM transactions WHERE address = ?;", (balance_address,))
-        entries = db_handler.h.fetchall()
-    except:
-        entries = []
-
-    try:
-        for entry in entries:
-            fees = quantize_eight(fees) + amounts.ledger_value(entry[0])
-            fees = 0 if fees is None else fees
-    except:
-        fees = 0
-
-    try:
-        for entry in entries:
-            debit_ledger = debit_ledger + amounts.ledger_value(entry[1])
-            debit_ledger = 0 if debit_ledger is None else debit_ledger
-    except:
-        debit_ledger = 0
+    credit_ledger = _dec(credit_u)
+    debit_ledger = _dec(debit_u)
+    fees = _dec(fees_u)
+    rewards = _dec(rewards_u)
 
     debit = quantize_eight(debit_ledger + debit_mempool)
 
-    rewards = Decimal("0")
-
-    try:
-        for entry in recipient_entries:
-            rewards = quantize_eight(rewards) + amounts.ledger_value(entry[1])
-            rewards = 0 if str(rewards) == "0E-8" else rewards
-            rewards = 0 if rewards is None else rewards
-    except:
-        rewards = 0
-
     balance = quantize_eight(credit_ledger - debit - fees + rewards)
     balance_no_mempool = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
-    # node.logger.app_log.info("Mempool: Projected transction address balance: " + str(balance))
     return str(balance), str(credit_ledger), str(debit), str(fees), str(rewards), str(balance_no_mempool)

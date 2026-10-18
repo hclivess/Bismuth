@@ -1,6 +1,7 @@
 """
 Common helpers for Bismuth - Optimized Version
 """
+import block_store
 import base64
 import math
 import re
@@ -14,7 +15,6 @@ from polysign.signerfactory import SignerFactory
 
 import amounts
 import bismuth_serialize
-import db_helpers
 import wallet_helpers
 
 # Max base64 lengths for a tx's signature / public-key fields (anti-DoS bounds applied at mempool admission
@@ -82,7 +82,7 @@ End compatibility
 
 
 def format_raw_tx(raw: list, fork_height=None) -> dict:
-    # txid (doc/16, doc/18 §A.1): post-hf2 the canonical id is the content-hash txid — blake2b-256 of the
+    # txid (doc/18 §A.1): post-hf2 the canonical id is the content-hash txid — blake2b-256 of the
     # same frozen pre-image consensus signs (timestamp/address/recipient/amount/operation/openfield).
     # Reproduce it from the stored row, but using the CANONICAL '%.8f' amount string the signature was
     # computed over — NOT the stored representation, which is integer units in the post-fork block store
@@ -103,11 +103,11 @@ def format_raw_tx(raw: list, fork_height=None) -> dict:
         'timestamp': raw[1],
         'address': raw[2],
         'recipient': raw[3],
-        # display-edge (doc/16 phase 2): display_amount returns a FLOAT in integer-storage mode,
+        # display-edge (doc/05): display_amount returns a FLOAT in integer-storage mode,
         # matching the legacy NUMERIC-coerced float output. This is load-bearing: blocktojsondiffs
         # classifies txs with `reward == 0`, so a string '0.00000000' (what from_units returns) would
         # be `!= 0` and misclassify every normal tx as a mining tx.
-        # HARDFORK (doc/16): once consensus signs/hashes native integers, amounts are integer
+        # HARDFORK: once consensus signs/hashes native integers, amounts are integer
         # end-to-end and this reconstruction disappears.
         'amount': amounts.display_amount(raw[4]),
         'signature': raw[5],
@@ -242,33 +242,6 @@ def rollback_allowed(node, target_height) -> bool:
     return enough_peers and strong_majority and enough_reputable
 
 
-def ledger_balance3(address, cache, db_handler):
-    # Many heavy blocks are pool payouts, same address.
-    # Cache pre_balance instead of recalc for every tx
-    if address in cache:
-        return cache[address]
-
-    # Optimized: Single query instead of two separate queries
-    db_handler.execute_param(db_handler.c,
-        """SELECT 
-           SUM(CASE WHEN recipient = ? THEN amount + reward ELSE 0 END) as credit,
-           SUM(CASE WHEN address = ? THEN amount + fee ELSE 0 END) as debit
-           FROM transactions 
-           WHERE recipient = ? OR address = ?""",
-        (address, address, address, address))
-
-    result = db_handler.c.fetchone()
-    if amounts.LEDGER_INTEGER:
-        credit = amounts.to_decimal(result[0])
-        debit = amounts.to_decimal(result[1])
-    else:
-        credit = Decimal(result[0] or 0)
-        debit = Decimal(result[1] or 0)
-
-    cache[address] = quantize_eight(credit - debit)
-    return cache[address]
-
-
 # === coinbase maturity (doc/42) — hf2 consensus, gated by the CALLER on fork_height ================
 # A coinbase REWARD is not spendable until it is `maturity` blocks deep (BTC-style maturity in an ACCOUNT
 # model: a height-aware spendable-balance carve-out, not an output lock). Protects recipients of a
@@ -286,22 +259,14 @@ def coinbase_maturity(is_regnet: bool) -> int:
     return COINBASE_MATURITY_REGNET if is_regnet else COINBASE_MATURITY
 
 
-def immature_coinbase(address, validate_height, cursor, maturity, app_log=None):
+def immature_coinbase(address, validate_height, store, maturity, app_log=None):
     """doc/42: the Decimal sum of coinbase REWARD credited to `address` in blocks not yet `maturity` deep at
-    `validate_height` (i.e. block_height > validate_height - maturity) — the portion of the balance that is
-    NOT yet spendable. `maturity` is the per-network depth (see coinbase_maturity). Bounded to the recent
-    window via the block_height index (never a full-history scan). Mode-aware amount decode, matching
-    ledger_balance3. Callers gate on post-fork; this returns the raw immature total and does not itself
-    check the fork height."""
+    `validate_height` (block_height > validate_height - maturity) — the portion of the balance that is NOT
+    yet spendable. Reads the ledger's address index backwards from the tip, so it only touches the recent
+    window. Callers gate on post-fork; this does not itself check the fork height."""
+    store = block_store.as_ledger(store)
     cutoff = int(validate_height) - int(maturity)
-    cur = execute_param_c(cursor,
-        "SELECT SUM(reward) FROM transactions WHERE recipient = ? AND reward != 0 AND block_height > ?",
-        (address, cutoff), app_log)
-    row = cur.fetchone()
-    raw = row[0] if row else None
-    if not raw:
-        return Decimal(0)
-    return quantize_eight(amounts.to_decimal(raw) if amounts.LEDGER_INTEGER else Decimal(raw))
+    return amounts.to_decimal(store.reward_units_since(address, cutoff))
 
 
 def fee_calculate(openfield: str, operation: str = '', block: int = 0,
@@ -320,16 +285,8 @@ def fee_calculate(openfield: str, operation: str = '', block: int = 0,
     return quantize_eight(fee)
 
 
-# The post-fork dynamic-fee congestion signal (per-block WEIGHT) is read from the BLOCK STORE
-# (block_store.BlockStore.recent_block_weights), NOT SQLite — there is no SQLite on any post-fork path.
-# The earlier SQLite recent_tx_counts / recent_block_weights helpers were removed for that reason.
-
-
-def execute_param_c(cursor, query, param, app_log):
-    """Secure execute w/ param for slow nodes (aborts on UnicodeEncodeError, retries otherwise)."""
-    db_helpers.retry_db(lambda: cursor.execute(query, param), abort_on=(UnicodeEncodeError,),
-                        delay=0.1, log=app_log, describe=str(query)[:100])
-    return cursor
+# The post-fork dynamic-fee congestion signal (per-block WEIGHT) is read from the ledger
+# (block_store.BlockStore.recent_block_weights).
 
 
 def is_sequence(arg) -> bool:

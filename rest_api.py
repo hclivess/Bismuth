@@ -50,6 +50,7 @@ from urllib.parse import urlparse, parse_qs
 
 import amounts
 import bismuth_serialize
+import block_store
 import dbhandler
 import essentials
 import mempool as mp
@@ -113,37 +114,49 @@ class _Forbidden(Exception):
 
 
 # --- circulating-supply cache persistence -------------------------------------------------------
-# The cold full-ledger SUM(reward)-SUM(fee) scan is multi-minute on a multi-GB mainnet ledger. The
-# computed value is memoized on node._supply_cache and topped up incrementally as the tip advances,
-# but an in-memory-only cache is wiped on every restart -> the next /api/supply would trigger another
-# full scan (the explorer shows "computing" for minutes). We therefore mirror the cache to a small
-# JSON file next to the ledger so a restart reloads it and only the cheap incremental top-up runs.
+# Circulating supply = SUM(reward) - SUM(fee) over the whole chain. The cold figure is read from the
+# ledger's maintained per-address balance parts (one pass over the balance table, no block scan), then
+# memoized on node._supply_cache and topped up incrementally over just the new blocks as the tip advances.
+# The cache is mirrored to a small JSON file next to the ledger so a restart reloads it and only the cheap
+# incremental top-up runs. Amounts are integer atomic units throughout (storage-mode agnostic).
+
+SUPPLY_CACHE_BASIS = "units-v2"   # cache files from an older basis are ignored and recomputed
+
+
+def _ledger_file(node):
+    path = getattr(node, "ledger_path", None)
+    if not path:
+        path = getattr(getattr(node, "ledger", None), "path", None)
+    return path
+
 
 def supply_cache_path(node):
     """Path of the on-disk supply cache, alongside the ledger and NAMESPACED BY LEDGER FILENAME
     (e.g. static/supply_cache-ledger.db.json). Mainnet and regnet share one static/ directory, so a
-    shared filename let regnet test runs overwrite the mainnet cache (the intmode check happened to
-    reject the cross-load, but only because regnet runs integer amounts — the namespacing makes the
-    isolation structural, like fork.lockin_path). The legacy shared supply_cache.json is ignored."""
-    ledger_path = getattr(node, "ledger_path", None)
+    shared filename would let regnet test runs overwrite the mainnet cache; the namespacing makes the
+    isolation structural, like fork.lockin_path."""
+    ledger_path = _ledger_file(node)
     if not ledger_path:
         return None
-    base = os.path.basename(ledger_path) or "ledger.db"
+    ledger_path = str(ledger_path).rstrip("/")
+    base = os.path.basename(ledger_path) or "ledger"
     return os.path.join(os.path.dirname(ledger_path) or ".", "supply_cache-%s.json" % base)
 
 
 def load_supply_cache(node, intmode):
     """Load the persisted supply cache into node._supply_cache when present, well-formed, and matching
-    the node's current storage mode. Returns the loaded dict (also set on the node) or None. Any
-    missing/corrupt/empty/mismatched file is ignored so the caller falls back to a fresh compute."""
+    the node's current storage mode and cache basis. Returns the loaded dict (also set on the node) or
+    None. Any missing/corrupt/empty/mismatched file is ignored so the caller falls back to a fresh compute."""
     path = supply_cache_path(node)
     if not path or not os.path.exists(path):
         return None
     try:
         with open(path, "r") as f:
             raw = json.load(f)
+        if raw.get("basis") != SUPPLY_CACHE_BASIS:
+            return None  # built from another source/basis: recompute
         if bool(raw.get("intmode")) != bool(intmode):
-            return None  # storage-mode cutover: the persisted figure is in the other unit basis
+            return None  # storage-mode cutover
         cache = {"height": int(raw["height"]),
                  "circ": Decimal(str(raw["circ"])),  # string -> Decimal, no float drift
                  "intmode": bool(raw["intmode"])}
@@ -168,7 +181,8 @@ def save_supply_cache(node, cache):
         with open(tmp, "w") as f:
             json.dump({"height": int(cache["height"]),
                        "circ": str(cache["circ"]),
-                       "intmode": bool(cache["intmode"])}, f)
+                       "intmode": bool(cache["intmode"]),
+                       "basis": SUPPLY_CACHE_BASIS}, f)
         os.replace(tmp, path)
     except Exception as e:
         try:
@@ -177,43 +191,133 @@ def save_supply_cache(node, cache):
             pass
 
 
+def supply_units_total(store):
+    """(tip, SUM(reward) - SUM(fee) in units) over the whole chain, from the per-address balance parts
+    (every reward is credited to its recipient and every fee debited from its sender). The tip is re-read
+    around the pass so the figure is pinned to one block boundary."""
+    for _ in range(5):
+        tip = store.tip()
+        total = 0
+        for _a, (_credit, reward, _debit, fee) in store.iter_balances():
+            total += reward - fee
+        if store.tip() == tip:
+            return int(tip or 0), total
+    return int(store.tip() or 0), total
+
+
+def supply_units_range(store, lo, hi):
+    """SUM(reward) - SUM(fee) in units over blocks (lo, hi]."""
+    total = 0
+    for _h, rows in store.blocks_in_range(int(lo) + 1, int(hi)):
+        for r in rows:
+            total += block_store.units(r[block_store.REWARD]) - block_store.units(r[block_store.FEE])
+    return total
+
+
 def start_supply_compute(node, height=None, intmode=None):
-    """Run the cold full-ledger supply scan in a daemon thread (so it never blocks a request / 504s),
-    store the result on node._supply_cache, and persist it to disk so future restarts skip the scan.
-    Idempotent: a no-op while a compute is already in flight. Called on demand by /api/supply and once
-    proactively at REST-server start so the first-ever compute (no cache file yet) runs ahead of demand."""
+    """Compute the cold supply figure in a daemon thread (so it never blocks a request), store the result
+    on node._supply_cache, and persist it to disk so future restarts skip it. Idempotent: a no-op while a
+    compute is already in flight. Called on demand by /api/supply and once proactively at REST-server
+    start so the first-ever compute (no cache file yet) runs ahead of demand."""
     if getattr(node, "_supply_computing", False):
         return
-    if height is None:
-        height = int(getattr(node, "hdd_block", 0) or 0)
     if intmode is None:
         intmode = bool(getattr(node, "ledger_integer_amounts", False))
     node._supply_computing = True
 
     def work():
         try:
-            d = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
-                                    node.ledger_ram_file, node.logger,
-                                    trace_db_calls=node.trace_db_calls)
-            try:
-                base = d.fetchall(d.h, "SELECT COALESCE(SUM(reward),0)-COALESCE(SUM(fee),0) "
-                                       "FROM transactions WHERE block_height >= 0")[0][0]
-                mirror = d.fetchall(d.h, "SELECT COALESCE(SUM(amount),0) FROM transactions "
-                                         "WHERE block_height < 0")[0][0]
-                if intmode:
-                    circ = amounts.to_decimal(int(base or 0)) + amounts.to_decimal(int(mirror or 0))
-                else:
-                    circ = quantize_eight(base or 0) + quantize_eight(mirror or 0)
-                node._supply_cache = {"height": height, "circ": circ, "intmode": intmode}
-                save_supply_cache(node, node._supply_cache)  # persist so a restart skips the scan
-            finally:
-                d.close()
+            tip, units = supply_units_total(node.ledger)
+            node._supply_cache = {"height": tip, "circ": amounts.to_decimal(units), "intmode": intmode}
+            save_supply_cache(node, node._supply_cache)  # persist so a restart skips the compute
         except Exception as e:
             node.logger.app_log.warning("supply compute failed: {}".format(e))
         finally:
             node._supply_computing = False
 
     threading.Thread(target=work, daemon=True).start()
+
+
+def _coinbase_signals(height, rows, fork_height):
+    """Does the coinbase (the block's last row) at ``height`` carry the hf2 readiness signal? doc/41: the
+    signal moved coinbase slots at activation. BELOW fork_height it rides in the openfield (legacy; the
+    nonce/root hex there can't false-match 'hf2'); AT/AFTER fork_height the coinbase openfield is free miner
+    data and the signal rides in the public_key commitment ("hf2"+"vmsr"<root>) — so match per-era to avoid
+    both misses (post-fork) and false hits. Pre-activation (fork_height None) every block is pre-fork ->
+    openfield only."""
+    import fork
+    if not rows or height < 1:
+        return False
+    cb = rows[-1]
+    if fork_height is not None and height >= int(fork_height):
+        return fork.FORK2_SIGNAL in str(cb[block_store.PUB] or "")
+    return fork.FORK2_SIGNAL in str(cb[block_store.OF] or "")
+
+
+FORK_SCAN_CHUNK = 2000
+FORK_REORG_BACKOFF = 1000
+FORK_SYNC_SCAN_MAX = 20000   # chains up to this height build the signal set inline
+
+
+def _fork_signal_scan(node, lo, hi, sigset):
+    store = node.ledger
+    fh = getattr(node, "fork_height", None)
+    h = max(1, int(lo))
+    while h <= hi:
+        end = min(hi, h + FORK_SCAN_CHUNK - 1)
+        for height, rows in list(store.blocks_in_range(h, end)):
+            if _coinbase_signals(height, rows, fh):
+                sigset.add(height)
+        h = end + 1
+
+
+def _fork_signal_set(node, tip):
+    """The set of heights <= ``tip`` whose coinbase signals hf2, or None while the one-time cold scan runs
+    in the background. Kept on the node as {"height", "hash", "fork_height", "set"} and advanced over only
+    the new blocks. A reorg below the cached height (its block hash changed) re-derives the recent tail; a
+    fork-height change rebuilds."""
+    store = node.ledger
+    fh = getattr(node, "fork_height", None)
+    st = getattr(node, "_rest_fork_sigs", None)
+    if st is not None and st["fork_height"] == fh:
+        ch = st["height"]
+        if ch > tip or store.block_hash(ch) != st["hash"]:
+            # reorg / rollback under the cached height: re-derive the last FORK_REORG_BACKOFF blocks (far
+            # deeper than any rollback the node accepts) from the current chain
+            ch = max(0, min(ch, tip) - FORK_REORG_BACKOFF)
+            st = {"height": ch, "hash": store.block_hash(ch), "fork_height": fh,
+                  "set": {x for x in st["set"] if x <= ch}}
+        if tip > ch:
+            sigs = set(st["set"])
+            _fork_signal_scan(node, ch + 1, tip, sigs)
+            st = {"height": tip, "hash": store.block_hash(tip), "fork_height": fh, "set": sigs}
+        node._rest_fork_sigs = st
+        return st["set"]
+    if tip <= FORK_SYNC_SCAN_MAX:
+        # a short chain (regnet / tests): build inline, it is a few thousand block reads at most
+        sigs = set()
+        _fork_signal_scan(node, 1, tip, sigs)
+        node._rest_fork_sigs = {"height": tip, "hash": store.block_hash(tip), "fork_height": fh, "set": sigs}
+        return sigs
+    if not getattr(node, "_rest_fork_computing", False):
+        node._rest_fork_computing = True
+
+        def work():
+            try:
+                sigs = set()
+                _fork_signal_scan(node, 1, tip, sigs)
+                node._rest_fork_sigs = {"height": tip, "hash": store.block_hash(tip), "fork_height": fh,
+                                        "set": sigs}
+            except Exception as e:
+                try:
+                    node.logger.app_log.warning("fork signal scan failed: {}".format(e))
+                except Exception:
+                    pass
+            finally:
+                node._rest_fork_computing = False
+
+        threading.Thread(target=work, daemon=True).start()
+    return None
 
 
 def _make_handler(node):
@@ -271,58 +375,39 @@ def _make_handler(node):
             return "", None
 
         def _snapshot_info(self):
-            # doc/43: prefer DB-DIRECT (on-demand, no pre-built file) — if the live LMDB block store is
-            # present, report a snapshot generated straight from it (tip height + tip_hash, read O(1)).
-            # Otherwise fall back to the pre-built tarball manifest (sidecar only; never scans the live
-            # SQLite ledger). Gated by snapshot_serve.
+            # doc/43: DB-DIRECT (on-demand, no pre-built file) — a snapshot generated straight from the live
+            # LMDB ledger (tip height + tip_hash, read O(1)). Gated by snapshot_serve.
             if not getattr(node, "snapshot_serve", False):
                 raise _NotFound("snapshot serving disabled")
             import snapshot_p2p
             info = snapshot_p2p.db_snapshot_info(node)
-            if info is not None:
-                return info
-            man = snapshot_p2p.read_manifest(getattr(node, "snapshot_path", "") or "static/ledger-snapshot.tar.gz")
-            return {"available": True, **man} if man else {"available": False}
+            return info if info is not None else {"available": False}
 
         def _send_snapshot(self):
             # doc/43: prefer DB-DIRECT streaming — env.copyfd writes a consistent, compacted MVCC image
             # straight to the socket: no pre-built tarball, no doubled ledger copy on disk, fully on-demand
-            # and consistent even while the node writes. Fall back to streaming the pre-built tarball. Never
-            # scans the live SQLite ledger on a request either way.
+            # and consistent even while the node writes.
             if not getattr(node, "snapshot_serve", False):
                 raise _NotFound("snapshot serving disabled")
-            import os, snapshot_p2p
+            import snapshot_p2p
             info = snapshot_p2p.db_snapshot_info(node)
-            if info is not None:
-                # Size is unknown ahead of time (compacted on the fly), so signal end-of-body by closing the
-                # connection instead of a Content-Length. Flush the header bytes BEFORE copyfd, which writes
-                # the raw fd and would otherwise race ahead of still-buffered headers.
-                self.send_response(200)
-                self.send_header("Content-Type", "application/octet-stream")
-                self.send_header("X-Bismuth-Snapshot-Height", str(info["height"]))
-                self.send_header("X-Bismuth-Snapshot-Format", "lmdb")
-                self.send_header("X-Bismuth-Snapshot-Tip-Hash", str(info.get("tip_hash", "")))
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.send_header("Connection", "close")
-                self.end_headers()
-                self.wfile.flush()
-                snapshot_p2p.stream_db_snapshot(node, self.wfile)
-                self.close_connection = True
-                return
-            path = getattr(node, "snapshot_path", "") or "static/ledger-snapshot.tar.gz"
-            man = snapshot_p2p.read_manifest(path)
-            if not man:
+            if info is None:
                 raise _NotFound("no snapshot available")
+            # Size is unknown ahead of time (compacted on the fly), so signal end-of-body by closing the
+            # connection instead of a Content-Length. Flush the header bytes BEFORE copyfd, which writes
+            # the raw fd and would otherwise race ahead of still-buffered headers.
             self.send_response(200)
             self.send_header("Content-Type", "application/octet-stream")
-            self.send_header("Content-Length", str(os.path.getsize(path)))
-            self.send_header("X-Bismuth-Snapshot-Height", str(man["height"]))
-            self.send_header("X-Bismuth-Snapshot-Sha256", man["sha256"])
+            self.send_header("X-Bismuth-Snapshot-Height", str(info["height"]))
+            self.send_header("X-Bismuth-Snapshot-Format", "lmdb")
+            self.send_header("X-Bismuth-Snapshot-Tip-Hash", str(info.get("tip_hash", "")))
             self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Connection", "close")
             self.end_headers()
-            with open(path, "rb") as f:
-                for chunk in iter(lambda: f.read(1 << 20), b""):
-                    self.wfile.write(chunk)
+            self.wfile.flush()
+            snapshot_p2p.stream_db_snapshot(node, self.wfile)
+            self.close_connection = True
+            return
 
         def do_GET(self):
             parsed = urlparse(self.path)
@@ -496,7 +581,7 @@ def _make_handler(node):
             peer_ip = self.client_address[0] if self.client_address else "127.0.0.1"
             # stringify to the canonical wire form merge expects, then merge (size_bypass + wait, like mpinsert)
             txs = [[str(f) for f in tx] for tx in txs]
-            result = mp.MEMPOOL.merge(txs, peer_ip, db.c, True, True)
+            result = mp.MEMPOOL.merge(txs, peer_ip, db, True, True)
             # Echo each tx's canonical id: post-hf2 (the next block is at/after fork_height) it's the
             # content-hash txid; otherwise the legacy signature[:56] slice.
             fh = getattr(node, "fork_height", None)
@@ -539,15 +624,16 @@ def _make_handler(node):
 
         # --- helpers -------------------------------------------------------
         def _db(self):
-            return dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
-                                       node.ledger_ram_file, node.logger,
-                                       trace_db_calls=node.trace_db_calls)
+            return dbhandler.DbHandler.for_node(node)
+
+        @staticmethod
+        def _ledger():
+            return node.ledger
 
         @staticmethod
         def _check_key(value, what="parameter", maxlen=256):
             """Reject an empty / over-long path parameter early (audit L-10) so a malformed token/alias/
-            address lookup is a cheap 400 instead of a wasted DB round-trip. (Queries are already bound +
-            LIMITed, so this is hardening/consistency, not an injection fix.)"""
+            address lookup is a cheap 400 instead of a wasted ledger read."""
             if not value or len(value) > maxlen:
                 raise _BadRequest("%s missing or too long (max %d chars)" % (what, maxlen))
             return value
@@ -586,7 +672,7 @@ def _make_handler(node):
                         "/api/stats/top_miners": "mining distribution: blocks + reward per miner, share% (background-cached); ?top=N",
                         "/api/stats/largest_txs": "largest transactions by amount (background-cached); ?top=N (<=100)",
                         "/api/stats/market": "price / market cap / 24h volume (coingecko, TTL-cached; rest_api_market to disable)",
-                        "/api/stats/difficulty": "difficulty time-series sampled from the misc table",
+                        "/api/stats/difficulty": "difficulty time-series sampled from the ledger's difficulty index",
                         "/api/stats/geo": "geolocated peers for the explorer node map (cached; rest_api_geo to disable)",
                         "/api/tokens": "all tokens on chain, ranked by transfer volume",
                         "/api/token/{name}": "a token's supply, holder count, and per-address balances",
@@ -741,60 +827,30 @@ def _make_handler(node):
         def _pubkey(self, address):
             """hf2 pubkey-by-reference (doc/40): whether ``address`` already has a public key registered
             from a prior confirmed block — so a producer (wallet / pool) knows it can safely OMIT the key
-            on the wire (``public_key=""``) and have the node resolve it by address. ``registered=false``
-            also when the registry is not built (pre-fork / flag off), so the caller must carry the key
-            INLINE (fail-closed)."""
-            reg = getattr(node, "pk_registry", None)
-            if reg is None:
+            on the wire (``public_key=""``) and have the node resolve it by address. The registry lives in
+            the ledger and is only populated from the fork height on; ``available=false`` before the fork
+            height is known, so the caller must carry the key INLINE (fail-closed)."""
+            if getattr(node, "fork_height", None) is None:
                 return {"address": address, "registered": False, "available": False}
-            fseen = reg.first_seen(address)
+            fseen = self._ledger().pkref_first_seen(address)
             return {"address": address, "registered": fseen is not None,
                     "available": True, "first_height": fseen}
 
         def _fork(self, db):
             import fork
             tip = node.hdd_block
-            # /api/fork was reliably tens of seconds because fork.db_fork_signal_reader runs ONE point query
-            # per block and fork_status scans the whole signalling window (FORK2_WINDOW=1000) — an N+1 pattern
-            # (~1000 queries). That compute also exceeds the ~60s mainnet block interval, so a tip-keyed cache
-            # alone never helped (the tip moved between calls). Root-cause fix: prefetch the coinbase openfield
-            # of EVERY block in the window in a SINGLE ranged query (the max-rowid row per height == the
-            # coinbase, exactly matching the reader's per-block `ORDER BY rowid DESC LIMIT 1`), then feed
-            # fork_status a dict-backed reader. fork_status's logic is UNCHANGED — only the data access is
-            # batched (~0.01s vs ~88s). The tip cache is kept as cheap burst insurance (now actually effective
-            # since the compute is sub-second). Cache lives on the closure-captured `node` (process-lifetime).
+            # fork_status -> dynamic_fork_height scans the coinbase signal of EVERY block from genesis to tip
+            # (the lock-in is the EARLIEST full window, deliberately tip-independent), so it is fed the full
+            # SET of heights whose coinbase carried the signal (_fork_signal_set: built once by an ascending
+            # ledger scan, then topped up over only the new blocks). fork_status's scan is then an in-memory
+            # set loop with an IDENTICAL result to the per-block reader. Cached per tip.
             cached = getattr(node, "_rest_fork_cache", None)
             if cached is not None and cached[0] == tip:
                 return cached[1]
             window = int(getattr(node, "fork_window", fork.FORK2_WINDOW))
-            # fork_status -> dynamic_fork_height scans the coinbase signal of EVERY block from genesis to tip
-            # (the lock-in is the EARLIEST full window, deliberately tip-independent), so feeding it only the
-            # trailing window is wrong — it would never find / would chase the lock-in. Instead fetch the full
-            # SET of heights whose coinbase carried the signal in ONE query (the max-rowid row per height ==
-            # the coinbase, matching db_fork_signal_reader's `ORDER BY rowid DESC LIMIT 1`; LIKE '%hf2%' ==
-            # has_fork_signal's substring test). Then fork_status's scan is an in-memory set loop (~1s) with an
-            # IDENTICAL result, vs ~1000s of point queries (the old tens-of-seconds cost). 'hf2' contains a
-            # non-hex char so the nonce/state-root hex in the openfield can never false-match. Cached per tip.
-            # doc/41: the fork signal moved coinbase slots at activation. BELOW fork_height it rides in the
-            # openfield (legacy; the nonce/root hex there can't false-match 'hf2'); AT/AFTER fork_height the
-            # coinbase openfield is free miner data and the signal rides in the public_key commitment
-            # ("hf2"+"vmsr"<root>) — so match per-era to avoid both misses (post-fork) and false hits (a
-            # pre-fork RSA b64 pubkey can contain 'hf2'; free post-fork openfield can too). Pre-activation
-            # (fork_height None) every block is pre-fork -> openfield only, byte-identical to before.
-            _ff = getattr(node, "fork_height", None)
-            _cb_join = ("SELECT t.block_height FROM transactions t "
-                        "JOIN (SELECT block_height, MAX(rowid) mr FROM transactions "
-                        "      WHERE block_height >= 1 AND block_height <= ? GROUP BY block_height) m "
-                        "ON t.rowid = m.mr WHERE ")
-            _sig = "%" + fork.FORK2_SIGNAL + "%"
-            if _ff is None:
-                db.execute_param(db.c, _cb_join + "t.openfield LIKE ?", (int(tip), _sig))
-            else:
-                db.execute_param(db.c, _cb_join +
-                                 "((t.block_height < ? AND t.openfield LIKE ?) "
-                                 " OR (t.block_height >= ? AND t.public_key LIKE ?))",
-                                 (int(tip), int(_ff), _sig, int(_ff), _sig))
-            sigset = set(int(r[0]) for r in db.c.fetchall())
+            sigset = _fork_signal_set(node, int(tip or 0))
+            if sigset is None:
+                return {"tip": tip, "window": window, "status": "computing"}
             result = fork.fork_status(lambda h: int(h) in sigset, tip, window,
                                       getattr(node, "fork_boundary", fork.FORK2_BOUNDARY),
                                       getattr(node, "fork_bury", fork.FORK2_BURY))
@@ -926,8 +982,8 @@ def _make_handler(node):
 
         def _stats(self, db, which, query=None):
             """Explorer statistics (doc/15). Heavy aggregates (tx-per-month, new-addresses, rich-list) are
-            background-cached on the node and topped up incrementally; difficulty is sampled from the indexed
-            misc table; geo is best-effort + cached. All read-only / consensus-neutral."""
+            background-cached on the node and topped up incrementally; difficulty is sampled from the ledger's
+            difficulty index; geo is best-effort + cached. All read-only / consensus-neutral."""
             import rest_stats
             query = query or {}
             def _top(default):
@@ -960,25 +1016,21 @@ def _make_handler(node):
                             "rich_list|top_miners|largest_txs|market|difficulty|geo)")
 
         def _supply(self, db):
-            """Circulating supply = mining emission (sum(reward)-sum(fee) over positive heights) + the
-            concluded dev/HN reward mirrors (negative heights), from the full ledger (db.h = hdd). Cached
-            on the node and kept up to date INCREMENTALLY as the tip advances. The cold full-ledger scan
-            (potentially many GB) runs in a BACKGROUND thread so it never blocks the request / 504s; the
-            first call returns status "computing", later calls return the value."""
+            """Circulating supply = mining emission minus burned fees (sum(reward)-sum(fee) over the whole
+            chain). Cached on the node and kept up to date INCREMENTALLY as the tip advances. The cold figure
+            is computed in a BACKGROUND thread so it never blocks the request; the first call returns status
+            "computing", later calls return the value."""
             height = int(getattr(node, "hdd_block", 0) or 0)
             intmode = bool(getattr(node, "ledger_integer_amounts", False))
             cache = getattr(node, "_supply_cache", None)
-            if cache is None:  # cold start (e.g. just restarted): try the on-disk cache before scanning
+            if cache is None:  # cold start (e.g. just restarted): try the on-disk cache before computing
                 cache = load_supply_cache(node, intmode)
             if cache is not None and cache.get("intmode") == intmode:
                 if height <= cache["height"]:
                     return {"height": cache["height"], "status": "ok",
                             "circulating": str(quantize_eight(cache["circ"]))}
                 try:  # tip advanced -> cheap incremental top-up over just the new blocks
-                    r = db.fetchall(db.h, "SELECT COALESCE(SUM(reward),0)-COALESCE(SUM(fee),0) FROM "
-                                          "transactions WHERE block_height > ? AND block_height <= ?",
-                                    (cache["height"], height))[0][0]
-                    add = amounts.to_decimal(int(r or 0)) if intmode else quantize_eight(r or 0)
+                    add = amounts.to_decimal(supply_units_range(db.store, cache["height"], height))
                     node._supply_cache = {"height": height, "circ": cache["circ"] + add, "intmode": intmode}
                     save_supply_cache(node, node._supply_cache)  # keep the on-disk cache at the new tip
                     return {"height": height, "status": "ok",
@@ -989,66 +1041,35 @@ def _make_handler(node):
             return {"height": height, "circulating": None, "status": "computing"}
 
         def _tokens(self, db):
-            """All tokens seen on chain, ranked by transfer volume."""
-            # SEAM (doc/26 stage 2): read the isolated LMDB side-index when enabled, else index.db SQL.
-            if node.token_index is not None:
-                rows = node.token_index.tokens_list(500)
-                return {"count": len(rows), "tokens": [{"token": t, "transfers": c} for t, c in rows]}
-            rows = db.fetchall(db.index_cursor, "SELECT token, COUNT(*) FROM tokens "
-                                                "GROUP BY token ORDER BY COUNT(*) DESC LIMIT 500")
-            return {"count": len(rows), "tokens": [{"token": r[0], "transfers": r[1]} for r in rows]}
+            """All tokens seen on chain, ranked by transfer volume (the tokens_aliases plugin's index)."""
+            if node.token_index is None:
+                return {"count": 0, "tokens": []}
+            rows = node.token_index.tokens_list(500)
+            return {"count": len(rows), "tokens": [{"token": t, "transfers": c} for t, c in rows]}
 
         def _token_tx(self, db, address, query):
             """Token transfers (sent OR received) for an address, newest first, each a dict
-            {token, block_height, timestamp, sender, recipient, amount, signature}. Same SEAM as _tokens:
-            the LMDB token index (tokens_aliases plugin) when enabled, else the legacy index.db."""
+            {token, block_height, timestamp, sender, recipient, amount, signature}, from the tokens_aliases
+            plugin's index (empty when the plugin is not loaded)."""
             self._check_key(address, "address", 128)
             try:
                 limit = max(1, min(int(query.get("limit", ["100"])[0]), 500))
             except ValueError:
                 raise _BadRequest("limit must be an integer")
-            if node.token_index is not None:
-                rows = node.token_index.token_txs_for_address(address, limit)
-            else:
-                # legacy index.db tokens table: (block_height, timestamp, token, address, recipient, txid, amount)
-                r = db.fetchall(db.index_cursor,
-                                "SELECT token, block_height, timestamp, address, recipient, amount, txid "
-                                "FROM tokens WHERE address = ? OR recipient = ? "
-                                "ORDER BY block_height DESC LIMIT ?", (address, address, limit))
-                def _amt(v):                       # legacy index.db has some malformed rows (e.g. '{amount}')
-                    try:
-                        return int(v or 0)
-                    except (ValueError, TypeError):
-                        return 0
-                rows = [{"token": x[0], "block_height": x[1], "timestamp": x[2], "sender": x[3],
-                         "recipient": x[4], "amount": _amt(x[5]), "signature": x[6]} for x in (r or [])]
+            rows = node.token_index.token_txs_for_address(address, limit) if node.token_index is not None else []
             return {"address": address, "count": len(rows), "limit": limit, "transactions": rows}
 
         def _alias_lookup(self, db, alias):
-            """Resolve an alias to its current owner address (None if unclaimed/free). Same SEAM as the
-            token endpoints: the LMDB token index (tokens_aliases plugin) when enabled, else the legacy
-            index.db (first claimant)."""
+            """Resolve an alias to its current owner address (None if unclaimed/free or the tokens_aliases
+            plugin is not loaded)."""
             self._check_key(alias, "alias", 256)
-            if node.token_index is not None:
-                owner = node.token_index.alias_owner(alias)
-            else:
-                rows = db.fetchall(db.index_cursor,
-                                   "SELECT address FROM aliases WHERE alias = ? ORDER BY block_height ASC LIMIT 1",
-                                   (alias,))
-                owner = rows[0][0] if rows else None
+            owner = node.token_index.alias_owner(alias) if node.token_index is not None else None
             return {"alias": alias, "address": owner}
 
         def _aliases_for_address(self, db, address):
-            """All aliases owned by an address (registration order). LMDB token index when enabled, else
-            legacy index.db."""
+            """All aliases owned by an address (registration order), from the tokens_aliases plugin."""
             self._check_key(address, "address", 128)
-            if node.token_index is not None:
-                aliases = node.token_index.aliases_of(address)
-            else:
-                rows = db.fetchall(db.index_cursor,
-                                   "SELECT alias FROM aliases WHERE address = ? ORDER BY block_height ASC",
-                                   (address,))
-                aliases = [r[0] for r in (rows or [])]
+            aliases = node.token_index.aliases_of(address) if node.token_index is not None else []
             return {"address": address, "count": len(aliases), "aliases": aliases}
 
         def _token(self, db, name, query):
@@ -1056,12 +1077,9 @@ def _make_handler(node):
 
             The `holders` array is windowed by ?limit (default 200, max 1000) and ?offset (default 0), with
             explicit `holder_count` (total), `holders_returned`, `offset`, `limit` and `truncated` fields so a
-            consumer can tell when the list is partial and page through the rest. (It used to silently cap
-            holders at the top 200 by balance with no flag, so a naive reader summing the array got a value
-            below the canonical `supply` and could not tell it was incomplete.) `supply`/`holder_count` are
-            always the full-set aggregates regardless of the window. NOTE: when the tokens_aliases plugin is
-            loaded it owns the /api/token route (see do_GET) and this handler is the legacy index.db fallback;
-            both paths share the same windowing semantics (the plugin's token_detail applies them internally)."""
+            consumer can tell when the list is partial and page through the rest. `supply`/`holder_count` are
+            always the full-set aggregates regardless of the window (the plugin's token_detail applies the
+            window internally). Without the tokens_aliases plugin there is no token index: 404."""
             try:
                 limit = int(query.get("limit", ["200"])[0])
                 offset = int(query.get("offset", ["0"])[0])
@@ -1069,88 +1087,35 @@ def _make_handler(node):
                 raise _BadRequest("limit/offset must be integers")
             limit = max(1, min(limit, 1000))
             offset = max(0, offset)
-            if node.token_index is not None:
-                detail = node.token_index.token_detail(name, limit, offset)   # windows + flags internally
-                if detail is None:
-                    raise _NotFound("unknown token")
-                return detail
-            credits = {r[0]: int(r[1] or 0) for r in db.fetchall(db.index_cursor,
-                       "SELECT recipient, SUM(amount) FROM tokens WHERE token = ? GROUP BY recipient", (name,))}
-            debits = {r[0]: int(r[1] or 0) for r in db.fetchall(db.index_cursor,
-                      "SELECT address, SUM(amount) FROM tokens WHERE token = ? GROUP BY address", (name,))}
-            holders = []
-            for addr in (set(credits) | set(debits)):
-                bal = credits.get(addr, 0) - debits.get(addr, 0)
-                if bal > 0:
-                    holders.append({"address": addr, "balance": bal})
-            holders.sort(key=lambda h: -h["balance"])
-            transfers = db.fetchall(db.index_cursor, "SELECT COUNT(*) FROM tokens WHERE token = ?", (name,))[0][0]
-            if not holders and not transfers:
+            if node.token_index is None:
                 raise _NotFound("unknown token")
-            total = len(holders)
-            window = holders[offset:offset + limit]
-            return {"token": name, "supply": sum(h["balance"] for h in holders),
-                    "holder_count": total, "transfers": transfers, "holders": window,
-                    "holders_returned": len(window), "offset": offset, "limit": limit,
-                    "truncated": (offset + len(window)) < total}
+            detail = node.token_index.token_detail(name, limit, offset)   # windows + flags internally
+            if detail is None:
+                raise _NotFound("unknown token")
+            return detail
 
         def _block_rows_to_json(self, rows):
             fh = getattr(node, "fork_height", None)
             return [essentials.format_raw_tx(row, fh) for row in rows]
 
-        # --- storage read seam (doc/26 stage 3) -----------------------------------------------------
-        # The block-BODY reads below go through the seam: post-fork, when the LMDB block store is present,
-        # they read from it (canonical post-fork store); otherwise the legacy ledger.db cursor (pre-fork =
-        # unchanged). Both return the same 12-field rows (proven by storage_backend.cross_check), so the JSON
-        # is identical. LMDB-first-with-SQLite-FALLBACK keeps it correct on a node whose store was enabled
-        # mid-chain (older blocks not yet in LMDB fall back to SQLite). Display-only; never consensus.
-        def _store_backend(self):
-            store = getattr(node, "block_store", None)
-            fork_height = getattr(node, "fork_height", None)
-            last_block = getattr(node, "last_block", 0) or 0
-            if store is not None and fork_height is not None and last_block >= fork_height:
-                import storage_backend
-                return storage_backend.LmdbBackend(store)
-            return None
-
-        def _block_rows(self, db, height):
-            be = self._store_backend()
-            if be is not None:
-                rows = be.get_block(height)
-                if rows:                                   # in LMDB; else fall back (pre-enable history)
-                    return rows
-            return db.fetchall(db.h, "SELECT * FROM transactions WHERE block_height = ?", (height,))
-
-        def _range_rows(self, db, start, end):
-            be = self._store_backend()
-            if be is not None:
-                tip = be.tip_height()
-                # the LMDB store is contiguous to its tip, so start present + tip>=end => whole range present
-                if tip is not None and tip >= end and be.get_block(start) is not None:
-                    return [r for _h, rows in be.blocks_in_range(start, end) for r in rows]
-            return db.fetchall(db.h, "SELECT * FROM transactions WHERE block_height >= ? AND block_height <= ? "
-                                     "ORDER BY block_height ASC", (start, end))
+        def _range_rows(self, start, end):
+            """Every row of the blocks in [start, end], ascending."""
+            return [r for _h, rows in self._ledger().blocks_in_range(start, end) for r in rows]
 
         def _block_by_height(self, db, raw_height):
             try:
                 height = int(raw_height)
             except ValueError:
                 raise _BadRequest("height must be an integer")
-            rows = self._block_rows(db, height)
+            rows = self._ledger().get_block(height) if height >= 0 else None
             if not rows:
                 raise _NotFound("no block at height {}".format(height))
             return {"block_height": height, "transactions": self._block_rows_to_json(rows)}
 
         def _block_by_hash(self, db, block_hash):
-            be = self._store_backend()
-            if be is not None:
-                h = be.height_by_hash(block_hash)
-                if h is not None:
-                    rows = be.get_block(h)
-                    if rows:
-                        return {"block_hash": block_hash, "block_height": rows[0][0],
-                                "transactions": self._block_rows_to_json(rows)}
-            rows = db.fetchall(db.h, "SELECT * FROM transactions WHERE block_hash = ?", (block_hash,))
+            store = self._ledger()
+            h = store.height_by_hash(block_hash)
+            rows = store.get_block(h) if h is not None else None
             if not rows:
                 raise _NotFound("no block with hash {}".format(block_hash))
             return {"block_hash": block_hash, "block_height": rows[0][0],
@@ -1199,17 +1164,16 @@ def _make_handler(node):
             if end < start:
                 raise _BadRequest("end must be >= start")
             end = min(end, start + 5000)  # headers are tiny; allow a much wider span than full blocks
-            rows = db.fetchall(db.h,
-                               "SELECT block_height, MAX(block_hash), MIN(timestamp), COUNT(*) "
-                               "FROM transactions WHERE block_height >= ? AND block_height <= ? "
-                               "GROUP BY block_height ORDER BY block_height ASC", (start, end))
-            headers = [{"block_height": r[0], "block_hash": r[1], "timestamp": r[2], "txs": r[3]}
-                       for r in (rows or [])]
+            headers = []
+            for h, rows in self._ledger().blocks_in_range(start, end):
+                if not rows:
+                    continue
+                headers.append({"block_height": h, "block_hash": rows[0][7],
+                                "timestamp": min(r[1] for r in rows), "txs": len(rows)})
             return {"start": start, "end": end, "count": len(headers), "headers": headers}
 
         def _blocks_since(self, db, raw_since, query):
-            # Positive-height blocks after `since` (mirror reward rows are regenerated by the digester,
-            # so they are not shipped). Designed for parallel range fetching by new sync clients.
+            # Blocks after `since`. Designed for parallel range fetching by new sync clients.
             try:
                 since = int(raw_since)
             except ValueError:
@@ -1219,8 +1183,8 @@ def _make_handler(node):
             except ValueError:
                 raise _BadRequest("limit must be an integer")
             limit = max(1, min(limit, 1000))
-            # seam: > since AND <= since+limit  ==  the inclusive range [since+1, since+limit]
-            rows = self._range_rows(db, since + 1, since + limit)
+            # > since AND <= since+limit  ==  the inclusive range [since+1, since+limit]
+            rows = self._range_rows(since + 1, since + limit)
             return {"since": since, "limit": limit, "blocks": self._grouped_blocks(rows or [])}
 
         def _blocks_range(self, db, raw_start, raw_end, query=None):
@@ -1231,7 +1195,7 @@ def _make_handler(node):
             if end < start:
                 raise _BadRequest("end must be >= start")
             end = min(end, start + 1000)  # cap the span
-            rows = self._range_rows(db, start, end)
+            rows = self._range_rows(start, end)
             fmt = (query or {}).get("format", ["json"])[0]
             if fmt == "binary":
                 # compact TRUE-BYTES sync payload (sync_codec): raw hashes, varint amounts, raw sig/pubkey
@@ -1248,65 +1212,28 @@ def _make_handler(node):
         def _balance(self, db, address):
             if not essentials.address_validate(address):
                 raise _BadRequest("invalid address")
-            # O(1) read from the maintained balance index when enabled; else the authoritative memoized
-            # scan. The index is DISPLAY-only (consensus uses ledger_balance3), so a stale/wrong index
-            # can never enable spending.
-            bi = getattr(node, "balance_index", None)
-            if bi is not None:
-                balance = bi.get_balance(address)
-            else:
-                balance = db.balance_get(address)  # authoritative, memoized per chain height
+            # O(1) read of the ledger's maintained balance parts (credited amount + rewards - debited
+            # amount - fees, integer units) — the same figure consensus spends against.
+            credit, rewards, debit, fees = db.store.balance_parts(address)
+            balance = amounts.to_decimal(credit + rewards - debit - fees)
             return {"address": address, "balance": str(quantize_eight(balance))}
 
         def _transaction(self, db, txid, query=None):
             fh = getattr(node, "fork_height", None)
-            # Shape-dispatch (doc/18 §A.1 §6): a 64-char lowercase-hex id is a post-hf2 content-hash txid;
-            # it has no signature prefix to match, so locate the post-fork tx whose content hashes to it.
-            # Anything else is the legacy signature[:56] slice -> indexed prefix match (unchanged).
+            store = self._ledger()
+            # Shape-dispatch (doc/18 §A.1 §6): a 64-char lowercase-hex id is a post-hf2 content-hash txid,
+            # resolved O(1) through the ledger's txid index (txid -> height), then matched within that block.
+            # Anything else is the legacy signature[:56] slice -> signature-prefix index seek.
             if len(txid) == 64 and all(c in "0123456789abcdef" for c in txid):
                 if fh is None:
                     raise _NotFound("no transaction matching {}".format(txid))
-                # The content txid has NO DB column by design (computed on read), so resolve it by scanning
-                # post-fork rows and re-hashing each. Make that scan BOUNDED + recent-first (audit H-4): an
-                # unauthenticated lookup of a random/absent 64-hex id must not drag the ENTIRE post-fork
-                # ledger through blake2b. Stream newest-first over the idx_tx_block_height range and short-
-                # circuit on the first match; cap the rows scanned. A deep historical id can be reached with
-                # ?from_height (move the window down); without it, the default window is the recent tip back.
-                try:
-                    from_h = int((query or {}).get("from_height", [0])[0])
-                except (ValueError, TypeError):
-                    raise _BadRequest("from_height must be an integer")
-                max_scan = int(getattr(node, "txid_scan_limit", 250000))
-                tip = int(getattr(node, "hdd_block", 0) or 0)
-                # default lower bound: a recent window back from the tip (covers freshly-created txids, the
-                # common lookup) but never below the fork height; ?from_height overrides it downward.
-                default_lo = max(int(fh), tip - max_scan)
-                start_h = max(int(fh), from_h) if from_h else default_lo
-                db.execute_param(db.h, "SELECT * FROM transactions WHERE block_height >= ? "
-                                       "ORDER BY block_height DESC", (start_h,))
-                scanned = 0
-                for row in db.h:
-                    scanned += 1
-                    if scanned > max_scan:
-                        raise _BadRequest("txid scan limit (%d rows) exceeded from height %d; "
-                                          "narrow the search with ?from_height=" % (max_scan, start_h))
+                h = store.txid_height(txid)
+                for row in (store.get_block(h) or []) if h is not None else []:
                     tx = essentials.format_raw_tx(row, fh)
                     if tx.get("txid") == txid:
                         return tx
-                raise _NotFound("no transaction matching {} at/after height {}".format(txid, start_h))
-            # A bare `signature LIKE 'prefix%'` is a FULL-TABLE scan of the 23GB ledger (no plain signature
-            # index exists; and LIMIT 1 does not help the not-found case — it scans to the very end). Seek
-            # via the existing TXID4_Index (db_migrations.py: index on substr(signature,1,4)) for any prefix
-            # >= 4 chars, exactly like digest._signature_exists_in_ledger / the mempool SQL — turning the
-            # scan into an index seek + a tiny same-prefix bucket scan. Sub-4-char prefixes (rare/degenerate)
-            # fall back to the legacy scan.
-            if len(txid) >= 4:
-                rows = db.fetchall(db.h,
-                                   "SELECT * FROM transactions WHERE substr(signature,1,4)=substr(?1,1,4) "
-                                   "AND signature LIKE ?2 LIMIT 1", (txid, txid + "%"))
-            else:
-                rows = db.fetchall(db.h, "SELECT * FROM transactions WHERE signature LIKE ? LIMIT 1",
-                                   (txid + "%",))
+                raise _NotFound("no transaction matching {}".format(txid))
+            rows = store.rows_by_sig_prefix(txid, limit=1)
             if not rows:
                 raise _NotFound("no transaction matching {}".format(txid))
             return essentials.format_raw_tx(rows[0], fh)
@@ -1319,26 +1246,16 @@ def _make_handler(node):
             except ValueError:
                 raise _BadRequest("limit must be an integer")
             limit = max(1, min(limit, 500))
-            # Newest N where the address is sender OR recipient, WITHOUT sorting every matching row:
-            # two index-ordered subqueries (using the (party, block_height) composite indexes from
-            # db_migrations v2) each stop at LIMIT, then we merge. UNION dedups a self-send that matches
-            # both sides. Falls back fine on the old OR plan if the composite indexes aren't built yet.
-            rows = db.fetchall(db.h,
-                               "SELECT * FROM ("
-                               "  SELECT * FROM (SELECT * FROM transactions WHERE address = ? "
-                               "                 ORDER BY block_height DESC LIMIT ?) "
-                               "  UNION "
-                               "  SELECT * FROM (SELECT * FROM transactions WHERE recipient = ? "
-                               "                 ORDER BY block_height DESC LIMIT ?) "
-                               ") ORDER BY block_height DESC LIMIT ?",
-                               (address, limit, address, limit, limit))
+            # Newest N where the address is sender OR recipient: an ordered walk of the ledger's address
+            # index (self-sends de-duplicated), stopping at the limit.
+            rows = self._ledger().address_rows(address, role="any", reverse=True, limit=limit)
             return {"address": address, "limit": limit,
                     "transactions": self._block_rows_to_json(rows or [])}
 
         def _mempool(self):
-            rows = mp.MEMPOOL.fetchall(mp.SQL_SELECT_TX_TO_SEND) if mp.MEMPOOL else []
+            rows = mp.MEMPOOL.transactions() if mp.MEMPOOL else []
             return {"count": len(rows),
-                    "transactions": [dict(zip(MEMPOOL_FIELDS, row)) for row in rows]}
+                    "transactions": [dict(zip(MEMPOOL_FIELDS, row[:8])) for row in rows]}
 
     return Handler
 

@@ -5,14 +5,13 @@
 ``BlockProcessor`` class enforces the consensus rules: it checks signatures and
 rejects duplicates, validates the proof of work against the required
 difficulty, sorts and validates the block's transactions, computes balances and
-fees, applies the mining reward, writes the block atomically to the ledger and
-hyperblock databases, removes spent transactions from the mempool and runs the
+fees, applies the mining reward, commits the block atomically to the LMDB ledger
+(one transaction: rows, difficulty and every index), removes spent transactions from the mempool and runs the
 post-block hooks (e.g. alias/token/staking indexers). Errors trigger rollback
 and cleanup. This module decides what is and isn't a valid block, so any change
 here is consensus-affecting.
 """
 
-import hashlib
 import os
 import sys
 import time
@@ -27,9 +26,8 @@ import mempool as mp
 import mining_heavy3
 import validation_exceptions
 from difficulty import difficulty
-from essentials import checkpoint_set, ledger_balance3, immature_coinbase
+from essentials import checkpoint_set, immature_coinbase
 from fork import Fork
-import tokensv2 as tokens
 
 # Block/tx data model (value objects + consensus quantizers) lives in digest_tx; this module keeps
 # the BlockProcessor engine and the digest_block orchestration.
@@ -63,28 +61,17 @@ class BlockProcessor:
 
     def check_duplicate_signatures(self, block: list, block_instance: Block) -> None:
         """Reject a block that replays a transaction already in the CONFIRMED chain."""
-        # ROOT FIX for the "stuck, not syncing" wedge: bound the replay check to the canonical chain this
-        # block extends — heights [0, block_height_new - 1]. The node keeps two non-atomically-committed
-        # SQLite stores (full ledger.db + hyper.db rollup), so a crash or a rollback can momentarily leave
-        # one store with transaction rows ABOVE the committed tip. An UNBOUNDED replay check trusts those
-        # non-canonical orphan rows and then rejects the peer's (valid) re-sync of that very height
-        # ("Transaction ... already in ledger") — wedging sync indefinitely. Replay protection only ever
-        # needs the confirmed chain; rows above the tip are not consensus and must be ignored. This makes a
-        # ledger/hyper split HARMLESS to sync no matter how it arose, and is NOT a consensus change: a
-        # healthy node has no rows above its tip, so the bound is a no-op there — it only changes the
-        # (previously fatal) behaviour when local orphans exist.
+        # Replay protection reads the CONFIRMED chain only — heights [0, block_height_new - 1].
         confirmed_tip = block_instance.block_height_new - 1
         signature_list = []
         txid_list = []
+        store = self.db_handler.store
 
-        # doc/26 stage 4: shadow/primary the dup-replay read on the LMDB txid index. Engages POST-FORK only
-        # (pre-fork txs have no content txid and stay signature-deduped) and only when the index exists.
+        # Post-fork every tx also has a content txid (doc/29): dedup keys on it too (audit M-3/M-4 — two
+        # entries can share a txid while carrying different signatures). Pre-fork txs are signature-deduped.
         node = self.node
         post_fork = (getattr(node, "fork_height", None) is not None
                      and block_instance.block_height_new >= node.fork_height)
-        txi = getattr(node, "txid_index", None)
-        txi_mode = getattr(node, "txid_index_consensus", "off")
-        shadow_txid = post_fork and txi_mode != "off" and txi is not None
 
         n_tx = block_instance.tx_count
         for idx, entry in enumerate(block):
@@ -103,7 +90,7 @@ class BlockProcessor:
             # is still rejected below. (Keep the coinbase slot in signature_list for the tx-count check.)
             if is_coinbase:
                 signature_list.append(entry_signature)
-                if shadow_txid:
+                if post_fork:
                     txid_list.append(bismuth_serialize.tx_id_at(
                         block_instance.block_height_new, node.fork_height,
                         str(entry[0]), str(entry[1]), str(entry[2]), str(entry[3]),
@@ -115,48 +102,26 @@ class BlockProcessor:
 
             signature_list.append(entry_signature)
 
-            # Authoritative replay verdict (signature, confirmed chain only) — computed BEFORE raising so
-            # the shadow can compare without changing the (byte-identical) signature behaviour below.
-            sig_in_h = self._signature_exists_in_ledger(entry_signature, self.db_handler.h, confirmed_tip)
-            sig_in_c = self._signature_exists_in_ledger(entry_signature, self.db_handler.c, confirmed_tip)
+            sig_seen = store.signature_exists(entry_signature, confirmed_tip)
 
-            if shadow_txid:
-                # The canonical content txid of this entry (== txid_index.txid_of of the stored row: both
-                # funnel the amount through the same atomic-unit normalization inside tx_id_v2_s).
+            if post_fork:
                 txid = bismuth_serialize.tx_id_at(
                     block_instance.block_height_new, node.fork_height,
                     str(entry[0]), str(entry[1]), str(entry[2]), str(entry[3]), str(entry[6]), str(entry[7]))
                 txid_list.append(txid)
-                idx_seen = txi.contains(txid, confirmed_tip)
-                sig_seen = sig_in_h or sig_in_c
-                if idx_seen != sig_seen:
-                    msg = (f"txid-index dedup parity mismatch at {block_instance.block_height_new}: "
-                           f"txid {txid[:12]} index={idx_seen} sig={sig_seen}")
-                    if txi_mode == "primary":
-                        # index authoritative: a disagreement means a replay the SQLite read would miss,
-                        # or a stale index — HALT (a wrong dedup either inflates or wedges). Never bypass.
-                        raise ValueError(msg)
-                    if getattr(node, "parity_strict", False):
-                        raise AssertionError(msg)
-                    node.logger.app_log.warning(msg)
+                _th = store.txid_height(txid)
+                if _th is not None and _th <= confirmed_tip:
+                    raise ValueError(f"Transaction {txid[:12]} already in ledger (txid)")
 
-            # Check if signature exists in main ledger (confirmed chain only). doc/30: a curated DUPLICATE
-            # waiver lets a known historical replay (manual rescue re-broadcast) through during sync.
+            # Check if signature exists in the confirmed chain. doc/30: a curated DUPLICATE waiver lets a
+            # known historical replay (manual rescue re-broadcast) through during sync.
             _dup_h = block_instance.block_height_new
-            if sig_in_h:
+            if sig_seen:
                 if not validation_exceptions.is_exempt(node, _dup_h, validation_exceptions.DUPLICATE,
                                                        entry_signature):
                     raise ValueError(f"Transaction {entry_signature[:10]} already in ledger")
                 validation_exceptions.note(node, _dup_h, validation_exceptions.DUPLICATE,
-                                           f"replay {entry_signature[:12]} (ledger)")
-
-            # Check if signature exists in RAM ledger (confirmed chain only)
-            if sig_in_c:
-                if not validation_exceptions.is_exempt(node, _dup_h, validation_exceptions.DUPLICATE,
-                                                       entry_signature):
-                    raise ValueError(f"Transaction {entry_signature[:10]} already in RAM ledger")
-                validation_exceptions.note(node, _dup_h, validation_exceptions.DUPLICATE,
-                                           f"replay {entry_signature[:12]} (ram)")
+                                           f"replay {entry_signature[:12]}")
 
         # Check for duplicates within the block
         if block_instance.tx_count != len(set(signature_list)):
@@ -166,38 +131,9 @@ class BlockProcessor:
             validation_exceptions.note(node, block_instance.block_height_new,
                                        validation_exceptions.DUPLICATE, "in-block duplicate signatures")
 
-        # doc/26 stage 4: the same in-block dedup, keyed on the content txid. Under malleability two entries
-        # can share a txid while carrying different signatures (audit M-3/M-4) — the txid key catches that,
-        # the signature key does not. In shadow it only flags the divergence; in primary the txid is the
-        # authoritative dedup key.
-        if shadow_txid and len(set(txid_list)) != len(set(signature_list)):
-            msg = (f"txid-index in-block dedup parity mismatch at {block_instance.block_height_new}: "
-                   f"{len(set(txid_list))} unique txids vs {len(set(signature_list))} unique sigs")
-            if txi_mode == "primary":
-                raise ValueError("There are duplicate transactions in this block (txid), rejected")
-            if getattr(node, "parity_strict", False):
-                raise AssertionError(msg)
-            node.logger.app_log.warning(msg)
-
-    def _signature_exists_in_ledger(self, signature: str, cursor, confirmed_tip: int) -> bool:
-        """Does `signature` exist in the CONFIRMED chain (block_height in [0, confirmed_tip])? Rows above
-        confirmed_tip are non-canonical (an orphan from a ledger/hyper split) and are deliberately ignored
-        so they cannot poison replay protection and wedge sync."""
-        if self.node.old_sqlite:
-            self.db_handler.execute_param(
-                cursor,
-                "SELECT block_height FROM transactions WHERE signature = ?1 "
-                "AND block_height >= 0 AND block_height <= ?2;",
-                (signature, confirmed_tip)
-            )
-        else:
-            self.db_handler.execute_param(
-                cursor,
-                "SELECT block_height FROM transactions WHERE substr(signature,1,4) = substr(?1,1,4) "
-                "and signature = ?1 AND block_height >= 0 AND block_height <= ?2;",
-                (signature, confirmed_tip)
-            )
-        return cursor.fetchone() is not None
+        # The same in-block dedup keyed on the content txid post-fork (malleated signatures, one txid).
+        if post_fork and len(set(txid_list)) != len(txid_list):
+            raise ValueError("There are duplicate transactions in this block (txid), rejected")
 
     def sort_and_validate_transactions(self, block: list, block_instance: Block) -> MinerTransaction:
         """Sort and validate all transactions in a block."""
@@ -211,10 +147,6 @@ class BlockProcessor:
 
             if potential_miner_tx:
                 miner_tx = potential_miner_tx
-
-            # Check for token operations
-            if tx.received_operation in ["token:issue", "token:transfer"]:
-                block_instance.tokens_operation_present = True
 
             # Validate transaction (pass the height it's being validated into, for the hf2 signature gate).
             # doc/30 from-genesis sync: below assume_valid_height skip the expensive sig re-verify; and a
@@ -280,7 +212,7 @@ class BlockProcessor:
                 )
 
             # Parse transaction fields
-            # HARDFORK (doc/16): db_timestamp/db_amount are rebuilt into the frozen legacy '%.2f'/'%.8f'
+            # HARDFORK: db_timestamp/db_amount are rebuilt into the frozen legacy '%.2f'/'%.8f'
             # string forms so the stored row matches what consensus signed/hashed. In integer-storage
             # mode the amount string is then re-parsed to units below (decimal -> string -> int, a
             # double conversion). The hard fork that signs native integers deletes this.
@@ -330,7 +262,7 @@ class BlockProcessor:
 
             # Append to block transactions
             # storage form: amount/fee/reward as integer atomic units when enabled (the block hash
-            # uses the separate decimal-string to_tuple, so it is unaffected). doc/16 phase 2.
+            # uses the separate decimal-string to_tuple, so it is unaffected). doc/05.
             self.block_transactions.append((
                 str(block_instance.block_height_new), str(db_timestamp), str(db_address),
                 str(db_recipient),
@@ -365,43 +297,13 @@ class BlockProcessor:
         return block_debit_address, block_fees_address
 
     def _validate_balance(self, address: str, amount: str, debit: Decimal, fees: Decimal, balances: dict) -> None:
-        """Validate that an address has sufficient balance.
-
-        Balance-read migration seam (doc/26 stage 4). The overspend check is the LAST consensus read still on
-        SQLite (ledger_balance3, a ledger scan). The maintained LMDB balance_index BIT-MATCHES it in
-        integer-units mode (exact, order-independent integer addition through the same to_decimal; mirror
-        reward rows included), so it can become the authoritative read. Gated by node.balance_index_consensus,
-        and engaged only on an address's FIRST appearance this block (where the two views coincide:
-        ledger_balance3 has no intra-block delta cached yet and the index reflects the last committed block),
-        post-fork, integer mode:
-          off (default / mainnet): ledger_balance3 authoritative, NO index read -> byte-identical.
-          shadow: compute the index too + compare; warn (raise under parity_strict) on a mismatch; keep SQLite.
-          primary: the index is authoritative; still compute SQLite and RAISE on a mismatch (halt > inflate)."""
+        """Validate that an address has sufficient balance. The starting balance is the ledger's maintained
+        per-address total (exact integer units) at the last committed block, read once per address per
+        block; ``debit``/``fees`` carry this block's cumulative spend for the address."""
         node = self.node
-        first_seen = address not in balances
-        balance_pre = ledger_balance3(address, balances, self.db_handler)   # SQLite — the safe authoritative read
-
-        mode = getattr(node, "balance_index_consensus", "off")
-        bi = getattr(node, "balance_index", None)
-        fh = getattr(node, "fork_height", None)
-        if (mode != "off" and bi is not None and fh is not None and first_seen
-                and (getattr(node, "last_block", 0) or 0) >= fh and amounts.LEDGER_INTEGER):
-            strict = (mode == "primary") or getattr(node, "parity_strict", False)
-            try:
-                indexed = quantize_eight(bi.get_balance(address))
-            except Exception as e:
-                if strict:
-                    raise
-                node.logger.app_log.warning(f"balance seam read failed for {address[:16]}: {e}")
-                indexed = None
-            if indexed is not None and indexed != quantize_eight(balance_pre):
-                msg = (f"balance seam: index {indexed} != ledger_balance3 {balance_pre} for {address[:16]} "
-                       f"at height {getattr(node, 'last_block', 0)}")
-                if strict:
-                    raise ValueError(msg)
-                node.logger.app_log.warning(msg + " — investigate before trusting the LMDB balance read")
-            elif indexed is not None and mode == "primary":
-                balance_pre = indexed                   # the index is now the authoritative starting balance
+        if address not in balances:
+            balances[address] = self.db_handler.store.balance(address)
+        balance_pre = balances[address]
 
         # doc/30: the block being validated is node.last_block + 1 (last_block is only advanced after this
         # whole block's balances are processed). A curated OVERSPEND waiver lets a historical manual coin
@@ -412,7 +314,7 @@ class BlockProcessor:
         # immature reward slice out of the spendable balance (account-model maturity). Pre-fork: no carve-out
         # (immature = 0), so this is byte-identical below the fork.
         _fh_mat = getattr(node, "fork_height", None)
-        _immature = (immature_coinbase(address, _ovr_h, self.db_handler.c,
+        _immature = (immature_coinbase(address, _ovr_h, self.db_handler.store,
                                        essentials.coinbase_maturity(getattr(node, "is_regnet", False)),
                                        node.logger.app_log)
                      if (_fh_mat is not None and _ovr_h >= _fh_mat) else Decimal(0))
@@ -452,18 +354,6 @@ class BlockProcessor:
             )
         except:
             pass  # Transaction not in local mempool
-
-    def apply_rewards(self, block_instance: Block, miner_tx: MinerTransaction) -> None:
-        """Apply dev and HN rewards if applicable."""
-        if block_instance.block_height_new % 10 == 0 and block_instance.block_height_new < 4380000:
-            self.db_handler.dev_reward(
-                self.node, block_instance, miner_tx,
-                block_instance.mining_reward, block_instance.mirror_hash
-            )
-            self.db_handler.hn_reward(
-                self.node, block_instance, miner_tx,
-                block_instance.mirror_hash
-            )
 
     def verify_proof_of_work(self, block_instance: Block, miner_tx: MinerTransaction,
                              tx: Transaction, diff: tuple) -> Any:
@@ -645,18 +535,12 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         if node.fee_post_fork:
             import fee_dynamics
             # congestion = block WEIGHT (tx count + openfield bytes // W_UNIT), so large RingCT/VM txs price
-            # in their real footprint, not just count. Read from the post-fork BLOCK STORE (LMDB) — NO
-            # SQLite post-fork. The base_fee is CONSENSUS (it sets the per-tx required fee and the coinbase
+            # in their real footprint, not just count. Read from the ledger. The base_fee is CONSENSUS (it sets the per-tx required fee and the coinbase
             # reward), so it MUST be identical on every node. FAIL CLOSED: the store is mandatory post-fork
             # (opened unconditionally in node.py) and the weight window must be fully present, else this node
             # HALTS instead of silently falling back to a divergent static fee / a short-window average — the
-            # consensus split this guards against. A missing store or a window gap is an operator/env fault
-            # (re-sync or enable the block store before hf2), never a silent alternate fee schedule.
-            _bs = getattr(node, "block_store", None)
-            if _bs is None:
-                raise ValueError(
-                    "post-fork dynamic fee requires the block store, but it is not open — it is mandatory "
-                    "consensus since hf2 activation (fee window source). Fix/enable the block store and restart.")
+            # consensus split this guards against.
+            _bs = db_handler.store
             # strict=True: raise on any missing height in the window rather than skipping it (a skipped height
             # would make this node average over fewer blocks than its peers -> a different fee -> a fork).
             _weights = _bs.recent_block_weights(node.last_block, fee_dynamics.WINDOW, fee_dynamics.W_UNIT,
@@ -767,97 +651,9 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
                         f"post-fork-only sender type {str(_t[2])[:12]} at block "
                         f"{block_instance.block_height_new} requires hf2 activation (fork_height {_mfh})")
 
-        # Save to database
-        db_handler.to_db(block_instance, diff_save, processor.block_transactions)
-
-        # LMDB block-body write through the stage-4 write seam (doc/26): ONE store, ONE atomic txn — no
-        # commit_marker/ATTACH. Today it runs AFTER the SQLite commit and is still additive (the SQLite
-        # ledger remains the source of truth for the consensus reads, esp. the ledger_balance3 overspend
-        # check), so it never affects the block hash, validation, or mining. It is the canonical-write
-        # candidate: reorg-safe (rolled back with the ledger in chain_ops) and the foundation for retiring
-        # the SQLite lockstep once the consensus reads migrate and this write is trust-verified.
-        if getattr(node, "block_writer", None) is not None:
-            try:
-                node.block_writer.append_block(block_instance.block_height_new,
-                                               block_instance.block_hash, processor.block_transactions)
-            except Exception as e:
-                node.logger.app_log.warning(
-                    f"block store write (seam) failed at {block_instance.block_height_new}: {e}")
-
-            # Continuous trust check (doc/26 stage 4): post-fork, verify the LMDB store's block-linkage matches
-            # the hash consensus just committed. This is the prerequisite for ever making block_store.tip() /
-            # block_hash the crash-recovery + last-block-linkage authority (and retiring the SQLite lockstep):
-            # you prove the LMDB linkage tracks consensus every block before you trust it. LOG-ONLY — a
-            # derived-store divergence must never halt consensus; a mismatch flags an LMDB write bug to fix
-            # before the canonical flip. (The last-block-linkage SQLite read itself is only a startup/rollback
-            # seed kept in memory during digestion, so there is no per-block linkage read to swap here.)
-            _wfh = getattr(node, "fork_height", None)
-            if _wfh is not None and block_instance.block_height_new >= _wfh:
-                try:
-                    _lmdb_hash = node.block_store.block_hash(block_instance.block_height_new)
-                    if _lmdb_hash != block_instance.block_hash:
-                        node.logger.app_log.warning(
-                            f"storage seam: LMDB block hash {_lmdb_hash} != committed "
-                            f"{block_instance.block_hash} at {block_instance.block_height_new} — investigate "
-                            f"before trusting LMDB as canonical")
-                except Exception as e:
-                    node.logger.app_log.warning(
-                        f"storage seam linkage check failed at {block_instance.block_height_new}: {e}")
-
-        # Calculate mirror hash
-        block_instance.mirror_hash = calculate_mirror_hash(db_handler)
-
-        # Apply rewards
-        processor.apply_rewards(block_instance, miner_tx)
-
-        # (hf2 fork-height detection runs at the TOP of this loop, BEFORE the block is validated —
-        # the rules a block is judged under must derive from the chain below it.)
-
-        # Optional maintained balance index (doc/17): apply this block's net effect — the positive txs plus
-        # any negative-height "mirror" rows (concluded dev/HN rewards AND VM custody payouts, both written
-        # above) — so the index stays bit-identical to ledger_balance3. DISPLAY path only: the overspend
-        # check uses ledger_balance3, so a wrong/stale index can never enable spending.
-        if getattr(node, "balance_index", None) is not None:
-            try:
-                node.balance_index.apply_rows(processor.block_transactions)
-                h = block_instance.block_height_new
-                db_handler.execute_param(db_handler.c,
-                                         "SELECT * FROM transactions WHERE block_height = ?", (-h,))
-                mirrors = db_handler.c.fetchall()
-                if mirrors:
-                    node.balance_index.apply_rows(mirrors)
-            except Exception as e:
-                # doc/26 stage 4 (S1): once the index is consensus-critical, a silently-stale index is an
-                # inflation risk — HALT rather than drift. Inert (warn-only) while balance_index_consensus=off.
-                if getattr(node, "balance_index_consensus", "off") != "off":
-                    raise
-                node.logger.app_log.warning(
-                    f"balance index maintain failed at {block_instance.block_height_new}: {e}")
-
-        # Optional maintained txid -> height index (doc/26 stage 4): index this block's POST-FORK txs
-        # (apply_rows skips pre-fork/negative-height rows itself) so the dup-sig replay read can move off
-        # SQLite. Like the balance index, a silently-stale index becomes a dedup-bypass risk once it is
-        # consensus-critical, so HALT rather than drift when txid_index_consensus != off.
-        if getattr(node, "txid_index", None) is not None:
-            try:
-                node.txid_index.apply_rows(processor.block_transactions, node.fork_height)
-            except Exception as e:
-                if getattr(node, "txid_index_consensus", "off") != "off":
-                    raise
-                node.logger.app_log.warning(
-                    f"txid index maintain failed at {block_instance.block_height_new}: {e}")
-
-        # hf2 pubkey-by-reference (doc/40): register this block's first-appearance RSA/ML-DSA/multisig keys
-        # AFTER the block is fully validated (prior-block-only invariant — a same-block reference cannot
-        # resolve). Like the other consensus projections: HALT (not drift) when pk_registry_consensus != off.
-        if getattr(node, "pk_registry", None) is not None:
-            try:
-                node.pk_registry.register_from_block(processor.block_transactions, node.fork_height)
-            except Exception as e:
-                if getattr(node, "pk_registry_consensus", "off") != "off":
-                    raise
-                node.logger.app_log.warning(
-                    f"pubkey registry maintain failed at {block_instance.block_height_new}: {e}")
+        # Commit: rows, difficulty and every ledger index in ONE LMDB transaction.
+        db_handler.commit_block(block_instance.block_height_new, block_instance.block_hash,
+                                processor.block_transactions, diff_save)
 
         # Log success
         node.logger.app_log.warning(
@@ -865,10 +661,6 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
             f"with {len(block)} txs, digestion from {peer_ip} completed in "
             f"{str(time.time() - float(block_instance.start_time_block))[:5]}s."
         )
-
-        # Update tokens if necessary
-        if block_instance.tokens_operation_present:
-            tokens.tokens_update(node, db_handler)
 
         # Clear transactions and unban peer
         processor.block_transactions.clear()
@@ -894,29 +686,13 @@ def log_difficulty_info(node, diff: tuple) -> None:
 
 def block_already_exists(db_handler, block_hash: str, peer_ip: str) -> bool:
     """Check if a block with the given hash already exists."""
-    db_handler.execute_param(
-        db_handler.h,
-        "SELECT block_height FROM transactions WHERE block_hash = ?",
-        (block_hash,)
-    )
-    existing = db_handler.h.fetchone()
-
-    if existing:
+    existing = db_handler.store.height_by_hash(block_hash)
+    if existing is not None:
         raise ValueError(
             f"Skipping digestion of block {block_hash[:10]} from {peer_ip}, "
-            f"already have it on block_height {existing[0]}"
+            f"already have it on block_height {existing}"
         )
     return False
-
-
-def calculate_mirror_hash(db_handler) -> str:
-    """Calculate the mirror hash for the latest block."""
-    db_handler.execute(
-        db_handler.c,
-        "SELECT * FROM transactions WHERE block_height = (SELECT max(block_height) FROM transactions)"
-    )
-    tx_list_to_hash = db_handler.c.fetchall()
-    return hashlib.blake2b(str(tx_list_to_hash).encode(), digest_size=20).hexdigest()
 
 
 def execute_block_hooks(node, block_instance, miner_tx, diff_save, peer_ip, block_transactions):
@@ -958,46 +734,9 @@ def handle_processing_error(node, db_handler, sdef, peer_ip, error):
     node.logger.app_log.warning(
         f"Chain: digestion from {peer_ip} failed at {where} - {type(error).__name__}: {error}")
 
-    # Restore actual data, and heal a GENUINE ledger.db-ahead-of-working split in-run. The node keeps two
-    # non-atomically-committed stores (ledger.db full + hyper.db rollup); a crash or a tip reorg can leave
-    # ledger.db with rows ABOVE the committed working tip. Those orphans then make an "already have this"
-    # check reject the peer's valid re-sync forever — via the block-hash check (block_already_exists) or the
-    # replay guard — wedging sync until a manual restart runs chain_ops.reconcile_ledger_hyper. Heal it
-    # here, but SAFELY (consensus-safety audit findings):
-    #   * act ONLY when ledger.db is AHEAD of the working store (ledger_tip > working_tip) — the real split
-    #     direction. In a NORMAL multi-block batch the working store is legitimately ahead (db_to_drive only
-    #     flushes at batch end), so trimming there would discard just-validated blocks.
-    #   * read FRESH tips (clear_caches) so the 1-second read cache can't trim canonical blocks.
-    #   * route through chain_ops.rollback, NOT bare rollback_under, so the DERIVED consensus stores
-    #     (token/alias index, balance_index) roll back in
-    #     lockstep — a bare ledger delete would strand them above the tip (post-fork inflation / wedge).
-    # All best-effort: a failure here must never mask the original rejection; the startup reconcile is the
-    # backstop. The bounded replay guard (check_duplicate_signatures) is the complementary defense layer.
-    try:
-        db_handler.clear_caches()
-    except Exception:
-        pass
-    try:
-        working_tip = db_handler.block_max_ram()['block_height']
-    except Exception:
-        working_tip = node.last_block
-    try:
-        ledger_tip = db_handler.block_height_max()
-    except Exception:
-        ledger_tip = working_tip
-    if ledger_tip is None:
-        ledger_tip = working_tip
-    if ledger_tip > working_tip:
-        node.logger.app_log.warning(
-            f"Chain: ledger ahead of working store (ledger={ledger_tip} > working={working_tip}); "
-            f"rolling the orphaned excess above {working_tip} back so it can't wedge sync")
-        try:
-            import chain_ops
-            chain_ops.rollback(node, db_handler, working_tip + 1)   # full rollback incl. derived stores
-        except Exception as _heal_err:
-            node.logger.app_log.warning(
-                f"Chain: orphan-heal rollback failed ({_heal_err}); startup reconcile will heal on restart")
-    node.last_block = working_tip
+    # The rejected block was never committed (commit is one atomic transaction), so the ledger tip IS the
+    # last valid block; resync the in-memory tip from it.
+    node.last_block = db_handler.block_height_max()
     node.last_block_hash = db_handler.last_block_hash()
     node.logger.app_log.warning(
         f"Chain: fell back to block {node.last_block} after rejecting a block from {peer_ip}")
@@ -1011,7 +750,8 @@ def handle_processing_error(node, db_handler, sdef, peer_ip, error):
 
 def cleanup_after_processing(node, db_handler, peer_ip):
     """Clean up after block processing."""
-    db_handler.db_to_drive(node)
+    node.hdd_block = node.last_block
+    node.hdd_hash = node.last_block_hash
     node.db_lock.release()
     node.logger.app_log.warning("Database lock released")
 

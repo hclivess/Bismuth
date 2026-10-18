@@ -25,8 +25,8 @@ variants return named dicts; the others return raw tuples.
 | `statusget` / `statusjson` | node status (height, connections, difficulty, uptime, consensus, …) |
 | `getversion`, `portget`, `diffget(json)`, `difflast(json)` | version / port / difficulty |
 | `blocklast(json)`, `blockget(json)`, `block_height_from_hash` | block lookups |
-| `balanceget(json)`, `balancegethyper(json)` | address balance (balance, credit, debit, fees, rewards, balance-no-mempool) |
-| `addlist`, `addlistlim(json)`, `addlistlimmir(json)`, `listlim(json)` | transaction history (by address / global / mirror) |
+| `balanceget(json)`, `balancegethyper(json)` | address balance (balance, credit, debit, fees, rewards, balance-no-mempool); the `hyper` variant is a legacy alias answered from the same ledger |
+| `addlist`, `addlistlim(json)`, `addlistlimmir(json)`, `listlim(json)` | transaction history (by address / global); `addlistlimmir` is kept for wire compatibility and returns an empty list — the ledger has no reward mirror rows |
 | `mpget(json)`, `mpgetjson`, `mpinsert`, `mpclear` | mempool read / insert / clear (clear = localhost) |
 | `aliasget`, `aliasesget`, `addfromalias`, `aliascheck` | alias lookups |
 | `tokensget` | token balances for an address (uses the fixed `tokens_user` query) |
@@ -84,8 +84,6 @@ deliberately disabled (`api_getblocksafterwhere`) for injection-safety reasons �
 - **`commands.py`** — `python3 commands.py <command> [arg1..arg5]`; connects to the local node
   (port from config) and prints the reply. Wraps most of the commands above. `keygen`/`txsend`
   transmit private keys — localhost use only.
-- **`check_tx.py`** — reads `ledger.db`/`mempool.db` directly (no socket) and reports a txid's status
-  (`Unknown` / `Mempool` / `Confirmed` + confirmations).
 - **`attic/demo_getstatus.py`**, **`attic/demo_getaddresssince.py`** (retired to `attic/`),
   **`cmd_addpeers.py`**, **`cmd_hn_reg_round.py`**, **`cmd_hn_last_block_ts.py`** — minimal examples of
   single commands (the `HN_*` ones target the hypernode companion plugin).

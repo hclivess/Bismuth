@@ -3,7 +3,7 @@
 Post-fork the node core carries NO token/alias logic: this plugin owns it end to end. It is a
 ``plugin_base.BismuthPlugin`` that:
 
-  * owns an **isolated LMDB store** (``token_index.TokenIndex``, no SQLite — doc/26), namespaced per ledger;
+  * owns an **isolated LMDB store** (``token_index.TokenIndex``, doc/26), namespaced per ledger;
   * reacts to the block lifecycle — ``on_block`` scans each committed block's txs for ``token:issue`` /
     ``token:transfer`` / ``alias=`` and updates the store; ``backfill`` builds the store for history already
     on disk when the plugin is enabled mid-chain;
@@ -12,8 +12,7 @@ Post-fork the node core carries NO token/alias logic: this plugin owns it end to
     remains in the node's command loop or REST router.
 
 It is consensus-inert: it only ever projects already-validated blocks, never changing a block hash or
-accepting/rejecting a tx. It is enabled by the ``token_index`` config flag (and, post-fork, unconditionally —
-the node has no other token path then). Rollback is driven through the store the plugin registers as the
+accepting/rejecting a tx. It is always enabled — the node has no other token/alias path. Rollback is driven through the store the plugin registers as the
 ``token_index`` service (``node.token_index``), so every reorg path the core already handles rolls the
 plugin's store back too — reliable, unlike the best-effort ``rollback`` action hook.
 
@@ -39,19 +38,14 @@ class TokensAliasesPlugin(BismuthPlugin):
 
     def __init__(self):
         self.ctx = None
-        self.ti = None        # token_index.TokenIndex (None when the plugin is disabled)
+        self.ti = None        # token_index.TokenIndex (None until setup / after teardown)
 
     # --- lifecycle ------------------------------------------------------------
     def setup(self, ctx):
         self.ctx = ctx
-        # Enabled by the token_index config flag (mainnet stays on the legacy core path until it/the fork
-        # turns this on). Disabled -> the plugin loads but is completely inert.
-        enabled = bool(getattr(ctx.config, "token_index", False)) if ctx.config is not None else False
-        if not enabled:
-            ctx.logger.warning("Plugin tokens_aliases: disabled (token_index off) — inert")
-            return
         import token_index
-        # The store lives beside the ledger, namespaced per ledger filename (no regnet->mainnet bleed).
+        # Always on: the node has no other token/alias path. The store lives beside the ledger, namespaced
+        # per ledger filename (no regnet->mainnet bleed).
         self.ti = token_index.open_for(ctx.ledger_path)
         ctx.logger.warning("Plugin tokens_aliases: LMDB store open {}".format(self.ti.stats()))
 
@@ -61,23 +55,39 @@ class TokensAliasesPlugin(BismuthPlugin):
         return {"token_index": self.ti} if self.ti is not None else {}
 
     def backfill(self):
-        """One-time historical scan when enabled mid-chain: issuances first, then transfers, then aliases —
-        from each anchor, idempotent via the store's registry/txid dedup (matches the legacy catch-up)."""
+        """One-time historical catch-up from the store's anchors: ONE ledger pass collects the token and
+        alias rows, then they are applied in the legacy order — all issuances, then all transfers, then the
+        legacy ``alias=`` claims, then the structured alias ops (height-ordered, so transfer/free see their
+        register). Idempotent via the store's registry/txid dedup."""
         if self.ti is None:
             return
         ti, ctx = self.ti, self.ctx
-        t_anchor = ti.token_anchor()
-        for row in ctx.scan_ledger_operations(t_anchor, operations=("token:issue",)):
+        t_anchor, a_anchor = ti.token_anchor(), ti.alias_anchor()
+        issues, transfers, legacy_aliases, alias_ops = [], [], [], []
+        alias_op_names = ("alias:register", "alias:transfer", "alias:free")
+        for row in ctx.scan_ledger_operations(
+                min(t_anchor, a_anchor),
+                operations=("token:issue", "token:transfer") + alias_op_names,
+                openfield_prefix="alias="):
+            bh, op = row[0], row[5]
+            if op == "token:issue":
+                if bh >= t_anchor:
+                    issues.append(row)
+            elif op == "token:transfer":
+                if bh >= t_anchor:
+                    transfers.append(row)
+            elif op in alias_op_names:
+                if bh >= a_anchor:
+                    alias_ops.append(row)
+            elif bh >= a_anchor:                                            # openfield startswith "alias="
+                legacy_aliases.append(row)
+        for row in issues:
             self._issue(row[0], row[1], row[3], row[4], row[6])             # (bh, ts, recipient, signature, openfield)
-        for row in ctx.scan_ledger_operations(t_anchor, operations=("token:transfer",)):
+        for row in transfers:
             self._transfer(row[0], row[1], row[2], row[3], row[4], row[6])  # (bh, ts, address, recipient, signature, openfield)
-        a_anchor = ti.alias_anchor()
-        for row in ctx.scan_ledger_operations(a_anchor, openfield_like="alias=%"):
-            self._alias(row[0], row[2], row[6])                             # (bh, address, openfield) — legacy
-        # structured alias ops (post-fork), one height-ordered pass so transfer/free see their register.
-        # These are all at heights above the legacy alias= claims, so global registration order is preserved.
-        for row in ctx.scan_ledger_operations(a_anchor,
-                operations=("alias:register", "alias:transfer", "alias:free")):
+        for row in legacy_aliases:
+            self._alias(row[0], row[2], row[6])                             # (bh, address, openfield)
+        for row in alias_ops:
             bh, address, op, openfield = row[0], row[2], row[5], row[6]
             if op == "alias:register":
                 self._alias_register(bh, address, openfield)
@@ -125,10 +135,9 @@ class TokensAliasesPlugin(BismuthPlugin):
     # --- per-tx processing (shared by on_block + backfill) --------------------
     @staticmethod
     def _is_reward_zero(reward) -> bool:
-        try:
-            return int(reward) == 0
-        except (TypeError, ValueError):
-            return str(reward) in ("0", "0.0", "", "0E-8")
+        """Typed rows carry the reward as int/float (0, 0.0, 2.5) or text ('0', '0E-8', '2.5')."""
+        from plugin_base import reward_is_zero
+        return reward_is_zero(reward)
 
     def _issue(self, height, ts, recipient, signature, openfield):
         try:

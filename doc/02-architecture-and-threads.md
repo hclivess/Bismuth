@@ -8,30 +8,31 @@
 2. `config = options.Get(); config.read()` — load `config.txt`, then `config_custom.txt` if present,
    then `mandatory_message.json`. Copy every field onto `node.*` (see [11](11-configuration.md)).
 3. Initialise the logger: `node.logger.app_log = log.log("node.log", debug_level, terminal_output)`.
-4. If running hyperblock-only (`full_ledger=False`), delete `ledger.db` and clone `hyper.db` into it.
-5. Create the plugin manager (`plugins.PluginManager(..., init=True)`) and collect any
+4. Create the plugin manager (`plugins.PluginManager(..., init=True)`) and collect any
    `extra_commands` prefixes plugins register.
-6. `setup_net_type()` — decide mainnet/testnet/regnet, set the port, DB paths and peer file, force
+5. `setup_net_type()` — decide mainnet/testnet/regnet, set the port, `ledger_path` and peer file, force
    `version='mainnet0023'` / `version_allow` on mainnet, and for regnet call `regnet.init()` and set
    `regnet.DIGEST_BLOCK = digest_block`.
-7. `load_keys()` — `essentials.keys_check()` then `essentials.keys_load()`; generates `wallet.der`
+6. `load_keys()` — `essentials.keys_check()` then `essentials.keys_load()`; generates `wallet.der`
    (RSA-4096) on first run. In regnet, the key material is copied onto the `regnet` globals so the
    regtest miner can sign coinbase transactions.
-8. `mining_heavy3.mining_open(heavy3_path)` — open/validate the 1 GiB `heavy3a.bin` PoW file
+7. `mining_heavy3.mining_open(heavy3_path)` — open/validate the 1 GiB `heavy3a.bin` PoW file
    (skipped when `heavy=False`, e.g. regnet).
-9. Build `node.peers = Peers(...)`, `node.apihandler = ApiHandler(...)`, and
+8. Build `node.peers = Peers(...)`, `node.apihandler = ApiHandler(...)`, and the in-memory
    `mp.MEMPOOL = mempool.Mempool(...)`.
-10. Integrity & bootstrap: `check_integrity()`, open an initial `DbHandler`, `ledger_check_heights()`
-    (cross-check ledger vs hyper heights, possibly recompress or roll back), optional `ram_init()`
-    (stream `hyper.db` into a shared-cache in-memory DB), `node_block_init()` (set the chain tip),
-    `sequencing_check()` (detect block-height gaps), optional `verify()` (full signature re-check),
-    `add_indices()`.
-11. Unless Tor: create a `ThreadedTCPServer` on `0.0.0.0:<port>` (`daemon_threads=True`,
+9. Ledger: `node_init.open_ledger()` opens the LMDB ledger (`blockstore-<ledger name>`). On a fresh
+   install it first bootstraps — a DB-direct peer snapshot (doc/43, tip hash verified), else the genesis
+   block is seeded (`ledger_genesis`) and the chain syncs from peers. A store on an older schema stops
+   the node with the instruction to run `scripts/upgrade_ledger.py`. The fixed mainnet allocations are
+   applied, the plugin manager starts (the `tokens_aliases` plugin opens its LMDB index), an optional
+   `rollback_to` trigger file is honoured, `node_block_init()` sets the chain tip and difficulty, and an
+   optional `verify()` re-checks every signature.
+10. Unless Tor: create a `ThreadedTCPServer` on `0.0.0.0:<port>` (`daemon_threads=True`,
     `request_queue_size=100`, per-socket timeout 60 s; command processing has its own
     `timeout_operation` = 120 s inside `handle()`) and run `serve_forever()` in a daemon thread.
-12. Start the `ConnectionManager` thread.
-13. If `mine=True`, launch the `solo-miner` daemon thread (`miner.mining_loop`, with its own DB handle).
-14. Enter the shutdown-watch loop: sleep 0.1 s; when `node.IS_STOPPING` is set and `db_lock` is free,
+11. Start the `ConnectionManager` thread.
+12. If `mine=True`, launch the `solo-miner` daemon thread (`miner.mining_loop`, with its own DB handle).
+13. Enter the shutdown-watch loop: sleep 0.1 s; when `node.IS_STOPPING` is set and `db_lock` is free,
     call `mining_heavy3.mining_close()` and exit.
 
 ## Threads
@@ -55,7 +56,7 @@ All spawned threads are daemons, so they die with the main thread.
 | `mp.MEMPOOL.lock` | mempool's own lock | guards mempool reads/writes; `digest_block()` waits for it to be free before committing. Lock order is `db_lock` → `mempool.lock`. |
 | `node.IS_STOPPING` (`bool`) | none (single-writer) | set by the `stop` command; every loop polls it to exit. |
 | `node.syncing` (`list`) | none | peers currently being synced from; capped at 3 concurrent. |
-| `node.last_block`, `last_block_hash`, `last_block_timestamp`, `hdd_block`, `hdd_hash` | guarded by `db_lock` on write | the in-memory chain tip. In RAM mode, `last_block*` track the RAM DB and `hdd_*` track on-disk. |
+| `node.last_block`, `last_block_hash`, `last_block_timestamp`, `hdd_block`, `hdd_hash` | guarded by `db_lock` on write | the in-memory chain tip (`hdd_*` mirror `last_block*`; both are the committed ledger tip). |
 | `node.difficulty` (tuple) | atomic reassignment | the current difficulty 8-tuple, refreshed after each block. |
 | `node.peers.*` (`connection_pool`, `peer_opinion_dict`, `consensus*`, `banlist`, …) | mostly per-thread mutation | peer registry & consensus tracking (see [06](06-networking-protocol.md)). |
 
@@ -84,8 +85,8 @@ exits. In-flight server/worker threads are daemons and are terminated on process
 
 `SIGTERM`/`SIGINT` are now handled by a graceful signal handler (`node.py` `_graceful_stop`,
 ~1239–1242) that simply raises `IS_STOPPING`, so `kill`/Ctrl-C funnels through the same
-wait-for-`db_lock` path (an in-flight block finishes writing to both `ledger.db` and `hyper.db`)
-instead of terminating mid-write.
+wait-for-`db_lock` path (an in-flight block finishes its LMDB commit) instead of terminating mid-write. A hard kill is safe
+too: a block commit is one LMDB transaction, so the ledger always reopens at a clean block boundary.
 
 > Wiring note: `node.py` previously obtained `regnet`, `mp`, `tokens`, `mining_heavy3`, `difficulty`
 > and several stdlib names implicitly via `from digest import *`. That has been replaced with

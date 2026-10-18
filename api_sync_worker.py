@@ -51,10 +51,9 @@ def _tip(node):
 
 
 def _loop(node, host, rport):
-    # Own DB handler for this thread; digest_block serializes on node.db_lock, so this never races the
+    # Own ledger handler for this thread; digest_block serializes on node.db_lock, so this never races the
     # node's own digestion.
-    db = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
-                             node.ledger_ram_file, node.logger, trace_db_calls=node.trace_db_calls)
+    db = dbhandler.DbHandler.for_node(node)
     stall = 0
     try:
         while not getattr(node, "IS_STOPPING", False):

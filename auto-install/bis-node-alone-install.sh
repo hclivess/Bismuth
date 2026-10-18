@@ -8,8 +8,8 @@
 #   * a Python 3.11 venv with the node requirements — 3.11 matches CI and avoids the ed25519 sdist
 #     build break on 3.12 (Ubuntu 24.04's default python)
 #   * installs + enables the systemd service via scripts/install-node-service.sh
-#   * the node downloads the ledger bootstrap automatically on first start (bismuth.cz/ledger.tar.gz),
-#     so there is no fragile snapshot step here
+#   * on first start the node bootstraps its LMDB ledger automatically — a tip-verified DB-direct snapshot
+#     streamed from peers (doc/43), else a sync from genesis — so there is no snapshot step here
 #
 # Usage (root):   bash auto-install/bis-node-alone-install.sh
 # One-liner:      curl -fsSL https://raw.githubusercontent.com/hclivess/Bismuth/main/auto-install/bis-node-alone-install.sh | sudo bash
@@ -54,7 +54,7 @@ install_dependencies() {
 	log "APT dependencies"
 	export DEBIAN_FRONTEND=noninteractive
 	apt-get update -y
-	apt-get install -y software-properties-common ca-certificates curl git unzip sqlite3 pigz build-essential
+	apt-get install -y software-properties-common ca-certificates curl git unzip build-essential
 	# Python 3.11 via deadsnakes only if the distro doesn't already ship it (22.04/24.04 default to 3.10/3.12).
 	if ! command -v "python${PYVER}" >/dev/null 2>&1; then
 		add-apt-repository -y ppa:deadsnakes/ppa
@@ -100,8 +100,8 @@ log "Done (installer v${VERSION})"
 cat <<EOF
 
 Bismuth node installed at: ${INSTALL_DIR}   (python ${PYVER} venv)
-It runs as the systemd service 'bismuth-node' and downloads the ledger bootstrap
-(https://bismuth.cz/ledger.tar.gz) automatically on first start — the initial sync takes a while.
+It runs as the systemd service 'bismuth-node' and bootstraps its ledger automatically on first start
+(a tip-verified snapshot streamed from peers, else a sync from genesis) — the initial sync takes a while.
 
   systemctl status  bismuth-node
   journalctl -u bismuth-node -f      # follow sync progress

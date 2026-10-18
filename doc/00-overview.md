@@ -1,8 +1,8 @@
 # 00 — Modernization overview (start here)
 
 The single map of the Bismuth node modernization: what exists, what's active, what's deliberately
-inert, and what's planned. Detailed companions: file index [`13`](13-file-reference.md), DB deep-dive
-[`16`](16-database-rework-plan.md), roadmap [`17`](17-roadmap.md), the hard fork [`18`](18-hardfork-hf2.md),
+inert, and what's planned. Detailed companions: file index [`13`](13-file-reference.md), the ledger
+[`05`](05-database-and-ledger.md), roadmap [`17`](17-roadmap.md), the hard fork [`18`](18-hardfork-hf2.md),
 post-quantum signatures [`20`](20-post-quantum.md), the solo miner / PoW
 [`21`](21-mining.md), the hf2 binary/integer serialization spec [`29`](29-hf2-serialization-v2.md).
 
@@ -22,37 +22,37 @@ post-quantum signatures [`20`](20-post-quantum.md), the solo miner / PoW
 | Area | What | State |
 |---|---|---|
 | Consensus-safety guardrail | `tests/test_consensus_invariants.py` — no overspend / double-spend / negative / foreign-sender / tampered-sig | **active, every test run** |
-| Integer atomic-unit storage | `amounts.py` + `replay_verify` + `migrate_amounts` | **on (regnet)**, default-off mainnet |
-| LMDB block store + pubkey dedup | `block_store.py` — lossless, content-addressed, 1.73 GB for 1M blocks (~2× under SQLite) | **integrated as shadow** behind `block_store` flag; SQLite still primary |
-| Balance index (O(1) balances) | `balance_index.py` — bit-matches `ledger_balance3` | **built + validated**, not wired |
-| Reward sidechain | `reward_chain.py` — retires negative-height mirror rows, balance-preserving | **built + validated**, not wired |
+| Integer atomic-unit storage | `amounts.py` + `replay_verify` | **on (regnet)**, default-off mainnet |
+| LMDB ledger | `block_store.py` — ONE LMDB environment: blocks, pubkey dedup, per-block difficulty, signature / address / balance / txid / pubkey-registry indexes; one transaction per block commit and per reorg | **the ledger** — the only store on every network |
+| O(1) balances | `block_store` `bal` sub-db — per-address credited/rewards/debited/fees in integer units, maintained inside the block commit | **active** — the consensus overspend check and every balance API read it |
+| Dev / Hypernode reward totals | `ledger_genesis.MAINNET_ALLOCATIONS` — fixed balance allocations (meta `alloc`), replacing the old negative-height reward rows | **active** on mainnet |
 | Auto hard-fork scheduler | `fork.dynamic_fork_height` + coinbase signal writer + `/api/fork` | **WIRED** — signal→detect→schedule works end-to-end on regnet (`test_fork_wiring`); inert on mainnet until miners signal |
 | LWMA difficulty | `difficulty_lwma.py`, gated in `difficulty()` | **GATED behind `fork_height`** (LWMA past activation, legacy before); inert until a fork activates |
 | GPU miner | `gpuminer/` — CUDA (`bis.cu`) + OpenCL (`bismuth.cl`), today's **sha224-inner** Heavy3 | **vendored**, GPU-untested here; kernels are **sha224-only** (no blake2b path) — must be ported to blake2b before any mainnet hf2 signal (operational gate) |
 | REST API | `rest_api.py` — status/blocks/balance/tx/headers/peers/`fork` | **active** on the live node (:5659) |
-| Address-history query | composite indexes (migration v2) + UNION rewrite | **done + LIVE** — 2.5 s → 0.06 s |
+| Address-history query | `block_store` `addr` index (role, address, height, idx) — ordered LMDB range scans | **active** |
 | Bitcoin JSON-RPC | `rpc_bitcoin.py` — ~32 bitcoind methods (chain/mempool/mining/network reads + gated sendrawtransaction/submitblock); post-hf2 content-txids, block_store-backed; honest -32601 for UTXO/Script/PSBT/wallet | **implemented**, flag `rpc_bitcoin` (off); regnet-tested |
 | Ethereum/ERC adapter | `rpc_ethereum.py` — 42 `eth_*` methods incl. `eth_call`/`getCode`/`getStorageAt` over the RISC-V `vm_state`; bounded by *literal* EVM compat (not a MetaMask drop-in), ROADMAP/DIVERGENCE -32601 for the rest | **implemented**, flag `rpc_ethereum` (off); regnet-tested |
 | Block explorer | `explorer.bismuth.cz` (SPA over the REST API) | **live** — blocks/tx/address + **Tokens / Nodes / Supply / Contracts** views, SVG favicon, node-switcher |
 | Explorer/RPC endpoints | `/api/supply`, `/api/tokens`, `/api/token/{n}`, `/api/token/tx/{address}`, `/api/alias/{name}`, `/api/aliases/{address}`, `/api/nodes`, `/api/proxy?target=` + token-index | **live/done** (supply background-computed; token-first indexes) |
-| Bootstrap hosting + snapshot | `https://bismuth.cz/ledger.tar.gz` + `scripts/snapshot.py` | **live** — live-safe (SQLite online-backup + LMDB `env.copy`), integrity-checked |
-| Balance index | `balance_index.py` — O(1) display balance | **WIRED** (flag `balance_index`): maintained on commit, reorg-rebuilt, read by `/api/balance`; consensus stays on `ledger_balance3` |
+| Bootstrap | `snapshot_p2p.py` — DB-direct LMDB snapshot streamed from peers (`env.copyfd`), tip height + hash verified; else seed genesis (`ledger_genesis`) and sync | **active** (doc/43) |
 | Peer reputation + penalization | `peers_reputation.py` | **WIRED** — validate-height-is-real reward/penalize (synced-only), reputation-weighted tip |
 | Auto-recovery rollback | `essentials.rollback_allowed` | **default ON** (`rollback_consensus`) — reputation-gated deep rollback replaces the rigid `rollback_depth` strand |
-| Unified rollback + reorg test | `chain_ops._rollback_aux_stores` | **done** — ledger + all stores roll back in sync (`test_rollback_reorg`) |
+| Unified rollback + reorg test | `chain_ops.rollback` → `BlockStore.rollback` | **done** — the ledger and every index roll back in one LMDB transaction, then the plugin stores (`test_rollback_reorg`) |
 | Connectivity/sync fixes | self-dial false-consensus, back-off, headers-first, ed25519 dep | **active** |
 
-"Shadow" = written/maintained alongside the authoritative store but not yet read from. "Inert" =
+"Inert" =
 present and tested but never called by the running node.
 
 ## How the pieces fit
 
-**Storage (phase 7).** Immutable block bodies → `block_store.py` (LMDB, append-only, pubkey-deduped).
-Queryable balances → `balance_index.py` (O(1), integer units). Locally-minted rewards →
-`reward_chain.py` (out of the negative-height mirror rows). All sit *behind the frozen boundary*, so
-they change no block hash — proven lossless / bit-matching / replay-identical. The block store is wired
-into the digester as an **additive shadow write** (`block_store=True`); the others are built and
-validated but not yet wired. Cutover (make LMDB the read path) is the remaining storage step.
+**Storage.** The ledger is ONE LMDB environment (`block_store.py`, `static/blockstore-ledger.db` for the
+default `ledger_path`): block bodies (pubkey-deduped), the per-block difficulty record, and every index the
+node reads — signature, address history, balances (integer units), content txid, pubkey registry.
+`commit_block` writes a block and all of that in one transaction; a reorg is one `rollback` transaction.
+The concluded Development Reward / Hypernode Payouts totals are fixed balance allocations
+(`ledger_genesis.MAINNET_ALLOCATIONS`). It all sits *behind the frozen boundary*, so it changes no block
+hash. Detail: [05](05-database-and-ledger.md).
 
 **Consensus safety.** `tests/test_consensus_invariants.py` enforces the value rules on every run; it is
 the robustness guardrail every future change must keep green. The one structural bug fixed live was a
@@ -66,7 +66,7 @@ content-hash txid (which also now anchors the VM contract address) + canonical r
 encoding + pubkey-by-reference + coinbase compaction (the freed coinbase slots repurposed as a free-form
 mining header — nonce + state-root/signal, [doc/41](41-hf2-coinbase-free-fields.md)) — the full
 serialization rework folds into this **single** hf2 fork (no second signal), specified in [doc/29](29-hf2-serialization-v2.md) with **Stage 0
-shipped** (`bismuth_serialize.signature_buffer_v2` / `tx_id_v2`, dormant); the reward-sidechain cutover;
+shipped** (`bismuth_serialize.signature_buffer_v2` / `tx_id_v2`, dormant);
 and the **LWMA difficulty** (symmetric, delicate, deterministically calculable — the fix for the brutal
 up-only ratchet); and the **blake2b Heavy3 PoW swap** (bundled into the same single fork since 2026-06-12 —
 stamping `hf2` asserts blake2b mining readiness too). The only consensus change to the coinbase *reward*
@@ -75,8 +75,7 @@ missing or mismatched post-fork, `digest.py:545-569`) — the **reward formula i
 **Continuity:** old blocks keep their bytes and
 hashes; new rules apply forward only; validation is height-gated; no re-sync. The gate scaffold now
 exists: the **scheduler is wired** (`fork.dynamic_fork_height`, cached on the single `node.fork_height`
-in `digest.py`) and **LWMA is gated** in `difficulty.py` (active past activation, legacy before); only
-the **reward sidechain** remains an inert module. The **dual-algo PoW** (today's sha224-inner Heavy3
+in `digest.py`) and **LWMA is gated** in `difficulty.py` (active past activation, legacy before). The **dual-algo PoW** (today's sha224-inner Heavy3
 vs. the modernised blake2b-inner Heavy3, same anneal + substring difficulty, selected by
 `height >= node.fork_height`) is also **built** (`mining_heavy3.py` `new_pow` switch, gated in
 `digest.py`/`miner.py`) and inert until miners signal hf2 — see
@@ -95,19 +94,17 @@ adapters: Bitcoin-compatible JSON-RPC and an Ethereum/ERC compatibility shim (do
 ## Operational deployment (live)
 
 - **Node:** synced mainnet node, `rest_api=True` on :5659, serving the API.
-- **bismuth.cz:** nginx + Let's Encrypt; serves the **bootstrap snapshot** (`ledger.tar.gz`, at-tip,
-  produced with zero downtime by `_mkbootstrap.sh`) and links the explorer.
+- **bismuth.cz:** nginx + Let's Encrypt; links the explorer.
 - **explorer.bismuth.cz:** static SPA + same-origin `/api/` proxy to the node; block paging, address +
   tx + balance lookup.
-- The node's historical default `bootstrap_url` is `https://bismuth.cz/ledger.tar.gz`, so existing
-  nodes bootstrap unchanged.
+- Fresh nodes bootstrap from **peers**: a DB-direct LMDB snapshot (`snapshot_serve` / `bootstrap_p2p`,
+  doc/43), else genesis + sync.
 
 ## Testing
 
 `python3 -m pytest -q` boots a real regnet node and runs the full suite (consensus invariants, replay
 byte-identity, characterization lock, storage round-trips/bit-match, headers sync, REST, mempool
-anti-spam, the LWMA + fork-scheduler unit tests, …). The storage tests run with `block_store=True`, so
-the suite green *with the shadow store active* is itself the proof it's mining-invariant.
+anti-spam, the LWMA + fork-scheduler unit tests, …), all against the LMDB ledger.
 
 ## What's left (in rough order)
 

@@ -1,13 +1,12 @@
 """
 Node-free tests for the modern tokens_aliases PLUGIN (doc/27) — it owns the LMDB token/alias side-index
 and reacts to the block lifecycle. These drive the plugin object directly (no running node), with a real
-``PluginContext`` over a tiny temp SQLite ledger for the backfill path.
+``PluginContext`` over a tiny temp LMDB ledger (``block_store.BlockStore``) for the backfill path.
 
-Pins: enable-gating, ``on_block`` projection (issue→transfer→alias, two-pass), the ``token_index`` service
+Pins: always-on, ``on_block`` projection (issue→transfer→alias, two-pass), the ``token_index`` service
 handle, the plugin's own REST routes (/api/tokens, /api/token/<name>), and historical ``backfill``.
 """
 import os
-import sqlite3
 import sys
 
 import pytest
@@ -21,6 +20,8 @@ pytest.importorskip("lmdb")
 import importlib.machinery
 import importlib.util
 
+import block_store
+import kvstore
 import plugin_base
 
 
@@ -37,20 +38,23 @@ class _Log:
     def error(self, *a, **k): pass
 
 
-class _Cfg:
-    def __init__(self, token_index=True):
-        self.token_index = token_index
+_LEDGERS = []
 
 
-def _ctx(tmp_path, token_index=True):
-    ledger = str(tmp_path / "ledger.db")
-    # a minimal ledger so PluginContext.scan_ledger_operations (backfill) has a table to read
-    conn = sqlite3.connect(ledger)
-    conn.execute("CREATE TABLE transactions (block_height INTEGER, timestamp, address, recipient, amount, "
-                 "signature, public_key, block_hash, fee, reward, operation, openfield)")
-    conn.commit(); conn.close()
+@pytest.fixture(autouse=True)
+def _close_ledgers():
+    yield
+    while _LEDGERS:
+        block_store.close_ledger(_LEDGERS.pop())
+
+
+def _ctx(tmp_path):
+    ledger_path = str(tmp_path / "ledger.db")
+    store_dir = kvstore.store_path(ledger_path, "blockstore")
+    _LEDGERS.append(store_dir)
+    store = block_store.open_ledger(store_dir, map_size=64 * 1024 * 1024)
     return plugin_base.PluginContext(logger=_Log(), data_dir=str(tmp_path / "pdata"),
-                                     ledger_path=ledger, config=_Cfg(token_index), is_regnet=True)
+                                     ledger_path=ledger_path, config=None, is_regnet=True, ledger=store)
 
 
 def _row(bh, addr, recip, sig, op, openfield, reward=0):
@@ -58,15 +62,28 @@ def _row(bh, addr, recip, sig, op, openfield, reward=0):
     return [bh, 1000 + bh, addr, recip, "0", sig, "pk", "bhash", "0", reward, op, openfield]
 
 
-def test_disabled_is_inert(tmp_path):
+def _commit(ctx, blocks):
+    """Write ``{height: [rows]}`` into the LMDB ledger as consecutive blocks 1..max (gaps = empty blocks)."""
+    for h in range(1, max(blocks) + 1):
+        rows = [[h] + list(r[1:]) for r in blocks.get(h, [])]
+        ctx.ledger.commit_block(h, "%040x" % h, rows)
+
+
+def test_always_enabled(tmp_path):
     p = _load_plugin()
-    p.setup(_ctx(tmp_path, token_index=False))
-    assert p.ti is None
-    assert p.services() == {}
-    assert p.peer_commands() == {}
-    assert p.rest_routes() == {}
-    p.on_block(1, [_row(1, "A", "A", "s1", "token:issue", "tokx:1000000")])  # must not raise
+    p.setup(_ctx(tmp_path))
+    assert p.ti is not None
+    assert "token_index" in p.services()
+    assert set(p.peer_commands()) == {"tokensget", "aliasget", "aliasesget", "addfromalias"}
     p.teardown()
+
+
+@pytest.mark.parametrize("reward,zero", [(0, True), (0.0, True), ("0", True), ("0.0", True), ("0E-8", True),
+                                         ("", True), (None, True), (2.5, False), ("2.5", False), (1, False),
+                                         ("12.34", False)])
+def test_is_reward_zero_typed(reward, zero):
+    p = _load_plugin()
+    assert p._is_reward_zero(reward) is zero
 
 
 def test_on_block_projects_token_lifecycle(tmp_path):
@@ -122,14 +139,15 @@ def test_alias_projection_and_first_claimant(tmp_path):
 
 def test_backfill_from_ledger(tmp_path):
     ctx = _ctx(tmp_path)
-    # seed the ledger with a token issue + transfer + alias, THEN backfill (mid-chain enable path)
-    conn = sqlite3.connect(ctx.ledger_path)
-    conn.executemany("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", [
-        _row(5, "A", "A", "s_issue", "token:issue", "tokx:1000000"),
-        _row(8, "A", "B", "s_t1", "token:transfer", "tokx:400000"),
-        _row(3, "ALICE", "ALICE", "sa", "json", "alias=alice"),
-    ])
-    conn.commit(); conn.close()
+    # seed the LMDB ledger with a token issue + transfer + alias (+ a coinbase that must be skipped and a
+    # structured alias op whose openfield also starts "alias="), THEN backfill (mid-chain enable path)
+    _commit(ctx, {
+        3: [_row(3, "ALICE", "ALICE", "sa", "json", "alias=alice")],
+        4: [_row(4, "CB", "CB", "scb", "token:issue", "cbtok:5", reward="2.5")],
+        5: [_row(5, "A", "A", "s_issue", "token:issue", "tokx:1000000")],
+        6: [_row(6, "EVE", "EVE", "se", "alias:register", "alias=evil")],
+        8: [_row(8, "A", "B", "s_t1", "token:transfer", "tokx:400000")],
+    })
 
     p = _load_plugin()
     p.setup(ctx)
@@ -138,6 +156,11 @@ def test_backfill_from_ledger(tmp_path):
     assert ti.token_balance("tokx", "A") == 600000
     assert ti.token_balance("tokx", "B") == 400000
     assert ti.addfromalias("alice") == "ALICE"
+    assert not ti.has_token("cbtok")                  # coinbase rows are never projected
+    assert ti.alias_owner("alias=evil") == "EVE"      # structured register claims its literal name...
+    assert ti.alias_owner("evil") is None             # ...and not ALSO the legacy name
+    p.backfill()                                      # idempotent re-run from the anchors
+    assert ti.token_balance("tokx", "A") == 600000
     p.teardown()
 
 

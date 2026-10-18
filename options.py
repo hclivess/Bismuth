@@ -2,8 +2,7 @@
 
 Defines ``Get``, the object that reads the node's configuration from
 ``config.txt`` (with ``config_custom.txt`` overrides) and exposes each setting
-as a typed attribute -- ports, ledger/hyperblock paths, RAM/full-ledger mode,
-debug level, peer ban thresholds, Tor toggle, mempool options, the opt-in REST
+as a typed attribute -- ports, the ledger path, debug level, peer ban thresholds, Tor toggle, mempool options, the opt-in REST
 API switch, and so on. A typed schema maps each option name to its expected
 type so values are coerced consistently. Nearly every other module obtains its
 runtime settings through this loader.
@@ -44,14 +43,10 @@ class Get:
         "version": ["str", "version"],
         "version_allow": ["list"],
         "thread_limit": ["int", "thread_limit"],
-        "rebuild_db": ["bool", "rebuild_db"],
         "debug": ["bool", "debug"],
         "purge": ["bool", "purge"],
         "pause": ["int", "pause"],
         "ledger_path": ["str", "ledger_path"],
-        "hyper_path": ["str", "hyper_path"],
-        "hyper_recompress": ["bool", "hyper_recompress"],
-        "full_ledger": ["bool", "full_ledger"],
         "ban_threshold": ["int"],
         "tor": ["str", "tor"],            # tri-state: off | external | managed (doc/38); coerced from the old bool
         "tor_socks_host": ["str"],
@@ -65,7 +60,6 @@ class Get:
         "tor_data_dir": ["str"],
         "debug_level": ["str", "debug_level"],
         "allowed": ["str", "allowed"],
-        "ram": ["bool", "ram"],
         "node_ip": ["str", "node_ip"],
         "light_ip": ["dict"],
         "reveal_address": ["bool"],
@@ -77,12 +71,8 @@ class Get:
         "terminal_output": ["bool"],
         "log_color": ["bool"],
         "gui_scaling": ["str"],
-        "mempool_ram": ["bool"],
         "egress": ["bool"],
-        "trace_db_calls": ["bool"],
         "heavy3_path": ["str"],
-        "mempool_path": ["str"],
-        "old_sqlite": ["bool"],
         "mandatory_message": ["list"],
         "rollback_depth": ["int"],
         "rest_api": ["bool"],
@@ -93,8 +83,6 @@ class Get:
         "rest_api_market": ["bool"],
         "api_sync": ["bool"],
         "api_sync_source": ["str"],
-        "autoheal": ["bool"],
-        "autoheal_interval": ["int"],
         "diff_divergence_detect": ["bool"],
         "diff_divergence_pause_mining": ["bool"],
         "diff_divergence_autoheal": ["bool"],
@@ -108,13 +96,9 @@ class Get:
         "rollback_consensus_min_reputable": ["int"],
         "fork_resolution": ["str"],
         "ledger_integer_amounts": ["bool"],
-        "bootstrap_url": ["str"],
-        "bootstrap_file": ["str"],
         "snapshot_serve": ["bool"],
         "bootstrap_p2p": ["bool"],
-        "snapshot_path": ["str"],
         "bootstrap_p2p_peers": ["list"],
-        "block_store": ["bool"],
         "fork_signal": ["bool"],
         "fork_window": ["int"],
         "fork_boundary": ["int"],
@@ -124,12 +108,6 @@ class Get:
         "rpc_bitcoin_port": ["int"],
         "rpc_ethereum": ["bool"],
         "rpc_ethereum_port": ["int"],
-        "balance_index": ["bool"],
-        "balance_index_consensus": ["str"],
-        "txid_index_consensus": ["str"],
-        "pk_registry_consensus": ["str"],
-        "parity_strict": ["bool"],
-        "token_index": ["bool"],
     }
 
     # Optional default values so we don't bug if they are not in the config.
@@ -138,12 +116,8 @@ class Get:
         "testnet": False,
         "regnet": False,
         "heavy": True,
-        "trace_db_calls": False,
-        "mempool_ram": True,
         "log_color": True,  # ANSI color on the stdout/journald log by level (see log.ColoredFormatter); honors NO_COLOR env. File logs stay plain.
         "heavy3_path": "./heavy3a.bin",
-        "mempool_path": "./mempool.db",
-        "old_sqlite": False,
         "rollback_depth": 30,  # max blocks the node will roll back to rejoin a longer chain (see doc/14)
         "rest_api": True,      # modern parallel REST API (see doc/15); ON by default (reads only; writes need rest_api_write)
         "rest_api_port": 5659,
@@ -163,8 +137,6 @@ class Get:
         "rest_api_market": True,  # GET /api/stats/market price/market-cap (coingecko, server-side TTL-cached); on by default
         "api_sync": False,        # opt-in: catch up the chain over a peer's REST API instead of the socket (doc/17, api_sync_worker); off by default
         "api_sync_source": "",    # the REST peer to fast-sync from, "host:rest_port" (used when api_sync=True)
-        "autoheal": True,         # live self-heal of tip sequence/dupe corruption WITHOUT a restart (chain_ops.autoheal_live); ON by default
-        "autoheal_interval": 300, # seconds between live autoheal checks (cheap recent-tail scan; repairs only on a real break)
         # doc/35 peer-difficulty divergence detector + guarded self-heal (#23). The detector AND the guarded
         # AUTOHEAL are ENABLED (operator decision); pause_mining stays opt-in. On a CONFIRMED peer divergence
         # (>=3-peer quorum, 75% supermajority, 3-cycle debounce) the node writes the one-shot rollback_to
@@ -185,22 +157,14 @@ class Get:
         "rollback_consensus_min_peers": 3,   # min peers in consensus to allow a deep rollback
         "rollback_consensus_min_reputable": 1,  # min PROVEN (positive-reputation) peers required for a deep auto-recovery rollback (anti-sybil)
         "fork_resolution": "measured",       # doc/47 (from nado): "measured" = tri-state ancestor probes + possession-before-rollback + one-shot tie-break + corroborated deep reorgs; "legacy" = the old blind one-block-per-blocknf rollback
-        "ledger_integer_amounts": False,     # store amount/fee/reward as integer atomic units (doc/16); off by default
-        # Bootstrap source. The historical hardcoded host can disappear (it did), so the URL is
-        # configurable and a locally-provided archive takes precedence (see chain_ops.bootstrap).
-        "bootstrap_url": "https://bismuth.cz/ledger.tar.gz",
-        "bootstrap_file": "",                # path to a local bootstrap archive; if set/present, used instead of downloading
+        "ledger_integer_amounts": False,     # store amount/fee/reward as integer atomic units (doc/05); off by default
         "snapshot_serve": True,              # doc/43: serve /api/snapshot[/info] ON DEMAND, DB-DIRECT from the live LMDB
-        #                                      block store (env.copyfd -> a consistent, compacted MVCC image straight to
-        #                                      the socket). No pre-built tarball, no doubled ledger on disk, never stale
-        #                                      and never a scan of the SQLite ledger. ON by default: every node that has
-        #                                      the block store can seed a peer, which is what makes bootstrap_p2p work.
-        "bootstrap_p2p": True,               # doc/43: fetch the bootstrap snapshot from PEERS (tip-hash checked) before
-        #                                      the central bootstrap_url. On by default so a fresh node bootstraps from
-        #                                      the network instead of depending on one hosted tarball.
-        "snapshot_path": "static/ledger-snapshot.tar.gz",  # the pre-built snapshot this node serves (build via scripts/snapshot.py)
+        #                                      ledger (env.copyfd -> a consistent, compacted MVCC image straight to the
+        #                                      socket). No pre-built tarball, no doubled ledger on disk, never stale. ON
+        #                                      by default: every node can seed a peer, which is what makes bootstrap_p2p work.
+        "bootstrap_p2p": True,               # doc/43: a fresh node fetches a ledger snapshot from PEERS (tip-hash checked)
+        #                                      before falling back to syncing from genesis.
         "bootstrap_p2p_peers": [],           # optional explicit ["host:rest_port", ...] snapshot sources
-        "block_store": False,                # opt-in: also mirror block bodies into an LMDB store (doc/17 phase 7); off by default
         "fork_signal": False,                # hf2: this node's miner stamps the readiness signal into the coinbase nonce
         "fork_window": 1000,                 # consecutive all-signalled blocks to lock in (regnet overrides small)
         "fork_boundary": 1000,               # activate on the next multiple of this
@@ -210,10 +174,6 @@ class Get:
         "rpc_bitcoin_port": 8332,
         "rpc_ethereum": False,               # opt-in eth_* compatibility shim (doc/17); off by default
         "rpc_ethereum_port": 8545,
-        "balance_index": False,              # opt-in maintained O(1) balance index for the DISPLAY read path (doc/17); off by default. Consensus stays on ledger_balance3.
-        "balance_index_consensus": "off",    # doc/26 stage 4: off|shadow|primary. off=ledger_balance3 (SQLite) authoritative (default/mainnet). shadow=compute the LMDB balance_index too + compare at the overspend read (warn, or raise under parity_strict). primary=index authoritative, still cross-check SQLite + RAISE on mismatch (halt > inflate). Needs balance_index + integer-units + post-fork; never engages pre-fork.
-        "parity_strict": False,              # doc/26 stage 4: turn store/index parity mismatches (balance seam) into a raised AssertionError instead of a log warning — for CI/regnet, NEVER prod.
-        "token_index": False,                # opt-in LMDB token/alias side-index (doc/26 stage 2), replacing the SQLite index.db projection. Off by default (mainnet stays on index.db pre-fork); becomes the post-fork home for tokens/aliases.
         "mandatory_message": {
             "Address": "Comment - Dict for addresses that require a message. tx to these addresses withjout a message will not be accepted by mempool.",
             "f6c0363ca1c5aa28cc584252e65a63998493ff0a5ec1bb16beda9bac": "qTrade Exchange needs a message to route the deposit to your account",
@@ -229,11 +189,6 @@ class Get:
         """Coerce a raw STRING value (the legacy key=value format) per the ``vars`` schema and set it.
         Unknown keys are silently skipped; the renamed-property edge (params[1]) is honored. Extracted
         verbatim from the old load_file body so the text path is byte-identical."""
-        if "mempool_ram_conf" == left:
-            print(
-                "Inconsistent config, param is now mempool_ram in config.txt"
-            )
-            exit()
         if not left in self.vars:
             # Warn for unknown param?
             return
@@ -349,8 +304,3 @@ class Get:
             except Exception as e:
                 print("Error loading mandatory_message.json {}".format(e))
 
-        """
-        if "regnet" in self.version:
-            print("Regnet, forcing ram = False")
-            self.ram = False
-        """

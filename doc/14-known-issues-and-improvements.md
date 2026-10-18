@@ -20,14 +20,11 @@ identical under the available test coverage).
 | File | Bug | Fix |
 |---|---|---|
 | `plugins.py` | `unload_plugin(name)` recursed into itself (masked by a bare `except`) | call `_unload_plugin(name)` |
-| `dbhandler.py` | `tokens_user` used `WHERE address OR recipient = ?` (a boolean expression) | `WHERE address = ? OR recipient = ?` |
 | `mempool.py` | invalid-timestamp tx fell through without `continue` (reused a stale value) | added `continue` |
-| `staking.py` | `execute_param` referenced an undefined module-global `app_log` | guarded optional parameter |
 | `send_csv.py` | module-level `print(sys.argv[3])` crashed on too few args; literal `None` args | use `--wallet`, pass empty operation/openfield |
 | `attic/hyperlane_asyncio.py` | class-level `asyncio.get_event_loop()` raises on Python ≥3.10 | retired to `attic/` (unused, broken stub) |
 | `mining.py` | used `Decimal` without importing it | added `from decimal import Decimal` |
 | `node.py` | `addlistlimmirjson` sent its response twice | removed the stray second `send()` |
-| `aliases.py` | private duplicate of `replace_regex` (uncached) | reuse `essentials.replace_regex` |
 
 ### Consensus: fork-stall mitigation (the 59-block checkpoint)
 `blocknf()` rolls back one block at a time and refuses once the tip drops below `node.checkpoint`
@@ -62,15 +59,11 @@ place — partition handling and the `consensus_most_common` vs `consensus_max` 
 `worker.py`. The Sybil-resistance of the consensus signal also bounds how strong the supermajority
 gate really is, and should be hardened (e.g. weight by distinct peers / known good versions).
 
-### Startup: deleted SQLite ledger + populated block store -> exit 78, no auto-bootstrap
-The SQLite trio is still the source of truth (doc/26: the LMDB block store is a forward mirror; SQLite-free
-operation is stages 3-5, not built). If `hyper.db`/`ledger.db` are deleted while
-`blockstore-<ledger>` still holds the chain, every automatic startup path recreated them: `check_integrity`
--> `bootstrap` (peer snapshot, then `bootstrap_url`, ~46 GB on mainnet) or `sync_from_genesis`, and a
-failed download crash-looped under systemd. `chain_ops.guard_lost_ledger` (called in `node.py` before
-`seed_genesis`/`check_integrity`, mainnet only) now logs a CRITICAL explanation and exits with
-`LEDGER_LOST_EXIT_CODE = 78`; the unit templates set `RestartPreventExitStatus=78`. To resync on purpose,
-move the block store aside; to run again, restore the SQLite files. Tests: `tests/test_lost_ledger_guard.py`.
+### Startup: one ledger, no split state
+The ledger is one LMDB environment (`blockstore-<ledger>`), so there is no second file that can go
+missing or fall out of step. `node_init.open_ledger` bootstraps only an *empty* ledger directory (peer
+snapshot, else genesis + sync), and refuses to start on a store with an older schema, naming
+`scripts/upgrade_ledger.py` (doc/05).
 
 ### Tooling
 - A **dependency-light pytest suite** replaces the `bismuthclient`/`bismuthcore`-based tests (which
@@ -116,23 +109,19 @@ move the block store aside; to run again, restore the SQLite files. Tests: `test
 
 ## Improvement roadmap (behavior-preserving, do behind tests)
 
-> Update: items 1 and 3 (difficulty) are now **implemented** and verified end-to-end — the shared
-> `db_helpers.retry_db` backs every module's retry loop, and difficulty.py's controller constants are
-> named. Both are gated by `tests/test_db_helpers.py` and `tests/test_characterization.py` (the latter
-> pins `difficulty()` outputs on a synthetic ledger so the renaming is provably identical). The
-> remaining items stand.
+> Update: items 1, 2 and 3 are **done**. The DB retry loops are gone with the relational ledger (LMDB
+> transactions do not need retry-until-it-works), every balance reads the ledger's maintained `bal`
+> entry (`BlockStore.balance`), and difficulty.py's controller constants are named, gated by
+> `tests/test_characterization.py` (which pins `difficulty()` outputs on a synthetic ledger so the
+> renaming is provably identical). The remaining items stand.
 
 These were scoped out deliberately: the regnet test suite covers the happy path well but not every
 consensus branch, so deeper consensus refactors should land with characterization tests for each
 touched function first.
 
-1. **Shared DB retry helper.** `dbhandler`, `mempool`, `essentials.execute_param_c`, `ledger_queries`
-   and `staking` each carry a near-duplicate execute/commit retry loop with subtly different
-   abort/retry policies. Consolidate into one helper parameterized by `(retry_forever | abort_on)` so
-   the exact per-call-site semantics are preserved. (Biggest readability win.)
-2. **Balance consolidation.** `node.balanceget` (the source TODO already says "move to DbHandler"),
-   `essentials.ledger_balance3`, `apihandler._get_balance` and `ledger_queries` quick-balance compute
-   balances in parallel; route them through one implementation.
+1. ~~**Shared DB retry helper.**~~ Superseded: the ledger is LMDB, one transaction per block.
+2. ~~**Balance consolidation.**~~ Done: `balances.balanceget`, the digester, the mempool and the APIs
+   all read `BlockStore.balance` / `balance_parts`.
 3. **Name consensus magic numbers** in `difficulty.py` / `mining_heavy3.py` / `fork.py`
    (target 60 s, `Kd=10`, divisor 720, window 1440, floor 50, drop 180/360, checkpoint 30/1000,
    `heavy3a` size & sentinels) into named constants — values unchanged.

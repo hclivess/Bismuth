@@ -6,17 +6,14 @@ import base64
 import math
 import json
 import os
-import sqlite3
 import sys
 import time
-import functools
 from Cryptodome.PublicKey import RSA
 from Cryptodome.Hash import SHA
 from Cryptodome.Signature import PKCS1_v1_5
 from hashlib import sha224, blake2b
 from random import getrandbits
 
-import amounts
 import bismuth_serialize
 import connections
 import mempool as mp
@@ -27,51 +24,24 @@ REGNET_DIFF = 16
 
 # Port + storage paths are env-overridable so SEVERAL regnet nodes can run side by side (the two-node API
 # sync harness sets these per process). Defaults are the historical single-node values, so an un-set env is
-# byte-for-byte the old behaviour. The derived LMDB stores (blockstore / balanceindex / txidindex /
-# pkregistry / tokenindex) are named ``<name>-<ledger filename>`` (kvstore.store_path) and the shielded /
-# fork-lockin sidecars hang off the ledger path too, so regnet NEVER shares a store with a mainnet or
-# testnet node in the same directory, and pointing REGNET_DB at a per-instance directory isolates a
-# node's ENTIRE on-disk footprint.
+# byte-for-byte the old behaviour. REGNET_DB is the ledger NAME: the LMDB ledger and the plugin stores are
+# named ``<name>-<ledger filename>`` (kvstore.store_path) and the fork-lockin sidecar hangs off it too, so
+# regnet NEVER shares a store with a mainnet or testnet node in the same directory, and pointing REGNET_DB
+# at a per-instance directory isolates a node's ENTIRE on-disk footprint.
 REGNET_PORT = int(os.environ.get("BISMUTH_REGNET_PORT", "3030"))
 
 REGNET_DB = os.environ.get("BISMUTH_REGNET_DB", "static/regmode.db")
 
-REGNET_INDEX = os.environ.get("BISMUTH_REGNET_INDEX", "static/index_reg.db")
-
 REGNET_PEERS = os.environ.get("BISMUTH_REGNET_PEERS", "peers_reg.txt")
 REGNET_SUGGESTED_PEERS = REGNET_PEERS
 
-SQL_INDEX = [ "CREATE TABLE aliases (block_height INTEGER, address, alias)",
-              "CREATE TABLE tokens (block_height INTEGER, timestamp, token, address, recipient, txid, amount INTEGER)" ]
 
-SQL_LEDGER = [ "CREATE TABLE misc (block_height INTEGER, difficulty TEXT)",
-
-               "CREATE TABLE transactions (block_height INTEGER, timestamp NUMERIC, address TEXT, recipient TEXT, \
-               amount NUMERIC, signature TEXT, public_key TEXT, block_hash TEXT, fee NUMERIC, reward NUMERIC, \
-               operation TEXT, openfield TEXT)",
-
-               "INSERT INTO transactions (openfield, operation, reward, fee, block_hash, public_key, signature, \
-               amount, recipient, address, timestamp, block_height) \
-               VALUES ('genesis', 1, 1, 0, '7a0f384876aca3871adbde8622a87f8b971ede0ed8ee10425e3958a1', \
-               '-----BEGIN PUBLIC KEY-----\nMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDKvLTbDx85a1ugb/6xMMhVOq6U\n2GeYT8+Iq2z9FwIMR40l2ttGqNK7varNccFLIu8Kn4ogDQs3WSWQCxNkhZh/FqzF\nYYa3/ItPPfzrXqgajwD8q4Zt4Ymjt8+2BkImPjjFNkuTQIz2Iu3yFqOIxLdjMw7n\nUVu9tFPiUkD0VnDPLQIDAQAB\n-----END PUBLIC KEY-----', \
-               'DKiWVr+GQHrsEUlu3qEQnsB5rznU4Is7RFLnPmHM1grobiUFHup0kSWiN83gBkNS9LgE57RXUEJvxMKc+9hIAzYE8EwGtO3RsXxkqPTT1v19CguN0iqE4nIM8Bur53/Djs5a1bH/R8EMersemZY1bDJ4jTeeba6yqFxmevGk/gw=', \
-               0, '4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed', 'genesis', 1493640955.47, 1);",
-
-               "INSERT INTO misc (difficulty, block_height) VALUES ({},1)".format(REGNET_DIFF)]
-
-# Integer-atomic-unit ledger schema (doc/16 phase 2 cutover): amount/fee/reward become INTEGER and the
-# genesis reward (1 BIS) is stored as 100000000 units. Derived from SQL_LEDGER so the long genesis
-# key/sig literals are not duplicated.
-SQL_LEDGER_INTEGER = [
-    s.replace("amount NUMERIC", "amount INTEGER")
-     .replace("fee NUMERIC", "fee INTEGER")
-     .replace("reward NUMERIC", "reward INTEGER")
-     .replace("VALUES ('genesis', 1, 1, 0,", "VALUES ('genesis', 1, 100000000, 0,")
-    for s in SQL_LEDGER
-]
+def _store_dirs():
+    """Every on-disk store of the regnet chain: the ledger env and the per-ledger plugin stores."""
+    import kvstore
+    return [kvstore.store_path(REGNET_DB, name) for name in ("blockstore", "tokenindex")]
 
 
-FILES_TO_REMOVE = [REGNET_DB, REGNET_INDEX]
 
 HASHCOUNT = 10
 
@@ -89,11 +59,6 @@ PUBLIC_KEY_B64ENCODED = 'matching pub key b64'
 DIGEST_BLOCK = None
 
 # because of compatibility - huge node refactor wanted.
-
-
-def sql_trace_callback(log, id, statement):
-    line = f"SQL[{id}] {statement}"
-    log.warning(line)
 
 
 def generate_one_block(blockhash, mempool_txs, node, db_handler):
@@ -166,6 +131,13 @@ def generate_one_block(blockhash, mempool_txs, node, db_handler):
                         removal_signature.append(str(mpdata[4]))  # for removal after successful mining
                     # claim reward
                     block_timestamp = '%.2f' % time.time()
+                    # consensus rejects a block not strictly newer than its parent (digest: ts <= prev). Fast
+                    # back-to-back generation can land two blocks in the same 10 ms, so wait for the next tick.
+                    from decimal import Decimal
+                    _prev = getattr(node, "last_block_timestamp", None)
+                    while _prev is not None and Decimal(block_timestamp) <= Decimal(_prev):
+                        time.sleep(0.005)
+                        block_timestamp = '%.2f' % time.time()
                     # doc/41: post-fork the coinbase is PoW-authorized (never signed). nonce -> freed
                     # signature slot, "vmsr"<root>[+signal] commitment -> freed public_key slot, and
                     # operation+openfield left empty (free-form). Pre-fork: RSA-signed (legacy).
@@ -205,7 +177,7 @@ def command(sdef, data, blockhash, node, db_handler):
         if data == 'regtest_generate':
             how_many = int(connections.receive(sdef))
             node.logger.app_log.warning("regtest_generate {} {}".format(how_many, blockhash))
-            mempool_txs = mp.MEMPOOL.fetchall(mp.SQL_SELECT_TX_TO_SEND)
+            mempool_txs = mp.MEMPOOL.transactions()
             for i in range(how_many):
                 blockhash = generate_one_block(blockhash, mempool_txs, node, db_handler)
             connections.send(sdef, 'OK')
@@ -240,13 +212,10 @@ def command(sdef, data, blockhash, node, db_handler):
                 # reflect the new tip in the node's height pointers (a resync does this in production)
                 node.hdd_block = below - 1
                 node.last_block = below - 1
-                db_handler.execute_param(db_handler.c,
-                    "SELECT timestamp, block_hash FROM transactions WHERE block_height = ? AND reward != 0 LIMIT 1",
-                    (below - 1,))
-                row = db_handler.c.fetchone()
+                row = db_handler.store.coinbase(below - 1)
                 if row:
-                    node.last_block_timestamp = Decimal(row[0])
-                    node.last_block_hash = row[1]
+                    node.last_block_timestamp = Decimal(row[1])
+                    node.last_block_hash = row[7]
             connections.send(sdef, 'OK')
     except Exception as e:
         node.logger.app_log.warning(e)
@@ -255,7 +224,7 @@ def command(sdef, data, blockhash, node, db_handler):
         node.logger.app_log.warning("{} {} {}".format(exc_type, fname, exc_tb.tb_lineno))
 
 
-def init(app_log, trace_db_calls=False):
+def init(app_log):
     # Empty peers — unless the multi-node harness seeds them (BISMUTH_REGNET_PEERS_SEED="ip:port,ip:port";
     # together with BISMUTH_REGNET_PEERING=1 the regnet node dials them and answers "hello", so two or more
     # regnet nodes can peer over the real socket protocol — the fork-resolution / reorg harness, doc/47).
@@ -273,13 +242,14 @@ def init(app_log, trace_db_calls=False):
     # escape (tests/fork_transition_smoke.py) that keeps an existing regnet chain across a restart,
     # so live restart/replay continuity — e.g. the hf2 transition and its lock-in replay — can be
     # exercised against a real node. Default behaviour (no env var / no existing DB) is unchanged.
-    if os.environ.get("BISMUTH_REGNET_KEEP") and os.path.exists(REGNET_DB):
+    if os.environ.get("BISMUTH_REGNET_KEEP") and os.path.isdir(_store_dirs()[0]):
         app_log.warning("Regnet: BISMUTH_REGNET_KEEP set — keeping the existing regnet chain")
         return
-    # empty files
-    for remove_me in FILES_TO_REMOVE:
-        if os.path.exists(remove_me):
-            os.remove(remove_me)
+    # wipe the previous regnet chain (the node seeds the genesis block into a fresh ledger at startup)
+    import shutil
+    for remove_me in _store_dirs():
+        if os.path.isdir(remove_me):
+            shutil.rmtree(remove_me)
     # the fork lock-in sidecar MUST die with the chain it was derived from: a stale lock-in against a
     # freshly-wiped regnet chain is the same chain/lock-in inconsistency as the 2026-06-09 regnet->
     # mainnet bleed, just intra-regnet (the node would boot a brand-new chain with hf2 already
@@ -291,19 +261,4 @@ def init(app_log, trace_db_calls=False):
             os.remove(_lock)
     except Exception:
         pass
-    # create empty index db
-    with sqlite3.connect(REGNET_DB) as source_db:
-        if trace_db_calls:
-            source_db.set_trace_callback(functools.partial(sql_trace_callback,app_log,"REGNET-INIT"))
-        for request in (SQL_LEDGER_INTEGER if amounts.LEDGER_INTEGER else SQL_LEDGER):
-            source_db.execute(request)
-        source_db.commit()
-    # create empty reg db
-    with sqlite3.connect(REGNET_INDEX) as source_db:
-        if trace_db_calls:
-            source_db.set_trace_callback(functools.partial(sql_trace_callback,app_log,"REGNET-INIT-INDEX"))
-        for request in SQL_INDEX:
-            source_db.execute(request)
-        source_db.commit()
-
     # Here, we do not have the keys info yet.

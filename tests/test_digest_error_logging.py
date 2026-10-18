@@ -40,7 +40,7 @@ def test_handle_processing_error_logs_cause_and_real_location():
         last_block=None, last_block_hash=None,
         peers=types.SimpleNamespace(warning=lambda *a, **k: False))
     db = types.SimpleNamespace(
-        block_max_ram=lambda: {"block_height": 42},
+        block_height_max=lambda: 42,
         last_block_hash=lambda: "deadbeef")
 
     try:

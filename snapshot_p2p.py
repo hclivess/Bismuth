@@ -1,84 +1,38 @@
-"""doc/43 — peer-to-peer ledger snapshot (decentralized rapid bootstrap).
+"""doc/43 — peer-to-peer ledger snapshot (decentralized rapid bootstrap), DB-DIRECT from the LMDB ledger.
 
-The central bootstrap (``bootstrap_url`` -> bismuth.cz/ledger.tar.gz) is a single point of failure; this
-adds the same rapid full-ledger bootstrap, but served BY PEERS. Two halves, both OFF by default.
-
-DB-DIRECT (doc/43 stage 2, the default when the LMDB block store is present): the snapshot is generated
-ON DEMAND straight from the live database and streamed to the requester — NO pre-built tarball, NO
-operator cron, and NO doubled copy of the ledger on disk. LMDB's ``env.copyfd`` writes an MVCC-consistent,
-compacted image directly to the response socket, consistent even while the node keeps writing. This is the
-fully-automated, no-double-files path:
+The ledger is ONE LMDB environment (``block_store.BlockStore``); a snapshot is that whole env. It is
+generated ON DEMAND straight from the live database and streamed to the requester — no pre-built file, no
+operator cron, and no doubled copy of the ledger on disk. LMDB's ``env.copyfd`` writes an MVCC-consistent,
+compacted image directly to the response socket, consistent even while the node keeps writing. Both halves
+are OFF by default:
 
   * SERVE  (``node.snapshot_serve``): ``GET /api/snapshot/info`` reports ``{db_direct, height, tip_hash}``
-    read O(1) from the live block store's tip; ``GET /api/snapshot`` streams the env image via copyfd.
-  * FETCH  (``node.bootstrap_p2p``): a fresh node picks the highest-height DB-direct peer, streams the env
-    into its own ``block_store`` dir, and verifies tip height + tip block_hash before trusting it.
+    read O(1) from the live ledger's tip; ``GET /api/snapshot`` streams the env image via copyfd.
+  * FETCH  (``node.bootstrap_p2p``): a fresh node picks the highest-height peer, streams the env into its
+    own ledger dir (``kvstore.store_path(ledger_path, "blockstore")``), and verifies tip height + tip
+    block_hash before trusting it.
 
-TARBALL FALLBACK (the original path, used when no block store is present — the SQLite era): a node serves
-a PRE-BUILT snapshot tarball + a ``.manifest.json`` sidecar (height + sha256 + size). The serve path then
-only streams an ALREADY-BUILT file; it NEVER scans the live ledger on a request (scripts/snapshot.py builds
-the tarball out-of-band). The fetcher downloads it and VERIFIES the sha256.
-
-Untrusted-source safety (both paths): the verification (sha256 for the tarball; tip height + tip block_hash
-for DB-direct) fast-rejects corruption/forgery, and the downloaded ledger is STILL fully re-validated by the
-digester as the node syncs forward — that full re-validation is the real forgery backstop.
+Untrusted-source safety: the tip height + tip block_hash check fast-rejects corruption/forgery, and the
+downloaded ledger is STILL fully re-validated by the digester as the node syncs forward — that full
+re-validation is the real forgery backstop.
 """
-import hashlib
 import json
 import os
 import urllib.request
 
-MANIFEST_SUFFIX = ".manifest.json"
 
-
-def manifest_path(tarball):
-    return tarball + MANIFEST_SUFFIX
-
-
-def sha256_file(path, chunk=1 << 20):
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for b in iter(lambda: f.read(chunk), b""):
-            h.update(b)
-    return h.hexdigest()
-
-
-def write_manifest(tarball, height):
-    """Write the sidecar manifest next to a freshly built snapshot tarball. Returns the manifest dict."""
-    m = {"height": int(height), "sha256": sha256_file(tarball), "size": os.path.getsize(tarball),
-         "tarball": os.path.basename(tarball)}
-    tmp = manifest_path(tarball) + ".part"
-    with open(tmp, "w") as f:
-        json.dump(m, f)
-    os.replace(tmp, manifest_path(tarball))
-    return m
-
-
-def read_manifest(tarball):
-    """The manifest for a present, non-stale snapshot tarball, or None. Guards against a stale manifest by
-    requiring the recorded size to match the tarball on disk (so a half-rebuilt snapshot is never served)."""
-    mp = manifest_path(tarball)
-    if not (os.path.exists(tarball) and os.path.exists(mp)):
-        return None
-    try:
-        with open(mp) as f:
-            m = json.load(f)
-    except (OSError, ValueError):
-        return None
-    if not (m.get("sha256") and m.get("height") is not None):
-        return None
-    if int(m.get("size", -1)) != os.path.getsize(tarball):
-        return None
-    return m
+def _ledger(node):
+    """The node's ledger ``BlockStore`` (``node.ledger``; ``node.block_store`` is the same object)."""
+    return getattr(node, "ledger", None) or getattr(node, "block_store", None)
 
 
 # --- DB-direct serve (doc/43 stage 2: on-demand, no pre-built file) --------------------------------
 def db_snapshot_info(node):
-    """The manifest for a DB-DIRECT snapshot served straight from this node's live LMDB block store, or
-    ``None`` if the node has no streamable block store (then the caller falls back to the tarball manifest).
-    Reads only the store's tip — O(1), no scan, no file. The tip block_hash lets a fetcher fast-reject a
-    truncated/forged stream before the digester's full forward re-validation."""
-    bs = getattr(node, "block_store", None)
+    """The manifest for a DB-DIRECT snapshot served straight from this node's live LMDB ledger, or ``None``
+    if the node has no ledger open yet (or it is empty) — then there is nothing to serve. Reads only the
+    store's tip — O(1), no scan, no file. The tip block_hash lets a fetcher fast-reject a truncated/forged
+    stream before the digester's full forward re-validation."""
+    bs = _ledger(node)
     if bs is None:
         return None
     try:
@@ -95,10 +49,10 @@ def db_snapshot_info(node):
 
 
 def stream_db_snapshot(node, fileobj):
-    """Stream the live block store as a consistent, compacted MVCC image to ``fileobj`` (the response
-    socket) — no pre-built tarball, no doubled file on disk. The caller MUST have flushed any buffered
+    """Stream the live ledger env as a consistent, compacted MVCC image to ``fileobj`` (the response
+    socket) — no pre-built file, no doubled copy on disk. The caller MUST have flushed any buffered
     bytes (HTTP headers) on ``fileobj`` first; copyfd writes the raw fd."""
-    node.block_store.stream_snapshot(fileobj)
+    _ledger(node).stream_snapshot(fileobj)
 
 
 # --- fetch side (a bootstrapping node pulling from peers) ------------------------------------------
@@ -123,7 +77,7 @@ def _download(url, dest, timeout):
 
 def candidates(node):
     """(host, rest_port) peers to try. Explicit ``bootstrap_p2p_peers`` (["host:port", ...]) wins; otherwise
-    best-effort from the known peers paired with this node's REST port (a homogeneous post-hf2 fleet)."""
+    best-effort from the known peers paired with this node's REST port (a homogeneous fleet)."""
     out = []
     for e in (getattr(node, "bootstrap_p2p_peers", None) or []):
         s = str(e)
@@ -144,42 +98,6 @@ def candidates(node):
             ips = []
         out = [(ip, port) for ip in ips[:20]]
     return out
-
-
-def fetch_from_peers(node, cands, dest, timeout=30, info_timeout=8):
-    """Query each (host, port)'s /api/snapshot/info, pick the highest-height available snapshot, download
-    /api/snapshot to ``dest``, and verify its sha256. Returns (dest, manifest) on success, else None.
-    Never raises — a bad peer is skipped; a hash mismatch discards the file and returns None."""
-    log = getattr(getattr(node, "logger", None), "app_log", None)
-    best = None
-    for host, port in cands:
-        try:
-            info = _get_json(f"http://{host}:{port}/api/snapshot/info", info_timeout)
-        except Exception:
-            continue
-        if not (info and info.get("available") and info.get("sha256") and info.get("height") is not None):
-            continue
-        if best is None or int(info["height"]) > int(best[2]["height"]):
-            best = (host, port, info)
-    if not best:
-        return None
-    host, port, info = best
-    if log:
-        log.warning(f"Status: P2P snapshot from {host}:{port} (height {info['height']}, "
-                    f"{int(info.get('size', 0)) / 1e6:.0f} MB) — downloading + verifying")
-    try:
-        _download(f"http://{host}:{port}/api/snapshot", dest, timeout)
-    except Exception:
-        return None
-    if sha256_file(dest) != info["sha256"]:
-        if log:
-            log.warning("Status: P2P snapshot sha256 MISMATCH — discarding")
-        try:
-            os.remove(dest)
-        except OSError:
-            pass
-        return None
-    return dest, info
 
 
 def _discard_dir(dest_dir):
@@ -218,9 +136,8 @@ def _verify_db_snapshot(dest_dir, info, log=None):
 
 
 def fetch_db_from_peers(node, cands, dest_dir, timeout=300, info_timeout=8):
-    """DB-direct counterpart of ``fetch_from_peers`` (doc/43 stage 2): query each peer's
-    ``/api/snapshot/info``, pick the highest-height DB-direct (LMDB) snapshot, stream ``/api/snapshot``
-    into ``<dest_dir>/data.mdb``, and VERIFY it (tip height + tip block_hash) by reopening the store.
+    """Query each peer's ``/api/snapshot/info``, pick the highest-height DB-direct (LMDB) snapshot, stream
+    ``/api/snapshot`` into ``<dest_dir>/data.mdb`` (the whole ledger env), and VERIFY it (tip height + tip block_hash) by reopening the store.
     Returns ``(dest_dir, info)`` on success, else ``None``. Never raises — a bad peer is skipped and a
     failed/verify-mismatch download discards the dir. The digester still re-validates the chain forward."""
     log = getattr(getattr(node, "logger", None), "app_log", None)

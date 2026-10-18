@@ -12,5 +12,3 @@ Current contents:
   Python ≥ 3.10 (`asyncio.get_event_loop()` at class scope). The live stub is `../hyperlane.py`.
 - `demo_getstatus.py`, `demo_getaddresssince.py` — single-command client demos of **legacy socket**
   commands, superseded by the REST API (see [`doc/15`](../doc/15-rest-api.md)).
-- `rewards_reindex.py` — one-off dev-reward backfill script.
-- `rewards_test.py` — ad-hoc ledger sanity script (not a pytest test; it pokes `static/ledger.db`).

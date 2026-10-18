@@ -1,31 +1,22 @@
 """
-Engine-agnostic key/value store abstraction (doc/26 — stage 1 of the DB-engine seam).
+Key/value store abstraction over LMDB (doc/36).
 
-The node's LMDB stores (block_store, token_index, txid_index, reward_chain,
-balance_index, scripts/snapshot) each call ``lmdb.open()`` directly with bespoke txn
-lifecycles and 3 divergent (de)serialization styles, with no shared base or factory. This module
-introduces ONE small interface + an ``open_store`` factory so the underlying KV engine becomes a
-single-arg choice:
+ONE small interface + an ``open_store`` factory, used by the ledger (``block_store``) and the
+tokens/aliases plugin store (``token_index``):
 
-    store = open_store("lmdb",      path, dbs=["rewards"], map_size=2 * KVStore.GIB)
-    store = open_store("sqlite-kv", path, dbs=["rewards"])              # always available
-    store = open_store("mdbx",      path, dbs=["rewards"])              # the day a binding is added
+    store = open_store("lmdb", path, dbs=["blocks", "diff"], map_size=64 * KVStore.GIB)
+    store = open_store("mdbx", path, dbs=[...])          # the day an MDBX binding is pinned
 
-The model maps the node's usage exactly:
-  * ``txn(write=False)`` — a read snapshot. Many concurrent (LMDB MVCC; SQLite deferred read txn).
-  * ``txn(write=True)``  — the single writer. Short-lived, per request/block.
-  * ``range`` / ``iterate`` — the stores' ``cursor`` / ``set_range`` ordered scans.
+  * ``txn(write=False)`` — a read snapshot. Many concurrent (LMDB MVCC).
+  * ``txn(write=True)``  — the single writer. Short-lived, per block.
+  * ``range`` / ``iterate`` — ordered cursor scans (``set_range``).
 
-PERFORMANCE: the LMDB wrapper is a THIN passthrough. ``KVTxn`` holds the raw ``lmdb.Transaction`` and
-forwards ``get``/``put``/``delete`` straight to it with no per-op allocation, copy, or row-object
-churn (see tests/test_kvstore.py::test_perf_lmdb_overhead — measured overhead is a few %). The
-backend-specific txn classes are plain attribute holders; ``open_db`` is done once at open.
+The LMDB wrapper is a THIN passthrough: ``KVTxn`` holds the raw ``lmdb.Transaction`` and forwards
+``get``/``put``/``delete`` straight to it with no per-op allocation or copy.
 
-Codec centralizes (de)serialization: msgpack by default with the SAME JSON fallback the existing
-stores use, so a migrated store keeps a BYTE-IDENTICAL on-disk format and its parity test still holds.
+Codec centralizes (de)serialization: msgpack, with a JSON fallback.
 
-Deps: ``lmdb`` (for the lmdb backend), ``msgpack`` (optional — JSON fallback), ``sqlite3`` (stdlib,
-for the always-available sqlite-kv backend). ``mdbx`` imported lazily, optional.
+Deps: ``lmdb``, ``msgpack`` (optional — JSON fallback). ``mdbx`` imported lazily, optional.
 """
 from __future__ import annotations
 
@@ -37,18 +28,10 @@ import struct
 def store_path(ledger_path, name):
     """Path of a derived LMDB store, NAMESPACED BY LEDGER FILENAME — ``<name>-<ledger>``.
 
-    Every derived store MUST be per-ledger. They used to be bare siblings of the ledger
-    (``static/blockstore``), which made mainnet (``static/ledger.db``), testnet and regnet
-    (``static/regmode.db``) share one directory: a regnet run would hand its blocks/balances to a
-    mainnet node, and each network's startup wipe/rebuild would silently trash the other's store.
-    That is the doc/18 regnet->mainnet pollution class, and it also made the regnet suite flaky
-    against a running production node. Keying on the ledger filename gives each network its own
-    store, which is what ``token_index.open_for`` already did (``tokenindex-<ledger>``).
-
-    No migration from the legacy shared path: it cannot be attributed to a network (whichever node
-    ran last owns its contents), so adopting it is exactly the pollution this prevents. All four
-    stores recover on their own — balance/txid/pubkey indexes rebuild from the ledger at startup, and
-    the block store is built forward as blocks are digested.
+    Every store is namespaced per ledger name, so mainnet (``static/ledger.db`` -> ``blockstore-ledger.db``),
+    testnet and regnet (``static/regmode.db`` -> ``blockstore-regmode.db``) never share a directory — a
+    regnet run can never hand its blocks to a mainnet node, nor wipe a mainnet store (the doc/18
+    pollution class).
     """
     base = os.path.basename(str(ledger_path)) or "ledger.db"
     return os.path.join(os.path.dirname(str(ledger_path)) or ".", "%s-%s" % (name, base))
@@ -63,7 +46,7 @@ class Codec:
 
     NOTE: unpack uses ``strict_map_key=False`` INTENTIONALLY and uniformly for every migrated store — it
     only relaxes msgpack's rejection of non-str/bytes map keys, has no effect on the list/scalar values the
-    current stores hold (e.g. reward_chain's list-of-entries), and keeps the codec tolerant for stores whose
+    current stores hold, and keeps the codec tolerant for stores whose
     values may use integer-keyed maps. It does not change packed bytes, so on-disk parity is unaffected. [review]"""
 
     try:
@@ -159,12 +142,8 @@ class KVStore:
 
     def copy_to(self, dst_path, compact=True):  # pragma: no cover
         """Consistent ONLINE copy of the whole store into ``dst_path`` (created/cleared by the backend),
-        usable WHILE a writer is active — the snapshot/bootstrap primitive (scripts/snapshot.py). Each
-        backend uses its own MVCC-consistent copy (LMDB ``env.copy``; SQLite online backup) so a plain
-        cp of a mid-write file is never produced. ``compact`` drops free pages where the backend supports
-        it (LMDB); ignored otherwise. The copy is left in the backend's native on-disk layout under
-        ``dst_path`` (LMDB subdir with data.mdb; sqlite-kv dir with kv.sqlite), byte-readable by reopening
-        the same backend at ``dst_path``."""
+        usable WHILE a writer is active (LMDB ``env.copy`` — MVCC-consistent). ``compact`` drops free
+        pages. The copy is an LMDB subdir with data.mdb, readable by reopening at ``dst_path``."""
         raise NotImplementedError
 
     def copy_to_fileobj(self, fileobj, compact=True):  # pragma: no cover
@@ -299,9 +278,15 @@ class LmdbKVStore(KVStore):
         use_lock = (not readonly) if lock is None else bool(lock)
         self.env = lmdb.open(
             path, subdir=True, max_dbs=max(1, len(names)), map_size=map_size,
-            readonly=readonly, lock=use_lock, sync=sync, metasync=sync,
+            readonly=readonly, lock=use_lock, sync=sync, metasync=sync, max_readers=2048,
         )
-        self._dbs = {name: self.env.open_db(name.encode()) for name in names}
+        self._dbs = {}
+        for name in names:
+            try:
+                self._dbs[name] = self.env.open_db(name.encode())
+            except lmdb.ReadonlyError:
+                # a read-only open of a store written before this sub-db existed: it is simply absent
+                self._dbs[name] = None
 
     def open_db(self, name):
         if name not in self._dbs:
@@ -342,207 +327,6 @@ class LmdbKVStore(KVStore):
         self.env.close()
 
 
-# --------------------------------------------------------------------------- SQLite-KV backend
-class _SqliteTxn(KVTxn):
-    """One (key BLOB PRIMARY KEY, value BLOB) table per named db. Ordered range via ORDER BY key —
-    SQLite compares BLOBs with memcmp, which is the SAME lexicographic order LMDB uses, so a store's
-    ordered scans (big-endian-height set_range, prefix iterate) return the identical sequence. This
-    is the always-available second backend that PROVES the seam without an MDBX binding."""
-
-    __slots__ = ("_conn",)
-
-    def __init__(self, conn):
-        self._conn = conn
-
-    def get(self, db, key):
-        row = self._conn.execute(
-            'SELECT value FROM "%s" WHERE key=?' % db, (key,)
-        ).fetchone()
-        return bytes(row[0]) if row is not None else None
-
-    def put(self, db, key, val):
-        self._conn.execute(
-            'INSERT INTO "%s"(key,value) VALUES(?,?) '
-            'ON CONFLICT(key) DO UPDATE SET value=excluded.value' % db, (key, val)
-        )
-
-    def delete(self, db, key):
-        cur = self._conn.execute('DELETE FROM "%s" WHERE key=?' % db, (key,))
-        return cur.rowcount > 0
-
-    def range(self, db, start=None, end=None, reverse=False):
-        clauses, params = [], []
-        if start is not None:
-            clauses.append("key >= ?")
-            params.append(start)
-        if end is not None:
-            clauses.append("key < ?")
-            params.append(end)
-        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
-        order = "DESC" if reverse else "ASC"
-        sql = 'SELECT key,value FROM "%s"%s ORDER BY key %s' % (db, where, order)
-        for k, v in self._conn.execute(sql, params):
-            yield bytes(k), bytes(v)
-
-    def iterate(self, db, prefix=b""):
-        if prefix:
-            # [prefix, prefix++) half-open range over BLOBs
-            hi = _prefix_upper(prefix)
-            if hi is None:
-                sql = 'SELECT key,value FROM "%s" WHERE key >= ? ORDER BY key' % db
-                params = (prefix,)
-            else:
-                sql = 'SELECT key,value FROM "%s" WHERE key >= ? AND key < ? ORDER BY key' % db
-                params = (prefix, hi)
-        else:
-            sql = 'SELECT key,value FROM "%s" ORDER BY key' % db
-            params = ()
-        for k, v in self._conn.execute(sql, params):
-            yield bytes(k), bytes(v)
-
-    def count(self, db):
-        return self._conn.execute('SELECT COUNT(*) FROM "%s"' % db).fetchone()[0]
-
-    def drop(self, db):
-        self._conn.execute('DELETE FROM "%s"' % db)   # clear all rows, keep the (empty) table
-
-
-def _prefix_upper(prefix):
-    """Smallest key strictly greater than every key starting with ``prefix`` (BLOB order), or None if
-    the prefix is all 0xff (no upper bound)."""
-    b = bytearray(prefix)
-    while b and b[-1] == 0xFF:
-        b.pop()
-    if not b:
-        return None
-    b[-1] += 1
-    return bytes(b)
-
-
-class _SqliteTxnCtx:
-    __slots__ = ("_store", "_write", "_conn")
-
-    def __init__(self, store, write):
-        self._store = store
-        self._write = write
-        self._conn = None
-
-    def __enter__(self):
-        # A FRESH connection per txn, so the KVStore contract holds on sqlite too: WAL gives concurrent read
-        # snapshots, each connection is used only within its own txn/thread (no cross-thread sqlite errors),
-        # and BEGIN IMMEDIATE + busy_timeout serialize the single writer. (A single shared connection could not
-        # nest txns nor be shared across threads — [review #1].) Connect cost is acceptable: sqlite-kv is the
-        # portable proof/fallback backend, never the LMDB hot path.
-        self._conn = self._store._connect()
-        self._conn.execute("BEGIN IMMEDIATE" if self._write else "BEGIN")
-        return _SqliteTxn(self._conn)
-
-    def __exit__(self, exc_type, *rest):
-        try:
-            self._conn.execute("COMMIT" if exc_type is None else "ROLLBACK")
-        finally:
-            self._conn.close()
-        return False
-
-
-class SqliteKVStore(KVStore):
-    def __init__(self, path, *, dbs, map_size=None, readonly=False, sync=True, lock=None):
-        # `lock` accepted for a uniform factory signature; sqlite-kv has no LMDB-style reader-table lock
-        # file (WAL already gives concurrent read snapshots), so it is intentionally a no-op here.
-        import os
-        import sqlite3
-        self._sqlite3 = sqlite3
-        self._readonly = readonly
-        self._sync = sync
-        # path mirrors LMDB's subdir convention: a directory holding one db file, so the same caller
-        # path works on both backends and conftest cleanup (rmtree) is identical.
-        if readonly:
-            self._dbfile = path if os.path.isfile(path) else os.path.join(path, "kv.sqlite")
-        else:
-            if not os.path.isdir(path):
-                os.makedirs(path, exist_ok=True)
-            self._dbfile = os.path.join(path, "kv.sqlite")
-            # WAL is a persistent file property — set it (and durability) once, then close.
-            c = self._connect()
-            c.execute("PRAGMA journal_mode=WAL")
-            c.execute("PRAGMA synchronous=%s" % ("NORMAL" if sync else "OFF"))
-            c.close()
-        self._dbs = set()
-        for name in (dbs or []):
-            self.open_db(name)
-
-    def _connect(self):
-        """A fresh, fully-configured connection (WAL already persisted on the file). text_factory=bytes so
-        keys/values round-trip as bytes; busy_timeout serializes the single writer; isolation_level=None so we
-        drive BEGIN/COMMIT explicitly."""
-        if self._readonly:
-            conn = self._sqlite3.connect("file:%s?mode=ro" % self._dbfile, uri=True, timeout=30)
-        else:
-            conn = self._sqlite3.connect(self._dbfile, timeout=30, isolation_level=None)
-        conn.execute("PRAGMA busy_timeout=30000")
-        conn.text_factory = bytes
-        return conn
-
-    def open_db(self, name):
-        if name not in self._dbs and not self._readonly:
-            c = self._connect()
-            try:
-                c.execute('CREATE TABLE IF NOT EXISTS "%s" (key BLOB PRIMARY KEY, value BLOB) WITHOUT ROWID' % name)
-            finally:
-                c.close()
-        self._dbs.add(name)
-        return name  # the db-handle for sqlite IS the table name
-
-    def txn(self, write=False):
-        return _SqliteTxnCtx(self, write)
-
-    def stat(self, db=None):
-        c = self._connect()
-        try:
-            if db is None:
-                total = 0
-                for (name,) in c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall():
-                    name = name.decode() if isinstance(name, bytes) else name
-                    total += c.execute('SELECT COUNT(*) FROM "%s"' % name).fetchone()[0]
-                return {"entries": total}
-            n = c.execute('SELECT COUNT(*) FROM "%s"' % db).fetchone()[0]
-            return {"entries": n}
-        finally:
-            c.close()
-
-    def sync(self):
-        if self._readonly:
-            return
-        c = self._connect()
-        try:
-            c.execute("PRAGMA wal_checkpoint(FULL)")
-        finally:
-            c.close()
-
-    def copy_to(self, dst_path, compact=True):
-        # SQLite's online backup API copies a transactionally CONSISTENT image even while a writer keeps
-        # working (it re-copies pages mutated mid-backup), the same guarantee env.copy gives LMDB; a raw cp
-        # of a WAL-mode file would capture a half-written snapshot. compact is a no-op here (sqlite-kv's
-        # WITHOUT ROWID tables have no LMDB-style free-page list to drop). The copy lands at dst_path's
-        # kv.sqlite so reopening open_store('sqlite-kv', dst_path) reads it back unchanged.
-        import os
-        if os.path.exists(dst_path):
-            import shutil
-            shutil.rmtree(dst_path)
-        os.makedirs(dst_path)
-        dst_file = os.path.join(dst_path, "kv.sqlite")
-        src = self._connect()
-        dst = self._sqlite3.connect(dst_file)
-        try:
-            src.backup(dst)
-        finally:
-            dst.close()
-            src.close()
-
-    def close(self):
-        return  # no persistent connection — each txn/op opens and closes its own
-
-
 # --------------------------------------------------------------------------- MDBX backend (lazy/optional)
 class MdbxKVStore(KVStore):
     """Adapter behind the same factory. The mdbx binding is imported LAZILY so MDBX is a one-arg
@@ -557,29 +341,26 @@ class MdbxKVStore(KVStore):
         except ImportError as e:  # pragma: no cover - exercised only without a binding
             raise RuntimeError(
                 "mdbx backend requested but no 'mdbx' python binding is installed. "
-                "Install one (e.g. libmdbx's python binding) or use backend='lmdb'/'sqlite-kv'."
+                "Install one (e.g. libmdbx's python binding) or use backend='lmdb'."
             ) from e
         # When a binding is present, wire it here against the SAME KVTxn shape as LMDB.
         raise NotImplementedError(  # pragma: no cover
             "mdbx binding detected but the adapter wiring is intentionally deferred to the day a "
-            "binding is pinned (the seam + factory choice exist now; LMDB/SQLite cover swappability)."
+            "binding is pinned (the seam + factory choice exist now)."
         )
 
 
 # --------------------------------------------------------------------------- factory
 _BACKENDS = {
     "lmdb": LmdbKVStore,
-    "sqlite-kv": SqliteKVStore,
-    "sqlite": SqliteKVStore,
     "mdbx": MdbxKVStore,
 }
 
 
 def open_store(backend, path, *, dbs, map_size=2 * KVStore.GIB, readonly=False, sync=True, lock=None):
-    """Open a KVStore on ``backend`` in {lmdb, mdbx, sqlite-kv}. ``dbs`` is the list of named sub-dbs;
-    ``map_size`` is the LMDB/MDBX map size (ignored by sqlite-kv). ``lock`` overrides the default LMDB
-    locking (None => not readonly); set lock=True to keep a readonly reader in the reader table while a
-    writer is active (no-op on sqlite-kv). This is the single seam the node's stores construct through,
+    """Open a KVStore on ``backend`` in {lmdb, mdbx}. ``dbs`` is the list of named sub-dbs; ``map_size``
+    is the map size. ``lock`` overrides the default LMDB locking (None => not readonly); set lock=True to
+    keep a readonly reader in the reader table while a writer is active. This is the single seam the node's stores construct through,
     so swapping the engine is a one-arg change."""
     try:
         cls = _BACKENDS[backend]

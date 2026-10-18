@@ -51,33 +51,26 @@ def _node(**kw):
     n.fork_height = kw.get("fork_height", None)
     n.last_block = kw.get("last_block", 699999)
     n.last_block_timestamp = kw.get("last_block_timestamp", time.time() - 100)
-    n.old_sqlite = kw.get("old_sqlite", False)
-    n.balance_index_consensus = "off"
-    n.balance_index = None
-    n.txid_index = None
-    n.parity_strict = False
     n.assume_valid_height = kw.get("assume_valid_height", 0)
     n.validation_exceptions = kw.get("validation_exceptions", None)
     n.logger = types.SimpleNamespace(app_log=_Log())
     return n
 
 
-class _Cursor:
-    def __init__(self):
-        self._ret = None
-    def fetchone(self):
-        return self._ret
+class _Store:
+    """Ledger stand-in for check_duplicate_signatures. `dup_sig` (if set) is reported as already confirmed."""
+    def __init__(self, dup_sig=None):
+        self.dup_sig = dup_sig
+    def signature_exists(self, sig, max_height=None):
+        return bool(self.dup_sig) and str(sig) == self.dup_sig
+    def txid_height(self, txid):
+        return None
 
 
 class _DB:
-    """Minimal db_handler for check_duplicate_signatures. `dup_sig` (if set) makes
-    the ledger-lookup report that signature as already present."""
+    """Minimal db_handler: just the ledger (``.store``)."""
     def __init__(self, dup_sig=None):
-        self.h = _Cursor()
-        self.c = _Cursor()
-        self.dup_sig = dup_sig
-    def execute_param(self, cursor, sql, params):
-        cursor._ret = (5,) if (self.dup_sig and self.dup_sig in [str(p) for p in params]) else None
+        self.store = _Store(dup_sig)
 
 
 def _raw_tx(sig, amount="1.00000000", address=GEN, recipient=GEN, op="", of=""):

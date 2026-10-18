@@ -1,269 +1,65 @@
-# doc/26 — Post-fork storage rearchitecture (no SQLite)
+# doc/26 — Storage: the LMDB-only ledger (migration complete)
 
-> Status: **stages 1–2 ✅ shipped (shielded store + token/alias side-index on LMDB); stage 3 read-seam +
-> stage 4 balance-read AND duplicate-replay PARITY-ASSERT bake-ins ✅ shipped.** The TWO consensus reads that
-> still hit SQLite — the overspend check (`ledger_balance3`) and the duplicate-signature replay scan — are now
-> each shadowed by a proven-consensus-faithful LMDB projection (`balance_index`, `txid_index`): the regnet
-> suite runs both in `shadow`+`parity_strict` mode, raising on any divergence (default `off` on mainnet →
-> byte-identical). The remaining flips
-> (canonical LMDB write, true-byte sig/pubkey, headers-first sync, SQLite-trio retirement) need a **two-node
-> harness** and are deferred (see Next stages). The endgame of doc/16: retire the 2014-era SQLite trio
-> **post-fork**, single LMDB store canonical. Consensus serialization is fork-gated (doc/29); legacy SQLite
-> keeps working **pre-fork** for old peers.
->
-> **DB-engine seam:** all 8 LMDB stores now open through one `open_store(backend, …)` factory
-> (`kvstore.py`) instead of hand-rolled `lmdb.open()` calls, making the KV engine a one-arg choice
-> (`lmdb` | `mdbx` | `sqlite-kv`) with byte-identical on-disk format — see **[doc/36](36-kvstore-engine-seam.md)**.
-> That is a code-level *engine* seam; it does not change *which* data lives in LMDB vs SQLite (that is this
-> doc's staged migration).
+> Status: **✅ complete.** The ledger is one LMDB environment. Every relational database the node used to
+> carry — the full ledger, the pruned hyperblock copy, the RAM working copy, the token/alias index file
+> and the mempool file — is gone, along with all the machinery that kept them in step. The authoritative
+> description of the store is [05](05-database-and-ledger.md); this page records what the migration
+> retired and where everything lives now.
 
-## 1. What's there today — the "H1/H2/H3" architecture, and why it isn't ideal
+## Where things live
 
-`DbHandler.__init__` opens **three SQLite connections across two files**, plus an index DB:
+| data | home |
+|---|---|
+| blocks, block hashes, deduped pubkeys | `blockstore-<ledger>`: `blocks`, `hashes`, `pk`/`pkr` |
+| per-block difficulty | same env: `diff` |
+| signature / address-history indexes | same env: `sig`, `addr` |
+| balances (integer units) + fixed allocations | same env: `bal`, `meta` "alloc" |
+| post-fork content txids, pubkey registry | same env: `txid`, `pkref` |
+| tokens + aliases | `tokenindex-<ledger>` (the `tokens_aliases` plugin, [27](27-plugins.md)) |
+| mempool | process memory ([07](07-mempool.md)) |
 
-| handle | file | role |
-|--------|------|------|
-| `hdd` / `self.h` | `ledger.db` | the full transaction history |
-| `hdd2` / `self.h2` | `hyper.db` | hyperblocks (periodic balance roll-ups + recent full blocks) |
-| `conn` / `self.c` | `ledger_ram_file` *or* `hyper.db` | the "working" cursor — its source DEPENDS ON `ram` mode |
-| `index` | `index.db` | token / alias indexes |
+One block commits — body, difficulty, every index, the balance deltas — in **one LMDB write transaction**
+(`BlockStore.commit_block`); a reorg is one transaction (`BlockStore.rollback`). LMDB supplies the
+atomicity, MVCC readers for the REST API and ordered keys for range scans; there is nothing left to
+reconcile on restart.
 
-The non-idealities (the reasons to rearchitect):
+## What was retired
 
-1. **Two representations of one chain.** The full ledger and the hyperblock roll-up both describe history and
-   must be kept consistent. The roll-up *mutates* history (collapses old txs into synthetic `Hyperblock`
-   balance rows) and is **not integer-storage-safe** (`chain_ops.py:95`).
-2. **Cross-file lockstep machinery.** `ledger.db` and `hyper.db` are written by separate connections, so a
-   crash between writes splits them. The fix is a **dual `commit_marker` + `ATTACH`** crash-recovery contract
-   (the long comment at `dbhandler.py:81`) reasoning about WAL's "atomic per file, not across files" caveat
-   and a provable "≤ 1 block gap." ~39 references to that machinery in `dbhandler.py` alone — complexity that
-   exists ONLY because there are two files to keep in step.
-3. **Mode-dependent working cursor.** `self.c` reads `ledger_ram_file` in `ram` mode but `hyper.db` otherwise,
-   so "where does `self.c` read from" is non-obvious and a source of subtle bugs.
-4. **SQLite's ceilings.** Single writer + file locks; WAL checkpoint stalls; `ATTACH` atomicity caveats; no
-   concurrent writers; sluggish on a multi-GB ledger (doc/16's own assessment). The legacy socket layer's
-   serial pipeline compounds it.
+- **The multi-file ledger.** Separate full / pruned / working copies written by separate connections, and
+  the crash-recovery contract (commit markers, cross-file attach, startup reconcile) that existed only
+  because there were several files to keep in step.
+- **Hyperblock pruning.** History is never collapsed into synthetic balance rows; the LMDB store is
+  compact enough to keep the full chain (mainnet ~9.7 GB, pubkey dedup: 5,586 distinct keys across
+  6.4M txs).
+- **RAM mode** and its periodic flush to disk.
+- **Negative-height mirror reward rows.** The dev / hypernode rewards minted every 10th block until
+  4,380,000 are fixed balance allocations (`ledger_genesis.MAINNET_ALLOCATIONS`, `meta` "alloc").
+- **Side stores and shadow indexes.** The separate balance, txid and pubkey-registry envs, the read/write
+  seam with its parity-assert modes, the difficulty sidecar — all folded into the one env and maintained
+  in the block commit.
+- **Tarball bootstrap.** A fresh node takes a DB-direct LMDB snapshot from peers ([43](43-p2p-snapshot.md))
+  or seeds genesis and syncs.
+- **Options:** `hyper_path`, `hyper_recompress`, `full_ledger`, `ram`, `mempool_ram`, `mempool_path`,
+  `trace_db_calls`, `autoheal`, `autoheal_interval`, `bootstrap_url`, `bootstrap_file`,
+  `snapshot_path`, `block_store`, `balance_index`, `balance_index_consensus`, `txid_index_consensus`,
+  `pk_registry_consensus`, `parity_strict`, `token_index`, `rebuild_db`.
 
-## 2. The target — one LMDB store, canonical post-fork
+## Upgrading an older store
 
-A **single LMDB environment** (`block_store.BlockStore`, already in tree as an additive shadow) becomes the
-canonical store post-fork. Everything else is a **derived projection** in its own LMDB env, rebuildable from
-the block store. LMDB gives ACID, MVCC (lock-free concurrent readers for the REST API), ordered keys (range
-scans for sync), and a single fast writer — no `ATTACH`, no WAL checkpoints, no cross-file lockstep.
+A block store written before the ledger became LMDB-only holds blocks but not the difficulty record or
+the indexes. The node detects the old schema (`meta` "schema" ≠ `block_store.SCHEMA`) and refuses to
+start, naming the command. With the node stopped:
 
 ```
-                          ┌────────────────────────────────────────────┐
-   canonical  ──────────► │  block store (LMDB)  height → {hash, txs}   │  (pubkey-deduped, ordered)
-                          └───────────────┬────────────────────────────┘
-                                          │  rebuildable projections (each its own LMDB, height-keyed)
-        ┌──────────────┬──────────────────┼───────────────────┬─────────────────┐
-   balances (LMDB)  tokens/aliases   shielded notes/keyimages   VM state        headers/checkpoints
-                                     (stage 1, this doc)        (already LMDB)   (fast sync, replaces hyper)
+python3 scripts/upgrade_ledger.py static/blockstore-ledger.db --anchor http://185.100.232.5:5659
 ```
 
-Key properties:
-- **Atomic block commit.** A block + all derived-index updates commit in ONE LMDB write txn (or each index
-  rebuilds from the store). No `commit_marker`, no `ATTACH`, no two-file gap — crash recovery is LMDB's own.
-- **Height-keyed rollback.** Each projection stores a `(height, key)` index so a reorg is a range-delete of
-  `height ≥ H` plus, where needed, a running-total adjustment — the same shape `ShieldedState.rollback_under`
-  and `vm_engine.rebuild` already use. (The reorg-completeness fix in doc/25 — every store rolled back on
-  every path — carries straight over.)
-- **No hyperblocks-as-a-second-file.** Fast bootstrap is the LMDB store (compact, deduped) + REST
-  headers-first / parallel block fetch (doc/15, already started) + an optional **balance-snapshot projection**
-  inside the SAME env (a derived checkpoint, not a lockstep second file).
-- **Block hashing frozen; one fork-gated signing change.** The block-hash pre-image is unchanged
-  (`bismuth_serialize.block_hash` / `signature_buffer` — it excludes the signature), so the same blocks
-  produce the same hashes; storage is an internal concern behind that boundary. hf2 carries several other
-  consensus changes too (VM state-root commitment, shielded/RingCT, native multisig senders, and the
-  serialization rework of doc/29) — all gated on the SAME single `fork_height`; the one this storage doc
-  touches is **single-sig secp256k1 SIGNING**: post-fork an ordinary single-sig tx signs the blake2b
-  content-hash **txid** (`bismuth_serialize.tx_id` / `signed_message`, Ethereum-shape — a 65-byte
-  recoverable sig, the `public_key` field DROPPED, signer recovered via ecrecover with low-s enforced).
-  Verification is fork-aware and routed through one entry point, `SignerFactory.verify_tx_signature`
-  (`polysign/signerfactory.py:173`), used by both the digester and the mempool. RSA, ED25519, native
-  MULTISIG and shielded/RingCT KEEP their existing legacy signing post-fork (multisig: explicit pubkeys +
-  N-of-M over the frozen `signature_buffer` — it does NOT sign the txid). Pre-fork is byte-identical (it
-  stays on the legacy buffer+pubkey path).
-- **Content-hash txid, computed on read.** ALL post-fork txs get the blake2b content-hash txid as their
-  canonical id; it is derived ON READ (`essentials.format_raw_tx`, amount via `amounts.ledger_value` so it is
-  storage-mode agnostic) — there is **no `txid` DB column and no migration**. Lookup is SHAPE-DISPATCHED: a
-  64-char lowercase-hex query resolves the content txid by scanning post-fork rows; anything else uses the
-  legacy signature-prefix LIKE match. Historical txs keep their `signature[:56]` ids.
+It replays the difficulty history with `difficulty.retarget`, anchored on the exact values peers publish
+at `/api/stats/difficulty`, then rebuilds every index with `BlockStore.reindex` and stamps the schema.
 
-## 3. The seam — a storage interface, two backends
+## Consensus boundary
 
-The node accesses storage through a thin interface (`get_block(h)`, `get_tx(sig)`, `balance(addr)`,
-`append_block(...)`, `rollback(h)`, range scans) with two implementations:
-- **`SqliteBackend`** — wraps today's `DbHandler` (pre-fork + compatibility; unchanged consensus).
-- **`LmdbBackend`** — the block store + LMDB projections (post-fork canonical).
-
-Post-fork (`node.fork_height`) routes to `LmdbBackend`; pre-fork stays on SQLite. This is the strangler-fig
-path: introduce the seam, move reads, move writes, then delete the SQLite trio. It also lets the two run
-**side by side** during migration with a cross-check (the block store already verifies against SQLite).
-
-## 4. Migration stages (each shippable, gated, test-green)
-
-1. **Derived indexes → LMDB.** Move each rebuildable projection off SQLite. **Shielded
-   notes/keyimages/flows is stage 1 (this change)** — it is post-fork-only, self-contained, and the active
-   "no SQLite post-fork" offender; it becomes the reference pattern for balances + tokens.
-2. **Reads via the seam.** Route block/tx/balance reads through the interface; post-fork → LMDB.
-3. **Writes via the seam.** The digester appends to the block store + LMDB projections atomically; the
-   `commit_marker`/`ATTACH` lockstep is deleted (one store, one txn).
-4. **Sync without hyperblocks.** Headers-first + parallel REST block fetch into the LMDB store; the balance
-   snapshot becomes a derived checkpoint. `hyper.db` retired.
-5. **Delete the SQLite trio** post-fork. `DbHandler` becomes `SqliteBackend` for the pre-fork compat window
-   only, then removed when the network is fully past hf2.
-
-## 5. Done / in progress
-- ✅ Block store (LMDB), pubkey-deduped, reorg-safe, verified against SQLite (`block_store.py`).
-- ✅ **Block store BACKFILLED from SQLite and holding the whole chain** (`scripts/rebuild_block_store.py`,
-  mainnet 2026-08-11). The node builds the store FORWARD as it digests and had **no backfill**, so a store
-  created after the chain already existed covered only heights since it was opened — everything below was a
-  permanent hole. The tool (`build` / `verify` / `compact` / `info`) fills history from `ledger.db` and proves
-  it before anything is swapped in. Measured on mainnet:
-
-  | step | result |
-  |---|---|
-  | build | 4,937,451 blocks in 28m31s → **9.7 GB** vs **22.4 GB** SQLite (**−58%**) |
-  | verify | 4,937,451 blocks / 6,426,832 txs **byte-identical** to SQLite (9m08s) |
-  | compact | 9.7 GB → 9.6 GB (**0.1%**) — a sequential one-pass build has no fragmentation, so compaction
-    after a fresh build is a no-op; don't budget disk for it |
-
-  The −58% is **pubkey dedup**: the whole 4.9M-block chain contains only **5,586 distinct public keys**
-  across 6.4M txs, so the 1068-byte RSA key repeated on every tx collapses to an integer id in `pk`/`pkr`.
-  Remaining headroom is hf2-gated: with pubkeys gone, `signature` (base64 text) is ~3/4 of the stored bytes,
-  and the doc/40 Stage-4 `post_fork` branch of `put_blocks` packs it plus address/recipient/block_hash as raw
-  bytes in a single `txrec` blob. Nothing to enable — it engages itself at the fork height.
-
-  **Running it against a LIVE node** (the pattern to reuse): ledger opened READ-ONLY (SQLite is in WAL mode,
-  so readers never block the writer); write to a SEPARATE store path (LMDB is single-writer per env and the
-  node owns the live store's lock); `nice -n19 ionice -c3` so a 23 GB read cannot starve the node. With that,
-  the node stayed exactly at network tip through the entire backfill. Swap procedure: stop node → `build`
-  top-up to the now-frozen ledger tip → `verify` the tail → `mv` old aside → `mv` new into place → start.
-- ✅ **Derived stores are NAMESPACED PER LEDGER** — `kvstore.store_path(ledger_path, name)` →
-  `<name>-<ledger filename>` (e.g. `blockstore-ledger.db` vs `blockstore-regmode.db`), matching what
-  `token_index.open_for` always did. They used to be bare siblings of the ledger (`static/blockstore`), so
-  mainnet, testnet and regnet **shared one directory**: a regnet run handed its blocks/balances to a mainnet
-  node (the doc/18 pollution class, storage-layer edition), and the regnet suite's startup wipe destroyed a
-  live production node's derived stores. No migration from the legacy shared path — it cannot be attributed
-  to a network, so adopting it *is* the pollution this prevents; balance/txid/pubkey indexes rebuild from the
-  ledger at startup and the block store is built forward. `tests/test_store_paths.py` locks it in.
-- ✅ **The block store opens BEFORE the P2P listener / connection manager** (`node.py`). It used to open
-  after, and `digest` SKIPS the store write when `block_writer is None` — so every block digested in that
-  window was a **permanent hole**. It went unnoticed because the shared store directory usually already
-  contained those heights from a previous regnet run; with a genuinely per-ledger (empty) store the gap is
-  real, and a hole inside the post-fork weight window makes the strict fee read halt the node.
-- ✅ Dynamic-fee congestion signal reads the **block store**, not SQLite (`block_store.recent_block_weights`).
-- ✅ **Stage 1: shielded notes/keyimages/flows store on LMDB** (`shieldedv1.ShieldedState`) — replaced the
-  SQLite sidecar with an LMDB env (sub-DBs `notes`/`notes_h`/`kimg`/`kimg_h`/`flows`/`meta`), SAME API so
-  consensus (`validate_block`/`apply_block`) is untouched. Height-ordered secondary keys → reorg rollback is
-  a range delete; ops are buffered per block and flushed atomically in one txn at `commit()`. `open_state_for`
-  auto-removes a stale pre-LMDB SQLite file (the sidecar is post-fork-only + rebuildable, so nothing canonical
-  is lost). 33 shielded/RingCT tests green (29 node-free + 4 live, incl. the confidential lifecycle).
-- ✅ **Stage 2: token + alias side-index on LMDB** (`token_index.TokenIndex`, `open_for`). The tokens/aliases
-  projection was always the most cleanly *separable* part of the trio — its own `index.db`, a derived
-  side-index of the ledger, never consensus — so it is the natural next target. Replaced with an isolated LMDB
-  env (sub-DBs: `tokreg`/`seen`/`cred`/`deb`/`addrtok`/`tokset`/`journal` for tokens, `alias_fwd`/`alias_rev`/
-  `ajournal` for aliases, `meta` for anchors). Aliases gained mutable ownership via the **alias-evolution ops**
-  (`register_alias`/`transfer_alias`/`free_alias`): `alias:register` claims an unowned alias (first claimant
-  wins), `alias:transfer` moves ownership owner → recipient (no-op unless the sender is the current owner),
-  and `alias:free` releases an alias so it can be claimed again — `alias_fwd` tracks the live owner and
-  `alias_rev` the per-address set, both height-ordered so the `ajournal` range-scan rolls them back on reorg.
-  *Materialized* indexes stand in for the SQLite SUM/GROUP-BY:
-  `cred`/`deb` are height-ordered so the **exact** overspend rule survives (credit at `block_height < h`,
-  debit at `<= h` — no same-block re-spend); reorg rollback range-scans the height journals (same shape as
-  the shielded store). Wired behind a **storage seam** (§3): `node.token_index` set → LMDB, else the legacy
-  `index.db` path runs byte-for-byte (mainnet-safe pre-fork). All call sites route through it —
-  `tokensv2`/`aliases`/`aliasesv2` (writes), `dbhandler_write` (rollback), `node.py` peer commands
-  (`tokensget`/`aliasget`/`aliasesget`/`addfromalias`) and `rest_api` (`/api/tokens`, `/api/token`) (reads).
-  Config flag `token_index` (default off; on in the regnet test config). 8 node-free unit tests + the live
-  explorer/API regnet tests green. (`staking` shares `index.db` but was never live — it retires with the trio.)
-
-- 🚧 **Stage 3 (foundation): the storage read seam** (`storage_backend.py`). A thin block/tx read interface
-  with two backends that return BYTE-IDENTICAL rows: `SqliteBackend` (a read-only cursor over `ledger.db` —
-  today's behavior, the reference) and `LmdbBackend` (the `block_store`). `cross_check(reference, candidate,
-  start, end)` proves they agree (the gate for migrating a read); `select(node)` returns the LMDB backend
-  post-fork when a block store is present, else SQLite (pre-fork = unchanged). Additive + consensus-inert —
-  NOT yet wired into the hot path; reads migrate onto it one surface at a time (REST/display → sync →
-  consensus), each cross-checked first. Balance reads are a separate increment (they have `balance_index` +
-  the `ledger_balance3` consensus path). 3 node-free tests green (`tests/test_storage_backend.py`).
-
-- 🚧 **Stage 3 (read migration #1): REST block-body reads on the seam** (`rest_api.py`). The REST
-  `/api/block/height`, `/api/block/hash`, `/api/blocks/since`, `/api/blocks/range` reads now go through the
-  seam: post-fork (`last_block >= fork_height`) + a present `block_store` → read from LMDB, else the legacy
-  `ledger.db` cursor. **LMDB-first with SQLite fallback** (`_store_backend`/`_block_rows`/`_range_rows` on the
-  Handler), so a node whose store was enabled mid-chain still serves older blocks. Display-only; identical
-  JSON (shared `essentials.format_raw_tx` over byte-identical rows). Pre-fork is unchanged. `_headers_range`
-  (cheap SQL aggregate), `_transaction` (by signature), `_address_txs` (by address), and the legacy socket
-  block reads (`apihandler_blocks.py`) deliberately stay on SQLite — later increments (need secondary
-  indexes). Test: `tests/test_rest_api.py::test_rest_block_reads_post_fork_use_lmdb` mines past the fork and
-  reads blocks via the LMDB-served path.
-
-- 🚧 **Stage 4 (foundation): the write seam** (`storage_backend.StorageWriteBackend` / `LmdbWriteBackend`).
-  The block-body write is now a pluggable primitive; `LmdbWriteBackend` is the **one-store-one-txn** atomic
-  append + height-range rollback over `block_store` (no `commit_marker`, no `ATTACH`). The digester writes
-  through `node.block_writer` (`digest.py`), reorg-safe (rolled back with the ledger in `chain_ops`). It is
-  still **additive**: it runs after the SQLite commit, which stays the source of truth — because the
-  consensus READS still hit SQLite, above all the `ledger_balance3` overspend check (kept authoritative: a
-  wrong balance index would be inflation). So this does not yet remove the SQLite write or the lockstep; it
-  is the trust-building foundation for that flip. Test: `tests/test_storage_backend.py::
-  test_write_backend_append_rollback_and_crosscheck`.
-
-- 🚧 **Stage 3 (read migration #2): socket-protocol block reads** (`apihandler_blocks.py`). `api_getblockfromheight`
-  and `api_getblockfromhash` now read the LMDB block store post-fork (LMDB-first, SQLite fallback), the socket
-  analog of the REST migration. `ApiHandler` gained a `node` ref for the seam. (`api_getblockrange` /
-  `…hashextra` also read the `misc` difficulty table — not in the block store — and `…since`/`…whereoflike`
-  need tip/openfield queries; those stay on SQLite.)
-- 🚧 **Stage 4 (trust check): continuous LMDB linkage verification** (`digest.py`). Post-fork, every block
-  verifies `block_store.block_hash(h)` equals the committed block hash (log-only). This proves the LMDB store
-  tracks the consensus linkage block-for-block — the prerequisite for making `block_store.tip()`/`block_hash`
-  the crash-recovery + last-block-linkage authority. (The last-block-linkage SQLite read is only a
-  startup/post-rollback seed held in memory during digestion, so there is no per-block read to swap.)
-- ✅ **Stage 4 (centerpiece): balance-read PARITY-ASSERT bake-in** (`digest.py` `_validate_balance`,
-  `chain_ops._rebuild_derived_state`, `options.py`/`node.py`). The overspend check is the LAST consensus read
-  on SQLite (`ledger_balance3`) and the real gate for retiring the SQLite write. A new `balance_index_consensus`
-  flag (**off | shadow | primary**, default off) drives a dual-read at the gating point, on an address's FIRST
-  appearance (the one point the two views line up — no intra-block delta cached, index at the last committed
-  block), post-fork, integer mode:
-  - **off** (default / mainnet): `ledger_balance3` authoritative, NO index read → byte-identical.
-  - **shadow**: compute the index too and compare; warn, or RAISE under `parity_strict`; SQLite stays authoritative.
-  - **primary**: the index is authoritative; still compute SQLite and **RAISE on mismatch** (halt > inflate).
-
-  The index **bit-matches** `ledger_balance3` in integer mode by construction (exact, order-independent integer
-  addition through the same `to_decimal`; mirror reward rows included). To make that a guarantee, the index
-  apply (`digest.py`) and reorg rebuild (`chain_ops.py`) now **re-raise** (not warn) once `balance_index_consensus
-  != off` — a stale index halts rather than drifts. The regnet suite runs **`balance_index_consensus=shadow` +
-  `parity_strict=True`**, so the parity assert fires on EVERY consensus overspend read + reorg suite-wide:
-  **green ⇒ the LMDB balance index is proven consensus-faithful and authoritative-capable.**
-
-- ✅ **Stage 4 (centerpiece 2): duplicate-replay PARITY-ASSERT bake-in** (`txid_index.py` NEW,
-  `digest.check_duplicate_signatures`, `chain_ops._rebuild_derived_state`, `options.py`/`node.py`). The
-  duplicate-signature replay check (`digest._signature_exists_in_ledger`, a SQLite signature scan) is the
-  SECOND consensus read on SQLite. A new maintained LMDB projection — `txid_index` mapping the canonical
-  **content txid** (`bismuth_serialize.tx_id_at`, doc/29) → confirmed height — backs it with an O(1) lookup
-  and keys dedup on the txid (closing the audit M-3/M-4 malleability gap where two ledger rows share a txid
-  but differ in signature). POST-FORK only (pre-fork txs have no content txid → stay signature-deduped);
-  rebuilt from the ledger at startup (empty pre-fork), maintained on commit, rebuilt on a reorg (re-raises,
-  never drifts, once consensus-on). A `txid_index_consensus` flag (**off | shadow | primary**, default off):
-  - **off** (default / mainnet): signature scan authoritative, no index → byte-identical.
-  - **shadow**: also compute the per-tx txid verdict (confirmed-chain + in-block) and compare to the signature
-    verdict; warn, or RAISE under `parity_strict`; the signature read stays authoritative (outcome unchanged).
-  - **primary**: the txid index is the authoritative dedup key (the malleability-tight one); a divergence halts.
-
-  The regnet suite runs **`txid_index_consensus=shadow` + `parity_strict=True`** alongside the balance bake-in,
-  so the replay parity assert fires on EVERY post-fork block + reorg suite-wide (55 post-fork txids indexed,
-  zero divergence): **green ⇒ the LMDB txid index is proven consensus-faithful and authoritative-capable.**
-
-### Next stages (in order)
-- ✅ **Stage 4 (cont.): both indexes proven in `primary`.** The regnet proving-ground suite now runs
-  **`balance_index_consensus=primary` + `txid_index_consensus=primary` + `parity_strict=True`** (619 passed):
-  the LMDB projections DRIVE both consensus reads (overspend start-balance + dup-replay key), with SQLite
-  still computed as the permanent RAISE-on-mismatch backstop. Default stays `off` on mainnet (byte-identical).
-  With SQLite still computed the byte outcome is identical, so the real win lands once the SQLite read/write
-  is removed — which needs the items below.
-- **Stage 4 (cont.): flip the canonical write to LMDB + retire the lockstep.** Once the reads are off SQLite
-  and the LMDB write is continuously cross-checked/trusted: make `block_store.tip()` the crash-recovery
-  anchor (atomic ⇒ an unambiguous floor), delete the `commit_marker`/`ATTACH` machinery, and reduce SQLite
-  to a derived mirror (or drop it). Needs a dedicated crash-recovery test (this is the 19h-outage code).
-- **Stage 5: sync without hyperblocks** (headers-first + parallel REST into LMDB; retire `hyper.db`), then
-  remove the SQLite trio post-fork (`index.db` — tokens/aliases now on LMDB, plus the dead `staking` table — included).
+Storage sits behind the frozen serialization boundary (`bismuth_serialize`): block hashes and signing
+pre-images are computed from the 12-field row, not from the stored bytes, so the at-rest format
+(including the post-fork true-bytes `txrec` packing of [40](40-storage-truebytes.md)) is free to change
+without touching consensus. `replay_verify.py` recomputes every block hash from the store to prove it.

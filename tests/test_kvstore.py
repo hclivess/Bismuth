@@ -1,14 +1,12 @@
 """
 KVStore engine-agnostic abstraction tests (kvstore.open_store, doc/26 stage 1).
 
-Proves the new DB-engine seam:
-  (a) PARITY      — the migrated RewardChain's existing balance-equivalence rebuild passes on the lmdb
-                    backend AND the on-disk bytes are identical to what a direct lmdb.open() store writes.
-  (b) SWAPPABILITY— the SAME RewardChain run through open_store('sqlite-kv',...) yields identical results
-                    to the lmdb backend (the seam is real + engine-independent).
-  (c) PERF        — a micro-benchmark times get/put/range through LmdbKVStore vs raw lmdb txn calls and
-                    asserts the wrapper overhead is small (target < ~10%).
-  (d) ordered range/iterate semantics match across both backends.
+Proves the DB-engine seam (LMDB is the only engine):
+  (a) CRUD + ordered range/iterate/prefix semantics through the wrapper.
+  (b) PARITY — the on-disk bytes are identical to what a direct lmdb.open() store writes (Codec keys/values).
+  (c) PERF   — a micro-benchmark times get/put/range through LmdbKVStore vs raw lmdb txn calls and
+               asserts the wrapper overhead is small.
+  (d) the 'many concurrent readers + one writer' contract (overlapping + cross-thread reads).
 
 Run with: python3 -m pytest tests/test_kvstore.py -v -s
 """
@@ -17,18 +15,16 @@ import time
 
 import pytest
 
-pytest.importorskip("lmdb")
 import lmdb  # noqa: E402
 
-from kvstore import Codec, LmdbKVStore, SqliteKVStore, open_store  # noqa: E402
-from reward_chain import RewardChain  # noqa: E402
+from kvstore import Codec, LmdbKVStore, open_store  # noqa: E402
 
 _MS = 64 * 1024 * 1024
 
 
-# --------------------------------------------------------------------------- basic CRUD, both backends
-@pytest.mark.parametrize("backend", ["lmdb", "sqlite-kv"])
-def test_crud_roundtrip(backend, tmp_path):
+# --------------------------------------------------------------------------- basic CRUD
+def test_crud_roundtrip(tmp_path):
+    backend = "lmdb"
     s = open_store(backend, str(tmp_path / "kv"), dbs=["d"], map_size=_MS)
     try:
         db = s.open_db("d")
@@ -49,8 +45,8 @@ def test_crud_roundtrip(backend, tmp_path):
         s.close()
 
 
-@pytest.mark.parametrize("backend", ["lmdb", "sqlite-kv"])
-def test_ordered_range_and_iterate(backend, tmp_path):
+def test_ordered_range_and_iterate(tmp_path):
+    backend = "lmdb"
     s = open_store(backend, str(tmp_path / "kv"), dbs=["d"], map_size=_MS)
     try:
         db = s.open_db("d")
@@ -77,8 +73,8 @@ def test_ordered_range_and_iterate(backend, tmp_path):
         s.close()
 
 
-@pytest.mark.parametrize("backend", ["lmdb", "sqlite-kv"])
-def test_prefix_iterate(backend, tmp_path):
+def test_prefix_iterate(tmp_path):
+    backend = "lmdb"
     s = open_store(backend, str(tmp_path / "kv"), dbs=["d"], map_size=_MS)
     try:
         db = s.open_db("d")
@@ -110,71 +106,29 @@ def test_mdbx_lazy_optional():
             open_store("mdbx", "/tmp/nope_mdbx", dbs=["d"])
 
 
-# --------------------------------------------------------------------------- (a) PARITY: byte-identical
+# --------------------------------------------------------------------------- (b) PARITY: byte-identical
 def test_lmdb_on_disk_bytes_identical_to_direct_lmdb(tmp_path):
-    """The migrated RewardChain (open_store lmdb) writes the EXACT same key/value bytes as a direct
-    lmdb.open() store using the store's original convention — byte-identical on-disk format."""
-    rc = RewardChain(str(tmp_path / "rc"), map_size=_MS)
+    """What the wrapper writes is EXACTLY what a direct lmdb.open() reader sees: big-endian Codec height keys
+    and Codec-packed values, byte-for-byte."""
+    s = open_store("lmdb", str(tmp_path / "kv"), dbs=["rows"], map_size=_MS)
+    v5 = Codec.pack([["a", "genesis", 20000000, "mh5"], ["b", "hn", 240000000, "mh5b"]])
+    v6 = Codec.pack([["a", "genesis", 20000000, "mh6"]])
     try:
-        rc.add(5, "Development Reward", "genesis", 20000000, "mh5")
-        rc.add(5, "Hypernode Payouts", "hn", 240000000, "mh5b")  # same height -> appended list
-        rc.add(6, "Development Reward", "genesis", 20000000, "mh6")
+        db = s.open_db("rows")
+        with s.txn(write=True) as t:
+            t.put(db, Codec.hkey(5), v5)
+            t.put(db, Codec.hkey(6), v6)
     finally:
-        rc.close()
+        s.close()
 
-    # read raw bytes straight out of the LMDB env the store wrote
-    env = lmdb.open(str(tmp_path / "rc"), subdir=True, max_dbs=1, readonly=True, lock=False)
-    db = env.open_db(b"rewards")
-    on_disk = {}
+    env = lmdb.open(str(tmp_path / "kv"), subdir=True, max_dbs=1, readonly=True, lock=False)
+    db = env.open_db(b"rows")
     with env.begin() as t:
-        for k, v in t.cursor(db=db):
-            on_disk[bytes(k)] = bytes(v)
+        on_disk = {bytes(k): bytes(v) for k, v in t.cursor(db=db)}
     env.close()
-
-    # reconstruct expected bytes from the original (pre-migration) convention
-    expected = {
-        Codec.hkey(5): Codec.pack([["Development Reward", "genesis", 20000000, "mh5"],
-                                   ["Hypernode Payouts", "hn", 240000000, "mh5b"]]),
-        Codec.hkey(6): Codec.pack([["Development Reward", "genesis", 20000000, "mh6"]]),
-    }
-    assert on_disk == expected
-
-
-# --------------------------------------------------------------------------- (b) SWAPPABILITY
-def _drive_reward_chain(backend, path):
-    """Identical workload against a RewardChain on the given backend; return observable results."""
-    rc = RewardChain(path, map_size=_MS, backend=backend)
-    try:
-        rc.add(5, "Development Reward", "genesis", 20000000, "mh5")
-        rc.add(6, "Hypernode Payouts", "hn", 240000000, "mh6")
-        rc.add(6, "Development Reward", "genesis", 5000000, "mh6b")
-        rc.add(10, "alice", "bob", 30000000, "mh10")
-        return {
-            "entries_for_6": rc.entries_for(6),
-            "all": list(rc.all_entries()),
-            "delta_genesis": rc.balance_delta_units("genesis"),
-            "delta_hn": rc.balance_delta_units("hn"),
-            "delta_bob": rc.balance_delta_units("bob"),
-            "delta_alice": rc.balance_delta_units("alice"),
-            "count_before": rc.count_blocks(),
-            "rolled_back": rc.rollback(6),
-            "all_after": list(rc.all_entries()),
-            "count_after": rc.count_blocks(),
-            "delta_genesis_after": rc.balance_delta_units("genesis"),
-        }
-    finally:
-        rc.close()
-
-
-def test_swappability_lmdb_equals_sqlite(tmp_path):
-    res_lmdb = _drive_reward_chain("lmdb", str(tmp_path / "rc_lmdb"))
-    res_sqlite = _drive_reward_chain("sqlite-kv", str(tmp_path / "rc_sqlite"))
-    assert res_lmdb == res_sqlite, "RewardChain results differ across backends -> seam not engine-independent"
-    # sanity that the workload is non-trivial
-    assert res_lmdb["count_before"] == 3       # heights 5,6,10
-    assert res_lmdb["rolled_back"] == 1        # height 10 dropped (above tip 6)
-    assert res_lmdb["count_after"] == 2
-    assert res_lmdb["delta_genesis"] == 25000000
+    assert on_disk == {struct.pack(">Q", 5): v5, struct.pack(">Q", 6): v6}
+    assert Codec.unhkey(Codec.hkey(6)) == 6
+    assert Codec.unpack(v6) == [["a", "genesis", 20000000, "mh6"]]
 
 
 # --------------------------------------------------------------------------- (c) PERF micro-benchmark
@@ -262,21 +216,20 @@ def test_perf_lmdb_overhead(tmp_path, capsys):
     assert ovh(wr, rr) < 40.0, "range overhead too high: %.1f%%" % ovh(wr, rr)
 
 
-def test_sqlite_concurrent_reads(tmp_path):
-    """The sqlite-kv backend must honor the KVStore 'many concurrent readers + one writer' contract via
-    per-txn connections + WAL: overlapping read txns AND a read from another thread must both work — a single
-    shared connection could do neither (BEGIN-within-BEGIN / cross-thread sqlite errors). [review #1]"""
+def test_concurrent_reads(tmp_path):
+    """The KVStore 'many concurrent readers + one writer' contract: overlapping read txns AND a read from
+    another thread must both work."""
     import threading
-    s = open_store("sqlite-kv", str(tmp_path / "kv"), dbs=["d"], map_size=_MS)
+    s = open_store("lmdb", str(tmp_path / "kv"), dbs=["d"], map_size=_MS)
     db = s.open_db("d")
     with s.txn(write=True) as t:
         for i in range(20):
             t.put(db, struct.pack(">Q", i), b"v%d" % i)
-    # overlapping read txns on the same store (a shared connection would raise here)
+    # overlapping read txns on the same store
     with s.txn() as a, s.txn() as b:
         assert a.get(db, struct.pack(">Q", 1)) == b"v1"
         assert b.get(db, struct.pack(">Q", 2)) == b"v2"
-    # read from a different thread (a shared connection would raise the cross-thread error)
+    # read from a different thread
     out = {}
 
     def reader():
